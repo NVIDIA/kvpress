@@ -43,6 +43,7 @@ class ExpectedAttentionPress(BasePress):
     n_sink: int = 4
     use_covariance: bool = True
     use_vnorm: bool = True
+    use_gaussian_mixture_statistics: bool = False
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
@@ -90,21 +91,22 @@ class ExpectedAttentionPress(BasePress):
         P[d // 2 :, : d // 2], P[: d // 2, d // 2 :] = torch.eye(d // 2), -torch.eye(d // 2)
         R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
 
-        # Apply average rotation to the mean and covariance
-        R = R.mean(dim=0)
-        mu = torch.matmul(mu, R.T)
-        if self.use_covariance:
-            cov = torch.matmul(R, torch.matmul(cov, R.T))
-
-        # Instead of using the average rotation matrix, we could use a mixture of gaussian statistics to
-        # estimate mean and covariance. Estimation is better, but end-to-end performance was lower.
-        # mu = torch.einsum("bhj, fij -> bhfi", mu, R)
-        # mean_mu = mu.mean(dim=2, keepdim=True)
-        # if self.use_covariance:
-        #     cov = torch.einsum("fki, bhkl, fjl -> bhfij", R, cov, R)
-        #     cov = cov.mean(dim=2)
-        #     cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
-        # mu = mean_mu.squeeze(2)
+        # Apply RoPE rotation to the mean and covariance
+        if self.use_gaussian_mixture_statistics:
+            # Use mixture of gaussian statistics
+            mu = torch.einsum("bhj, fij -> bhfi", mu, R)
+            mean_mu = mu.mean(dim=2, keepdim=True)
+            if self.use_covariance:
+                cov = torch.einsum("fki, bhkl, fjl -> bhfij", R, cov, R)
+                cov = cov.mean(dim=2)
+                cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
+            mu = mean_mu.squeeze(2)
+        else:
+            # Simply apply average rotation (better performance)
+            R = R.mean(dim=0)
+            mu = torch.matmul(mu, R.T)
+            if self.use_covariance:
+                cov = torch.matmul(R, torch.matmul(cov, R.T))
 
         return mu, cov
 
