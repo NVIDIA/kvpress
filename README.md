@@ -69,6 +69,24 @@ _Average performance on the RULER dataset with 4k context length and Loogle Shor
 
 Please refer to the [evaluation](evaluation/README.md) directory for more details and results.
 
+## KV cache quantization
+
+We support KV cache quantization through the transformers `QuantizedCache` class (see [HF blog post](https://huggingface.co/blog/kv-cache-quantization#how-to-use-quantized-kv-cache-in-%F0%9F%A4%97-transformers)). To use it, simply pass a cache object to your pipeline:
+
+```python
+from transformers import QuantizedCacheConfig, QuantoQuantizedCache
+config = QuantizedCacheConfig(nbits=4)
+cache = QuantoQuantizedCache(config)
+
+pipe(...., cache=cache)
+```
+
+By default, the `DynamicCache` is used (no quantization). 
+
+> [!IMPORTANT]  
+> To use the `QuantizedCache`, you might need to install additional packages, such as optimum-quanto. See also [this issue](https://github.com/huggingface/transformers/issues/34848).
+
+
 ## FAQ
 
 <details><summary> 
@@ -162,10 +180,3 @@ Check the [demo notebook](notebooks/per_layer_compression_demo.ipynb) for more d
 </details>
 
 <details><summary> 
-
-### Is quantization supported ?
-</summary>
-
-We don't support quantization of the KV cache yet. Quantization can achieve up to 4x compression moving from (b)float16 to int4 and we believe it is orthogonal to the KV cache pruning strategies proposed in this repository.
-
-</details>
