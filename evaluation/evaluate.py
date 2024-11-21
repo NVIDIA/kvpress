@@ -19,16 +19,14 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from fire import Fire
-from tqdm import tqdm
-from transformers import pipeline
 from datasets import load_dataset
-
+from fire import Fire
 from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
 from loogle.calculate_metrics import calculate_metrics as loogle_scorer
 from ruler.calculate_metrics import calculate_metrics as ruler_scorer
+from tqdm import tqdm
+from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
-
 
 from kvpress import (
     ExpectedAttentionPress,
