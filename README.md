@@ -88,7 +88,7 @@ pipe(..., cache=cache)
 By default, the `DynamicCache` is used (no quantization). 
 
 > [!IMPORTANT]  
-> To use the `QuantizedCache`, you might need to install additional packages, such as optimum-quanto. See also [this issue](https://github.com/huggingface/transformers/issues/34848).
+> To use the `QuantizedCache`, you need to install additional dependencies (e.g. `pip install optimum-quanto==0.2.4`, see also [this issue](https://github.com/huggingface/transformers/issues/34848)).
 
 
 ## FAQ
