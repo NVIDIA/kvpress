@@ -1,5 +1,6 @@
 [![PyPI version](https://badge.fury.io/py/kvpress.svg)](https://badge.fury.io/py/kvpress)
-[![License: MIT](https://img.shields.io/badge/License-Apache2.0-yellow.svg)](https://opensource.org/licenses/Apache2.0)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Colab example notebook](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1JNvaTKuuAHrl49dYB9-mdEH_y52Ib-NP?usp=drive_link)
 
 ![kvpress](kvpress.jpg)
 
@@ -50,14 +51,16 @@ In the snippet above, the compression is only applied on the context tokens so t
 We welcome contributions! If you want to implement a new press, open an issue or a pull request. Refer to the [FAQ](#faq) for more information on how presses work and how to create new ones or check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
 
 ## Available presses
+All current presses are training free. We provide the following presses associated with the following scores:
 
-We provide the following presses associated with the following scores:
 - `RandomPress`: random score
 - `KnormPress`: inverse norm of the key ([paper](https://arxiv.org/abs/2406.11430))
 - `ObservedAttentionPress`: average attention weight observed during in pre-filling phase (similar to [H2O](https://arxiv.org/abs/2306.14048) or [TOVA](https://arxiv.org/abs/2401.06104))
 - `SnapKVPress`: average attention weight of the last 64 queries ([paper](https://arxiv.org/abs/2404.14469))
 - `ExpectedAttentionPress` (ours): expected attention weight during the generation phase  (see [this notebook](notebooks/expected_attention.ipynb))
 - `StreamingLLMPress`: keep only the first and last tokens ([paper](https://arxiv.org/abs/2309.17453))
+
+For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
 ## Evaluation
 

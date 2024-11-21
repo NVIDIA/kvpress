@@ -1,20 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
 
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 import torch
 from torch import nn
@@ -27,9 +15,9 @@ from tests.fixtures import kv_press_pipeline, unit_test_model  # noqa: F401
 @dataclass
 class RecordCompressionKnormPress(KnormPress):
     compression_ratio: float = 0
-    recorded_compression_ratios: List[float] = field(default_factory=list)
+    recorded_compression_ratios: list[float] = field(default_factory=list)
 
-    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: Dict, output: list):
+    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         self.recorded_compression_ratios.append(self.compression_ratio)
         return super().forward_hook(module, input, kwargs, output)
 
