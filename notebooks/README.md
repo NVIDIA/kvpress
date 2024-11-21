@@ -9,7 +9,7 @@ This notebook introduces the kvpress package by compressing the Wikipedia articl
 ## [expected_attention.ipynb](expected_attention.ipynb)
 This notebook illustrates the usage of the `ExpectedAttentionPress` class. It explains how to compute scores based on the expected attention on future positions and demonstrates the steps involved in the process.
 
-## [new_press.ipynb](new_press.ipynb)[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ld6u2OnVUpGryBGDdanjjDrf6j7TD0oA?usp=drive_link)
+## [new_press.ipynb](new_press.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ld6u2OnVUpGryBGDdanjjDrf6j7TD0oA?usp=drive_link)
 This notebook provides an overview on how to create a new press. It explains the underlying mechanism of key-value compression and how it can be applied to transformer models.
 
 ## [per_layer_compression_demo.ipynb](per_layer_compression_demo.ipynb)
