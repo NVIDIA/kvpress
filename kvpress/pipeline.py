@@ -120,7 +120,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Truncate context
         if context_ids.shape[1] > max_context_length:
             logger.warning(
-                f"Context length has been truncated from {context_ids.Fshape[1]} to {max_context_length} tokens."
+                f"Context length has been truncated from {context_ids.shape[1]} to {max_context_length} tokens."
             )
             context_ids = context_ids[:, :max_context_length]
 

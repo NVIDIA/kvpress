@@ -1,6 +1,6 @@
 # Notebooks
 
-This folder contains several Jupyter notebooks that demonstrate various features and functionalities of the kvpress pacakge.
+This folder contains several Jupyter notebooks that demonstrate various features and functionalities of the kvpress package.
 Below is a list of the notebooks along with a brief explanation of their content:
 
 ## [wikipedia_demo.ipynb](wikipedia_demo.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1JNvaTKuuAHrl49dYB9-mdEH_y52Ib-NP?usp=drive_link)
