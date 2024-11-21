@@ -75,10 +75,11 @@ We support KV cache quantization through the transformers `QuantizedCache` class
 
 ```python
 from transformers import QuantizedCacheConfig, QuantoQuantizedCache
+
 config = QuantizedCacheConfig(nbits=4)
 cache = QuantoQuantizedCache(config)
 
-pipe(...., cache=cache)
+pipe(..., cache=cache)
 ```
 
 By default, the `DynamicCache` is used (no quantization). 
