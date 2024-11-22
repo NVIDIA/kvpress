@@ -7,7 +7,7 @@ This directory contains a set of scripts to evaluate the performance of differen
 - [Infinitebench](infinite_bench/README.md) ([hf link](https://huggingface.co/datasets/MaxJeblick/InfiniteBench))
 
 
-Please refer to the README of each dataset for more information on how the huggingface dataset was generated.
+Please refer to the README of each dataset for more information on how the Hugging Face dataset was generated.
 
 ## Usage
 
@@ -99,7 +99,7 @@ $dataset
 ```
 
 Where:
-- `create_huggingface_dataset.py` is a script that generates the huggingface dataset from the original dataset. Each dataset is associated with a set of parquet files with the following structure:
+- `create_huggingface_dataset.py` is a script that generates the Hugging Face dataset from the original dataset. Each dataset is associated with a set of parquet files with the following structure:
   - `context`: ... 
   - `question`: ...
   - `answer_prefix`: ...

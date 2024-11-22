@@ -2,9 +2,9 @@
 
 [Zero scrolls](https://www.zero.scrolls-benchmark.com/) includes ten natural language tasks across multiple domains, including summarization, question answering, aggregated sentiment classification and information reordering.
 
-## Hugginface dataset
+## Hugging Face dataset
 
-The huggingface dataset for Zero Scrolls can be found [here](https://huggingface.co/datasets/simonjegou/zero_scroll). To reproduce this dataset, simply run the `create_huggingface_dataset.py` script.
+The Hugging Face dataset for Zero Scrolls can be found [here](https://huggingface.co/datasets/simonjegou/zero_scroll). To reproduce this dataset, simply run the `create_huggingface_dataset.py` script.
 
 ## Evaluation
 

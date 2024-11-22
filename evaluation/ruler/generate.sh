@@ -1,4 +1,4 @@
-# The following script prepares the synthetic data benchmark for a given huggingface tokenizer and without template
+# The following script prepares the synthetic data benchmark for a given Hugging Face tokenizer and without template
 # Before running this script, make sure you downloaded the data as explained in the README:
 # cd scripts/data/synthetic/json/
 # python download_paulgraham_essay.py
