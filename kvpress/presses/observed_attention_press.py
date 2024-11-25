@@ -17,7 +17,7 @@ logger = logging.get_logger(__name__)
 class ObservedAttentionPress(BasePress):
     """The observed attention score is defined as the average attention weight over all prompt tokens
     Requires output_attentions=True and attn_implementation="eager" to have access to attentions
-    This approach is related to H2O (https://arxiv.org/abs/2306.14048) and TOVA (https://arxiv.org/abs/2401.06104)
+    This approach is u to H2O (https://arxiv.org/abs/2306.14048).
     """
 
     compression_ratio: float = 0.0
