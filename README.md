@@ -65,7 +65,8 @@ For a detailed list of existing KV cache compression methods, check [Awesome-KV-
 ## Evaluation
 
 See the [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook on how to measure peak memory usage and total time gain.
-![PeakMemoryConsumption](evaluation/assets/peak_memory_consumption.png){: width="50%" height="50%"}
+<img src="evaluation/assets/peak_memory_consumption.png" alt="drawing" width="600"/>
+
 
 We provide a simple CLI to evaluate the performance of the different presses on several long-context datasets. 
 
