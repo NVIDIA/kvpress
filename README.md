@@ -183,5 +183,3 @@ press = apply_per_layer_compression(press, compression_ratios=[...])
 
 Check the [demo notebook](notebooks/per_layer_compression_demo.ipynb) for more details.
 </details>
-
-<details><summary> 
