@@ -65,6 +65,10 @@ For a detailed list of existing KV cache compression methods, check [Awesome-KV-
 
 ## Evaluation
 
+See the [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook on how to measure peak memory usage and total time gain.
+<img src="evaluation/assets/peak_memory_consumption.png" alt="drawing" width="450"/>
+
+
 We provide a simple CLI to evaluate the performance of the different presses on several long-context datasets. 
 
 _Average performance on the RULER dataset with 4k context length and Loogle Short Dependency QA task for 3 models and 7 presses_

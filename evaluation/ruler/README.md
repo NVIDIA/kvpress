@@ -2,9 +2,9 @@
 
 [RULER](https://arxiv.org/abs/2404.06654) generates synthetic examples to evaluate long-context language models with configurable sequence length (from 4k tokens to 128k tokens) and task complexity. It contains a set of 13 tasks grouped in 4 categories (needle in the haystack, question answering, multi-hop tracing and aggregation).
 
-## Huggingface dataset
+## Hugging Face dataset
 
-The huggingface dataset for RULER can be found [here](https://huggingface.co/datasets/simonjegou/ruler). To reproduce this dataset,
+The Hugging Face dataset for RULER can be found [here](https://huggingface.co/datasets/simonjegou/ruler). To reproduce this dataset,
 
 1. Install the [RULER repository](https://github.com/hsiehjackson/RULER) and download the necessary data files (see 1. Download data in the README)
 2. Copy paste the `generate.sh` from this repository to `$RULER/scripts`, set the `DATA_DIR` variable to your desired location of the RULER data files and run the script
