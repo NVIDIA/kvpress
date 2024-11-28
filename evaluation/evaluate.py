@@ -23,6 +23,7 @@ from kvpress import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
+    ThinKPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ PRESS_DICT = {
     "random": RandomPress(),
     "snapkv": SnapKVPress(),
     "streaming_llm": StreamingLLMPress(),
+    "think": ThinKPress(),
 }
 
 
