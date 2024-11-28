@@ -111,7 +111,8 @@ class BasePress:
         # ThinK uses the channel wise pruning
         if self.__class__.__name__ == "ThinKPress":
             n_prune = int(module.head_dim * self.compression_ratio)
-            scores = scores.view(scores.shape[0], keys.shape[1], -1, scores.shape[-1]).sum(dim=-2)
+            if keys.shape[1] != scores.shape[1]:
+                scores = scores.view(scores.shape[0], keys.shape[1], -1, scores.shape[-1]).sum(dim=-2)
             _, indices = torch.topk(scores, n_prune, dim=-1, largest=False)
             keep_idx = indices.sort().values
             mask = torch.zeros(scores.shape, dtype=torch.bool).to(scores.device)

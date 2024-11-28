@@ -12,6 +12,7 @@ from kvpress.presses.random_press import RandomPress
 from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.tova_press import TOVAPress
+from kvpress.presses.think_press import ThinKPress
 
 __all__ = [
     "BasePress",
@@ -22,6 +23,7 @@ __all__ = [
     "SnapKVPress",
     "StreamingLLMPress",
     "TOVAPress",
+    "ThinKPress",
     "KVPressTextGenerationPipeline",
     "apply_per_layer_compression",
 ]
