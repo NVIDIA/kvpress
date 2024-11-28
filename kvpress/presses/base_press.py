@@ -108,15 +108,25 @@ class BasePress:
 
         with torch.no_grad():
             scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
+        # ThinK uses the channel wise pruning
+        if self.__class__.__name__ == "ThinKPress":
+            n_prune = int(module.head_dim * self.compression_ratio)
+            scores = scores.view(scores.shape[0], keys.shape[1], -1, scores.shape[-1]).sum(dim=-2)
+            _, indices = torch.topk(scores, n_prune, dim=-1, largest=False)
+            keep_idx = indices.sort().values
+            mask = torch.zeros(scores.shape, dtype=torch.bool).to(scores.device)
+            mask_k = mask.scatter(-1, keep_idx, 1)                   
+            mask_k = mask_k.unsqueeze(2).expand(-1, -1, q_len - self.window_size, -1)
+            keys = torch.cat([keys[:, :, :q_len - self.window_size, :].masked_fill(mask_k, 0), keys[:, :, q_len - self.window_size:, :]], dim=-2)
+        else:
+            # Prune KV pairs with the lowest scores
+            n_kept = int(q_len * (1 - self.compression_ratio))
+            indices = scores.topk(n_kept, dim=-1).indices
+            indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        # Prune KV pairs with the lowest scores
-        n_kept = int(q_len * (1 - self.compression_ratio))
-        indices = scores.topk(n_kept, dim=-1).indices
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
-
-        # Update cache
-        keys = keys.gather(2, indices).contiguous()
-        values = values.gather(2, indices).contiguous()
+            # Update cache
+            keys = keys.gather(2, indices).contiguous()
+            values = values.gather(2, indices).contiguous()
         if isinstance(cache, QuantizedCache):
             cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
             cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
