@@ -112,7 +112,7 @@ def get_keys_without_pos_embedding(module, hidden_states):
 
     elif hasattr(module, "qkv_proj"):
         # see modeling_phi3.py
-        qkv = module.qkv_proj(hidden_states[:, -module.window_size:])
+        qkv = module.qkv_proj(hidden_states)
         query_pos = module.num_heads * module.head_dim
         key_states = qkv[..., query_pos: query_pos + module.num_key_value_heads * module.head_dim]
     else:
