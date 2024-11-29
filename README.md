@@ -61,6 +61,11 @@ All current presses are training free. We provide the following presses associat
 - `StreamingLLMPress`: keep only the first and last tokens ([paper](https://arxiv.org/abs/2309.17453))
 - `TOVAPress`: attention weight of the last query averaged across heads ([paper](https://arxiv.org/abs/2401.06104))
 
+In addition, we provide several press wrappers that can be used to wrap a press:
+
+- `apply_per_layer_compression`: Apply a different compression ratio per layer (only works with flash attention)
+- `apply_key_rerotation`: Apply continuous RoPE embeddings to the pruned keys
+
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
 ## Evaluation

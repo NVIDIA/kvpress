@@ -16,7 +16,6 @@ def apply_per_layer_compression(press: BasePress, compression_ratios: List[float
     """
     Apply per-layer compression to a given press object.
     This function wraps the forward hook of the press object to apply per-layer compression.
-
     Parameters
     ----------
     press : BasePress
@@ -28,6 +27,9 @@ def apply_per_layer_compression(press: BasePress, compression_ratios: List[float
     BasePress
         The press object with per-layer compression applied.
     """
+    assert "apply_per_layer_compression" not in press.wrappers_applied, "apply_per_layer_compression already applied"
+    press.wrappers_applied.append("apply_per_layer_compression")
+
     press.compression_ratios = compression_ratios  # type: ignore[attr-defined]
     press.compression_ratio = None
 

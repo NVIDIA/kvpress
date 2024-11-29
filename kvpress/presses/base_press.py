@@ -4,6 +4,7 @@
 
 import logging
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Generator
 
 import torch
@@ -13,13 +14,14 @@ from transformers import (
     MistralForCausalLM,
     Phi3ForCausalLM,
     PreTrainedModel,
-    Qwen2ForCausalLM,
     QuantizedCache,
+    Qwen2ForCausalLM,
 )
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class BasePress:
     """Base class for pruning methods.
     Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
@@ -28,9 +30,11 @@ class BasePress:
     The press can be applied to a model by calling it with the model as an argument.
     """
 
-    def __init__(self, compression_ratio: float = 0.0):
-        self.compression_ratio = compression_ratio
-        assert 0 <= compression_ratio < 1, "Compression ratio must be between 0 and 1"
+    compression_ratio: float = 0.0
+
+    def __post_init__(self):
+        assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
+        self.wrappers_applied = []
 
     def score(
         self,

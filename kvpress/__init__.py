@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from kvpress.per_layer_compression_wrapper import apply_per_layer_compression
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
@@ -12,6 +11,8 @@ from kvpress.presses.random_press import RandomPress
 from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.tova_press import TOVAPress
+from kvpress.wrappers.per_layer_compression_wrapper import apply_per_layer_compression
+from kvpress.wrappers.rerotate_keys_wrapper import apply_key_rerotation
 
 __all__ = [
     "BasePress",
@@ -24,4 +25,5 @@ __all__ = [
     "TOVAPress",
     "KVPressTextGenerationPipeline",
     "apply_per_layer_compression",
+    "apply_key_rerotation",
 ]

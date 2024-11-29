@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -180,7 +180,9 @@ class KVPressTextGenerationPipeline(Pipeline):
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),
                 cache=cache,
-                context_length=context_length,
+                context_length=(
+                    context_length if "apply_key_rerotation" not in press.wrappers_applied else cache.get_seq_length()
+                ),
                 max_new_tokens=max_new_tokens,
             )
             answers.append(answer)
