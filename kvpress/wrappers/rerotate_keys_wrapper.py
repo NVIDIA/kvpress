@@ -30,7 +30,7 @@ def apply_key_rerotation(press: BasePress) -> BasePress:
         The press object with rerotation applied.
     """
     assert (
-        press.wrappers_applied == []
+            press.wrappers_applied == []
     ), f"apply_key_rerotation must be the first wrapper applied. Already applied: {press.wrappers_applied}"
     press.wrappers_applied.append("apply_key_rerotation")
 
@@ -109,7 +109,12 @@ def forward_rerotate_hook(self, module: nn.Module, input: list[torch.Tensor], kw
 def get_keys_without_pos_embedding(module, hidden_states):
     if hasattr(module, "k_proj"):
         key_states = module.k_proj(hidden_states)
-        # TODO: add support for other models such as Phi3ForCausalLM
+
+    elif hasattr(module, "qkv_proj"):
+        # see modeling_phi3.py
+        qkv = module.qkv_proj(hidden_states[:, -module.window_size:])
+        query_pos = module.num_heads * module.head_dim
+        key_states = qkv[..., query_pos: query_pos + module.num_key_value_heads * module.head_dim]
     else:
         raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class_}.")
     key_states = key_states.view(key_states.shape[0], key_states.shape[1], module.num_heads, module.head_dim).transpose(
