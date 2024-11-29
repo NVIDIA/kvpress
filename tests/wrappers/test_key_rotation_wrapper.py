@@ -19,3 +19,4 @@ def test_presses_run(kv_press_pipeline):  # noqa: F811
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
+    assert "apply_key_rerotation" in press.wrappers_applied

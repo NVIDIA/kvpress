@@ -117,7 +117,7 @@ def get_keys_without_pos_embedding(module, hidden_states):
         key_states = qkv[..., query_pos: query_pos + module.num_key_value_heads * module.head_dim]
     else:
         raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class_}.")
-    key_states = key_states.view(key_states.shape[0], key_states.shape[1], module.num_heads, module.head_dim).transpose(
+    key_states = key_states.view(key_states.shape[0], key_states.shape[1], module.num_key_value_heads, module.head_dim).transpose(
         1, 2
     )
     return key_states
