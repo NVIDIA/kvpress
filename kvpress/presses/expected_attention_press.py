@@ -108,7 +108,9 @@ class ExpectedAttentionPress(BasePress):
     ) -> torch.Tensor:
 
         # Remove sink tokens
-        assert keys.size(2) > self.n_sink, f"Input should contain more tokens than n_sink={self.n_sink}"
+        assert (
+            keys.size(2) > self.n_sink
+        ), f"Input should contain more tokens than n_sink={self.n_sink}, but only contains {keys.size(2)}"
         keys = keys[:, :, self.n_sink :]
         values = values[:, :, self.n_sink :]
 

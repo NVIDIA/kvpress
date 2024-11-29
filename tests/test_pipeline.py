@@ -107,3 +107,17 @@ def generate_answer(model):
     )["answers"]
     model.to(torch.device("cpu"))
     return answers
+
+
+def test_pipeline_single_or_no_question(kv_press_pipeline, caplog):  # noqa: F811
+    question = "When was this article written?"
+    with caplog.at_level(logging.DEBUG):
+        context = "This is a test article. It was written on 2022-01-01."
+        press = ExpectedAttentionPress(compression_ratio=0.4, n_sink=0)
+        answer = kv_press_pipeline(context, question=question, press=press, chunk_size=5)["answer"]
+
+    assert isinstance(answer, str)
+
+    messages = [record.message for record in caplog.records]
+    assert "Context Length: 23" in messages, messages
+    assert "Compressed Context Length: 13" in messages, messages

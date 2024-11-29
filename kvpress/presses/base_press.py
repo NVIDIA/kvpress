@@ -4,6 +4,7 @@
 
 import logging
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Generator
 
 import torch
@@ -20,6 +21,7 @@ from transformers import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class BasePress:
     """Base class for pruning methods.
     Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
@@ -28,10 +30,11 @@ class BasePress:
     The press can be applied to a model by calling it with the model as an argument.
     """
 
-    def __init__(self, compression_ratio: float = 0.0):
-        self.compression_ratio = compression_ratio
+    compression_ratio: float = 0.0
+
+    def __post_init__(self):
         self.start_from = 0
-        assert 0 <= compression_ratio < 1, "Compression ratio must be between 0 and 1"
+        assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
 
     def score(
         self,
@@ -97,7 +100,7 @@ class BasePress:
         q_len = hidden_states.shape[1]
 
         # Don't compress if the compression ratio is 0 or this is not pre-filling
-        if (self.compression_ratio == 0) or (cache.seen_tokens - self.start_from > q_len):
+        if (self.compression_ratio == 0) or (cache.get_seq_length(module.layer_idx) - self.start_from > q_len):
             return output
 
         if isinstance(cache, QuantizedCache):
@@ -107,17 +110,19 @@ class BasePress:
             keys = cache.key_cache[module.layer_idx]
             values = cache.value_cache[module.layer_idx]
 
-        assert len(keys) > self.start_from, "Cache should contain more tokens than start_from"
-        keys_to_keep = keys[..., : self.start_from]
-        values_to_keep = values[..., : self.start_from]
-        keys_to_prune = keys[..., self.start_from :]
-        values_to_prune = values[..., self.start_from :]
+        assert (
+            keys.shape[-2] > self.start_from
+        ), f"Cache should contain more tokens than start_from, but {keys.shape[-1]} <= {self.start_from}"
+        keys_to_keep = keys[:, :, : self.start_from]
+        values_to_keep = values[:, :, : self.start_from]
+        keys_to_prune = keys[:, :, self.start_from :]
+        values_to_prune = values[:, :, self.start_from :]
 
         with torch.no_grad():
             scores = self.score(module, hidden_states, keys_to_prune, values_to_prune, attentions, kwargs)
 
         # Prune KV pairs with the lowest scores
-        n_kept = int((q_len - self.start_from) * (1 - self.compression_ratio))
+        n_kept = int(q_len * (1 - self.compression_ratio))
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
@@ -125,9 +130,9 @@ class BasePress:
         keys = keys_to_prune.gather(2, indices).contiguous()
         values = values_to_prune.gather(2, indices).contiguous()
 
-        if len(keys_to_keep) > 0:
-            keys = torch.cat([keys_to_keep, keys], dim=-1)
-            values = torch.cat([values_to_keep, values], dim=-1)
+        if keys_to_keep.shape[-2] > 0:
+            keys = torch.cat([keys_to_keep, keys], dim=-2)
+            values = torch.cat([values_to_keep, values], dim=-2)
 
         if isinstance(cache, QuantizedCache):
             cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
