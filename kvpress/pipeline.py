@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -33,6 +33,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
         cache: Optional[Cache] = None,
+        chunk_size: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -78,7 +79,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             "answer_prefix": answer_prefix,
             "max_context_length": max_context_length,
         }
-        forward_kwargs = {"press": press, "max_new_tokens": max_new_tokens, "cache": cache}
+        forward_kwargs = {"press": press, "max_new_tokens": max_new_tokens, "cache": cache, "chunk_size": chunk_size}
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
 
     def preprocess(
@@ -135,6 +136,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         max_new_tokens: int = 50,
         press: Optional[BasePress] = None,
         cache: Optional[Cache] = None,
+        chunk_size: Optional[int] = None,
     ):
         """
         Forward pass of the kv-press pipeline.
@@ -162,14 +164,29 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Prefilling using the press on the context
         if cache is None:
             cache = DynamicCache()
+        max_pos_embeddings = self.model.config.max_position_embeddings
+        chunk_size = chunk_size or max_pos_embeddings  # Use provided chunk_size or default to max_pos_embeddings
+        # Handle contexts exceeding the chunk size
+        if context_length > chunk_size:
+            logger.warning("Context exceeds chunk size. Splitting into chunks.")
+            chunks = [context_ids[:, i : i + chunk_size] for i in range(0, context_length, chunk_size)]
+        else:
+            chunks = [context_ids]
 
-        with press(self.model) if press is not None else contextlib.nullcontext():
-            self.model(
-                input_ids=context_ids,
-                past_key_values=cache,
-                output_attentions=isinstance(press, ObservedAttentionPress),
-                num_logits_to_keep=1,
-            )
+        if cache is None:
+            cache = DynamicCache()
+
+        # Iterative processing of context chunks
+        for chunk in chunks:
+            with (
+                press(self.model, start_from=cache.get_seq_length(0)) if press is not None else contextlib.nullcontext()
+            ):
+                self.model(
+                    input_ids=chunk,
+                    past_key_values=cache,
+                    output_attentions=isinstance(press, ObservedAttentionPress),
+                    num_logits_to_keep=1,
+                )
 
         logger.debug(f"Context Length: {context_length}")
         logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
