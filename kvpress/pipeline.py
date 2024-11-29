@@ -181,8 +181,12 @@ class KVPressTextGenerationPipeline(Pipeline):
             with (
                 press(self.model, start_from=cache.get_seq_length(0)) if press is not None else contextlib.nullcontext()
             ):
+                position_ids = torch.arange(
+                    cache.get_seq_length(0), cache.get_seq_length(0) + chunk.shape[1], device=self.model.device
+                ).unsqueeze(0)
                 self.model(
                     input_ids=chunk,
+                    position_ids=position_ids,
                     past_key_values=cache,
                     output_attentions=isinstance(press, ObservedAttentionPress),
                     num_logits_to_keep=1,
