@@ -2,19 +2,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from calendar import c
 import contextlib
 import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline, StaticCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress.presses.base_press import BasePress
+from kvpress.ada_cache import DynamicCacheSplitHeadFlatten
+from kvpress.presses.base_press import BasePress, AdaBasePress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 
 logger = logging.getLogger(__name__)
+
+
 
 
 class KVPressTextGenerationPipeline(Pipeline):
@@ -66,7 +70,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 - forward_kwargs: The keyword arguments for the forward function.
                 - postprocess_kwargs: The keyword arguments for the postprocess function.
         """
-
         answer_prefix = answer_prefix or ""
         postprocess_kwargs = {"single_question": questions is None}
         assert question is None or questions is None, "Either question or questions should be provided, not both."
@@ -113,7 +116,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Add question_suffix and answer prefix
         # e.g. for llama3.1, question_suffix="<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
         questions = [question + question_suffix + answer_prefix for question in questions]
-
+        
         # Tokenize the context and questions
         context_ids = self.tokenizer.encode(context, return_tensors="pt", add_special_tokens=False)
         question_ids = [
@@ -161,7 +164,11 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Prefilling using the press on the context
         if cache is None:
-            cache = DynamicCache()
+            # check if the press is an case of AdaKV
+            if isinstance(press, AdaBasePress):
+                cache = DynamicCacheSplitHeadFlatten()
+            else:
+                cache = DynamicCache()
 
         with press(self.model) if press is not None else contextlib.nullcontext():
             self.model(
@@ -183,6 +190,9 @@ class KVPressTextGenerationPipeline(Pipeline):
                 context_length=context_length,
                 max_new_tokens=max_new_tokens,
             )
+            # print(answer)
+            # input('one answer')
+
             answers.append(answer)
 
         return answers
@@ -247,14 +257,14 @@ class KVPressTextGenerationPipeline(Pipeline):
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
-        # Remove the generated tokens from the cache
-        if isinstance(cache, QuantizedCache):
-            key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
-        else:
-            key_attr, value_attr = "key_cache", "value_cache"
+        # # Remove the generated tokens from the cache
+        # if isinstance(cache, QuantizedCache):
+        #     key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
+        # else:
+        #     key_attr, value_attr = "key_cache", "value_cache"
 
-        setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
-        setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
+        # setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
+        # setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
 
         return answer
 
