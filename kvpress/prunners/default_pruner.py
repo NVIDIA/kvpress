@@ -18,7 +18,7 @@ from transformers import (
     Qwen2ForCausalLM,
 )
 
-from kvpress.scorers.base_scorer import BasesScorer
+from kvpress.scorers.base_scorer import BaseScorer
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class DefaultPruner:
     and updates the cache with the pruned KV pairs.
     """
 
-    scorer: BasesScorer
+    scorer: BaseScorer
     compression_ratio: float = 0.0
 
     def __post_init__(self):

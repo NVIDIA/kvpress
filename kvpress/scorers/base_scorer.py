@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 
-class BasesScorer:
+class BaseScorer:
     """
     Base class for scorers.
     The `score` method is called after the forward pass of an attention layer.

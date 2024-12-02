@@ -5,10 +5,10 @@
 import torch
 from torch import nn
 
-from kvpress.scorers.base_scorer import BasesScorer
+from kvpress.scorers.base_scorer import BaseScorer
 
 
-class RandomScorer(BasesScorer):
+class RandomScorer(BaseScorer):
     """Randomly prune KV pairs"""
 
     def score(

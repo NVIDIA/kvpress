@@ -8,13 +8,13 @@ import torch
 from torch import nn
 from transformers.utils import logging
 
-from kvpress.scorers.base_scorer import BasesScorer
+from kvpress.scorers.base_scorer import BaseScorer
 
 logger = logging.get_logger(__name__)
 
 
 @dataclass
-class ObservedAttentionScorer(BasesScorer):
+class ObservedAttentionScorer(BaseScorer):
     """The observed attention score is defined as the average attention weight over all prompt tokens
     Requires output_attentions=True and attn_implementation="eager" to have access to attentions
     This approach is related to H2O (https://arxiv.org/abs/2306.14048).

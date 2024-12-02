@@ -11,11 +11,11 @@ import torch.nn.functional as F
 from torch import nn
 from transformers.models.llama.modeling_llama import repeat_kv
 
-from kvpress.scorers.base_scorer import BasesScorer
+from kvpress.scorers.base_scorer import BaseScorer
 
 
 @dataclass
-class ExpectedAttentionScorer(BasesScorer):
+class ExpectedAttentionScorer(BaseScorer):
     """
     Compute scores based on the expected attention on next positions. To do so
         1. Compute the mean and covariance matrix of the queries before RoPE.
