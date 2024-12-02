@@ -25,11 +25,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DefaultPruner:
-    """Base class for pruning methods.
-    Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
-    This score is used to prune the KV pairs with the lowest scores in the `hook` method
-    The `hook` method is called after the forward pass of a layer and updates the cache with the pruned KV pairs.
-    The press can be applied to a model by calling it with the model as an argument.
+    """
+    Base class for pruning methods.
+    The `forward_hook` method is called after the forward pass of an attention layer.
+    and updates the cache with the pruned KV pairs.
     """
 
     scorer: BasesScorer
@@ -39,7 +38,7 @@ class DefaultPruner:
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        """Cache compression hook called after the forward pass of a decoder layer.
+        """Cache compression hook called after the forward pass of an attention layer.
         The hook is applied only during the pre-filling phase if there is some pruning ratio.
         The current implementation only allows to remove a constant number of KV pairs.
 

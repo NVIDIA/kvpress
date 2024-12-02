@@ -7,7 +7,11 @@ from torch import nn
 
 
 class BasesScorer:
-    """Base class for scorers"""
+    """
+    Base class for scorers.
+    The `score` method is called after the forward pass of an attention layer.
+    It is used to compute the scores for each KV pair in the layer.
+    """
 
     def score(
         self,
@@ -38,6 +42,5 @@ class BasesScorer:
         Returns
         -------
             Scores for each KV pair in the layer, shape keys.shape[:-1].
-
         """
         raise NotImplementedError
