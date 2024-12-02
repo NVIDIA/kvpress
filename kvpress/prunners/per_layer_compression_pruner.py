@@ -9,13 +9,13 @@ from typing import List
 import torch
 from torch import nn
 
-from kvpress.presses.default_press import DefaultPress
+from kvpress.prunners.default_pruner import DefaultPruner
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PerLayerCompressionPress(DefaultPress):
+class PerLayerCompressionPruner(DefaultPruner):
     compression_ratios: List[float] = None
 
     def __post_init__(self):

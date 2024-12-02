@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DefaultPress:
+class DefaultPruner:
     """Base class for pruning methods.
     Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
     This score is used to prune the KV pairs with the lowest scores in the `hook` method

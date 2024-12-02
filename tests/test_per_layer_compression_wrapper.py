@@ -5,13 +5,13 @@
 import torch
 from transformers import DynamicCache
 
-from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
+from kvpress.prunners.per_layer_compression_pruner import PerLayerCompressionPruner
 from kvpress.scorers.knorm_scorer import KnormScorer
 from tests.fixtures import kv_press_pipeline, unit_test_model  # noqa: F401
 
 
 def test_per_layer_compression_press(unit_test_model):  # noqa: F811
-    press = PerLayerCompressionPress(compression_ratios=[0.1, 1], scorer=KnormScorer())
+    press = PerLayerCompressionPruner(compression_ratios=[0.1, 1], scorer=KnormScorer())
     with press(unit_test_model):
         input_ids = torch.randint(0, 3_000, (5, 256))
         past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values

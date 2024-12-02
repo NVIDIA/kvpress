@@ -63,6 +63,24 @@ All current presses are training free. We provide the following presses associat
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
+## Customization
+
+Each press is composed of two main components, the scorer class that identifies important tokens and a pruner class that implements the pruning strategy.
+As an example, it is possible to initialize `ExpectedAttentionPress` as follows:
+
+```python
+from kvpress import DefaultPruner, ExpectedAttentionScorer
+
+press = DefaultPruner(compression_ratio=0.1, scorer=ExpectedAttentionScorer())
+```
+
+This allows for easy customization of the press behavior.
+Currently, the following pruning strategies are available:
+- `DefaultPruner`: Prunes the least important key-value pairs based on the score computed by the scorer.
+- `PerLayerCompressionPruner`: Same as DefaultPruner, but it is possible to specify a different compression ratio for each layer.
+- `EagerAttentionPruner`: This class is used in conjunction with `ObservedAttentionPress` for better memory management (attention matrix will be deleted after computing the score).
+
+
 ## Evaluation
 
 See the [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook on how to measure peak memory usage and total time gain.

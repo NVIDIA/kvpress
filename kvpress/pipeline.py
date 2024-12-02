@@ -12,7 +12,7 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.default_presses import ObservedAttentionScorer
-from kvpress.presses.default_press import DefaultPress
+from kvpress.prunners.default_pruner import DefaultPruner
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         question: Optional[str] = None,
         questions: Optional[list[str]] = None,
         answer_prefix: Optional[str] = None,
-        press: Optional[DefaultPress] = None,
+        press: Optional[DefaultPruner] = None,
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
         cache: Optional[Cache] = None,
@@ -133,7 +133,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         self,
         input_tensors: dict[str, GenericTensor],
         max_new_tokens: int = 50,
-        press: Optional[DefaultPress] = None,
+        press: Optional[DefaultPruner] = None,
         cache: Optional[Cache] = None,
     ):
         """

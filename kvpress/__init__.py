@@ -12,9 +12,9 @@ from kvpress.default_presses import (
     TOVAPress,
 )
 from kvpress.pipeline import KVPressTextGenerationPipeline
-from kvpress.presses.default_press import DefaultPress
-from kvpress.presses.eager_attention_press import EagerAttentionPress
-from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
+from kvpress.prunners.default_pruner import DefaultPruner
+from kvpress.prunners.eager_attention_pruner import EagerAttentionPruner
+from kvpress.prunners.per_layer_compression_pruner import PerLayerCompressionPruner
 from kvpress.scorers.expected_attention_scorer import ExpectedAttentionScorer
 from kvpress.scorers.knorm_scorer import KnormScorer
 from kvpress.scorers.observed_attention_scorer import ObservedAttentionScorer

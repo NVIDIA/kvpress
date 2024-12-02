@@ -8,13 +8,13 @@ import torch
 from torch import nn
 from transformers.utils import logging
 
-from kvpress.presses.default_press import DefaultPress
+from kvpress.prunners.default_pruner import DefaultPruner
 
 logger = logging.get_logger(__name__)
 
 
 @dataclass
-class EagerAttentionPress(DefaultPress):
+class EagerAttentionPruner(DefaultPruner):
     """
     This press is used when eager attention is used in the model (i.e. the attention is materialized).
     It is used to calculate the observed attention score.

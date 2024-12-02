@@ -20,9 +20,10 @@ from kvpress import (
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
+    ObservedAttentionScorer,
     RandomPress,
     SnapKVPress,
-    StreamingLLMPress, ObservedAttentionScorer,
+    StreamingLLMPress,
 )
 
 logger = logging.getLogger(__name__)

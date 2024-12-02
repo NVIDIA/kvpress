@@ -7,7 +7,7 @@ from torch import nn
 from transformers import DynamicCache
 
 from kvpress.default_presses import (
-    DefaultPress,
+    DefaultPruner,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -39,7 +39,7 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-class StoreKnormPress(DefaultPress):
+class StoreKnormPruner(DefaultPruner):
 
     def __init__(self, compression_ratio: float = 0.0) -> None:
         super().__init__(compression_ratio=compression_ratio)
@@ -65,7 +65,7 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     Test that kept keys are those with the highest score
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
-        press = StoreKnormPress(compression_ratio=compresion_ratio)
+        press = StoreKnormPruner(compression_ratio=compresion_ratio)
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
