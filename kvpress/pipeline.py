@@ -167,7 +167,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             self.model(
                 input_ids=context_ids,
                 past_key_values=cache,
-                output_attentions=isinstance(press.scorer, ObservedAttentionScorer),
+                output_attentions=isinstance(getattr(press, "scorer", None), ObservedAttentionScorer),
                 num_logits_to_keep=1,
             )
 

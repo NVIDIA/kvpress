@@ -65,9 +65,7 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     Test that kept keys are those with the highest score
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
-        press = DefaultPruner(
-            compression_ratio=compresion_ratio, scorer=StoreKnormScorer()
-        )
+        press = DefaultPruner(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
