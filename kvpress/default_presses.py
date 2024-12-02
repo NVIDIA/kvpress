@@ -1,3 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+This file provides the default presses for the KVPress library.
+Each press is a shortcut to a specific pruner and scorer combination.
+Function names are uppercase for backwards compatibility.
+"""
 from kvpress.prunners.default_pruner import DefaultPruner
 from kvpress.prunners.eager_attention_pruner import EagerAttentionPruner
 from kvpress.scorers.expected_attention_scorer import ExpectedAttentionScorer
@@ -10,11 +18,11 @@ from kvpress.scorers.tova_scorer import TOVAScorer
 
 
 def ExpectedAttentionPress(
-    compression_ratio: float = 0.0,
-    n_future_positions: int = 512,
-    n_sink: int = 4,
-    use_covariance: bool = True,
-    use_vnorm: bool = True,
+        compression_ratio: float = 0.0,
+        n_future_positions: int = 512,
+        n_sink: int = 4,
+        use_covariance: bool = True,
+        use_vnorm: bool = True,
 ):
     return DefaultPruner(
         compression_ratio=compression_ratio,
@@ -25,14 +33,17 @@ def ExpectedAttentionPress(
 
 
 def KnormPress(
-    compression_ratio: float = 0.0,
+        compression_ratio: float = 0.0,
 ):
     return DefaultPruner(compression_ratio=compression_ratio, scorer=KnormScorer())
 
 
 def ObservedAttentionPress(
-    compression_ratio: float = 0.0,
+        compression_ratio: float = 0.0,
+        output_attentions: bool = False,
 ):
+    if output_attentions:
+        return DefaultPruner(compression_ratio=compression_ratio, scorer=ObservedAttentionScorer())
     return EagerAttentionPruner(compression_ratio=compression_ratio, scorer=ObservedAttentionScorer())
 
 
@@ -41,9 +52,9 @@ def RandomPress(compression_ratio: float = 0.0):
 
 
 def SnapKVPress(
-    compression_ratio: float = 0.0,
-    window_size: int = 64,
-    kernel_size: int = 5,
+        compression_ratio: float = 0.0,
+        window_size: int = 64,
+        kernel_size: int = 5,
 ):
     return DefaultPruner(
         compression_ratio=compression_ratio, scorer=SnapKVScorer(window_size=window_size, kernel_size=kernel_size)

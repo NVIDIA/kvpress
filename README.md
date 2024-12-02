@@ -190,18 +190,3 @@ All presses are stored in the `presses` directory. The easiest way to create a n
 Before opening a pull request with a new press, make sure to register it in the `__init__.py` file of repository and to add it in [test_presses.py](tests/presses/test_presses.py).
 
 </details>
-
-<details><summary> 
-
-### Can I change the compression ratio from one layer to another ?
-</summary>
-
-We provide an experimental feature, which only works with flash attention:
-```python
-from kvpress import apply_per_layer_compression
-# compression_ratios should have the same length as the number of layers
-press = apply_per_layer_compression(press, compression_ratios=[...])
-```
-
-Check the [demo notebook](notebooks/per_layer_compression_demo.ipynb) for more details.
-</details>
