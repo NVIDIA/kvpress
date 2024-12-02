@@ -42,8 +42,7 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
 
 class StoreKnormScorer(BasesScorer):
 
-    def __init__(self, compression_ratio: float = 0.0) -> None:
-        super().__init__(compression_ratio=compression_ratio)
+    def __init__(self) -> None:
         self.scores = []
 
     def score(
@@ -67,7 +66,7 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
         press = DefaultPruner(
-            compression_ratio=compresion_ratio, scorer=StoreKnormScorer(compression_ratio=compresion_ratio)
+            compression_ratio=compresion_ratio, scorer=StoreKnormScorer()
         )
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
