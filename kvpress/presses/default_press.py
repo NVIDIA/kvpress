@@ -4,6 +4,7 @@
 
 import logging
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Generator
 
 import torch
@@ -13,14 +14,17 @@ from transformers import (
     MistralForCausalLM,
     Phi3ForCausalLM,
     PreTrainedModel,
-    Qwen2ForCausalLM,
     QuantizedCache,
+    Qwen2ForCausalLM,
 )
+
+from kvpress.scorers.base_scorer import BasesScorer
 
 logger = logging.getLogger(__name__)
 
 
-class BasePress:
+@dataclass
+class DefaultPress:
     """Base class for pruning methods.
     Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
     This score is used to prune the KV pairs with the lowest scores in the `hook` method
@@ -28,42 +32,11 @@ class BasePress:
     The press can be applied to a model by calling it with the model as an argument.
     """
 
-    def __init__(self, compression_ratio: float = 0.0):
-        self.compression_ratio = compression_ratio
-        assert 0 <= compression_ratio < 1, "Compression ratio must be between 0 and 1"
+    scorer: BasesScorer
+    compression_ratio: float = 0.0
 
-    def score(
-        self,
-        module: nn.Module,
-        hidden_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-        attentions: torch.Tensor,
-        kwargs,
-    ) -> torch.Tensor:
-        """Compute the scores for each KV pair in the layer.
-
-        Parameters
-        ----------
-        module :
-            Transformer layer, see `hook` method for more details.
-        hidden_states :
-            Hidden states of the layer.
-        keys :
-            Keys of the cache. Note keys are after RoPE.
-        values :
-            Values of the cache.
-        attentions :
-            Attention weights of the layer.
-        kwargs :
-            Keyword arguments, as given to the forward pass of the layer.
-
-        Returns
-        -------
-            Scores for each KV pair in the layer, shape keys.shape[:-1].
-
-        """
-        raise NotImplementedError
+    def __post_init__(self):
+        assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """Cache compression hook called after the forward pass of a decoder layer.
@@ -107,7 +80,7 @@ class BasePress:
             values = cache.value_cache[module.layer_idx]
 
         with torch.no_grad():
-            scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
+            scores = self.scorer.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Prune KV pairs with the lowest scores
         n_kept = int(q_len * (1 - self.compression_ratio))

@@ -11,18 +11,17 @@ import torch.nn.functional as F
 from torch import nn
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
-from kvpress.presses.base_press import BasePress
+from kvpress.scorers.base_scorer import BasesScorer
 
 
 @dataclass
-class SnapKVPress(BasePress):
+class SnapKVScorer(BasesScorer):
     """
     SnapKV (https://arxiv.org/abs/2404.14469) use the attention of the latest window_size tokens to estimate the
     importance of the previous KV pairs. We use the default settings from:
     https://github.com/FasterDecoding/SnapKV/blob/main/snapkv/monkeypatch/snapkv_utils.py#L24
     """
 
-    compression_ratio: float = 0.0
     window_size: int = 64
     kernel_size: int = 5
 

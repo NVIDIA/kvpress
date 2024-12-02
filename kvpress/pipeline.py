@@ -7,12 +7,12 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress.presses.base_press import BasePress
-from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.default_presses import ObservedAttentionScorer
+from kvpress.presses.default_press import DefaultPress
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         question: Optional[str] = None,
         questions: Optional[list[str]] = None,
         answer_prefix: Optional[str] = None,
-        press: Optional[BasePress] = None,
+        press: Optional[DefaultPress] = None,
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
         cache: Optional[Cache] = None,
@@ -133,7 +133,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         self,
         input_tensors: dict[str, GenericTensor],
         max_new_tokens: int = 50,
-        press: Optional[BasePress] = None,
+        press: Optional[DefaultPress] = None,
         cache: Optional[Cache] = None,
     ):
         """
@@ -167,7 +167,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             self.model(
                 input_ids=context_ids,
                 past_key_values=cache,
-                output_attentions=isinstance(press, ObservedAttentionPress),
+                output_attentions=isinstance(press.scorer, ObservedAttentionScorer),
                 num_logits_to_keep=1,
             )
 

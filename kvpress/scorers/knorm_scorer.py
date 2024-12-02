@@ -5,11 +5,11 @@
 import torch
 from torch import nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.scorers.base_scorer import BasesScorer
 
 
-class RandomPress(BasePress):
-    """Randomly prune KV pairs"""
+class KnormScorer(BasesScorer):
+    """Prune KV pairs with highest L2 norm of keys (https://arxiv.org/pdf/2406.11430)"""
 
     def score(
         self,
@@ -20,4 +20,4 @@ class RandomPress(BasePress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
-        return torch.rand(*keys.shape[:-1]).to(keys.device, keys.dtype)
+        return -keys.norm(dim=-1)

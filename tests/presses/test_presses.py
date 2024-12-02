@@ -6,8 +6,8 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
-from kvpress import (
-    BasePress,
+from kvpress.default_presses import (
+    DefaultPress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -39,7 +39,7 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-class StoreKnormPress(BasePress):
+class StoreKnormPress(DefaultPress):
 
     def __init__(self, compression_ratio: float = 0.0) -> None:
         super().__init__(compression_ratio=compression_ratio)

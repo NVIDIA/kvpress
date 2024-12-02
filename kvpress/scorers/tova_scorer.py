@@ -4,14 +4,14 @@
 from dataclasses import dataclass
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
-from kvpress.presses.snapkv_press import SnapKVPress
+from kvpress.scorers.snapkv_scorer import SnapKVScorer
 
 
 @dataclass
-class TOVAPress(SnapKVPress):
+class TOVAScorer(SnapKVScorer):
     """
     TOVA (https://arxiv.org/abs/2401.06104) use the attention of the last token averaged across heads
     to estimate the importance of the previous KV pairs. This press was reviewed by Michael Hassid,

@@ -22,7 +22,7 @@ from kvpress import (
     ObservedAttentionPress,
     RandomPress,
     SnapKVPress,
-    StreamingLLMPress,
+    StreamingLLMPress, ObservedAttentionScorer,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ def evaluate(
     press.compression_ratio = compression_ratio
 
     # Initialize pipeline with the correct attention implementation
-    if isinstance(press, ObservedAttentionPress):
+    if isinstance(press.scorer, ObservedAttentionScorer):
         model_kwargs = {"attn_implementation": "eager"}
     else:
         try:
