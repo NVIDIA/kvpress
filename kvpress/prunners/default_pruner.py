@@ -7,9 +7,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers import (
-    QuantizedCache,
-)
+from transformers import QuantizedCache
 
 from kvpress.prunners.base_pruner import BasePruner
 from kvpress.scorers.base_scorer import BaseScorer

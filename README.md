@@ -66,7 +66,7 @@ For a detailed list of existing KV cache compression methods, check [Awesome-KV-
 
 ## Customization
 
-Each press is composed of two main components, the scorer class that identifies important tokens and a pruner class that implements the pruning strategy.
+Most presses are composed of two main components, the scorer class that identifies important tokens and a pruner class that implements the pruning strategy.
 As an example, it is possible to initialize `ExpectedAttentionPress` as follows:
 
 ```python
@@ -78,8 +78,16 @@ press = DefaultPruner(compression_ratio=0.1, scorer=ExpectedAttentionScorer())
 This allows for easy customization of the press behavior.
 Currently, the following pruning strategies are available:
 - `DefaultPruner`: Prunes the least important key-value pairs based on the score computed by the scorer.
-- `PerLayerCompressionPruner`: Same as DefaultPruner, but it is possible to specify a different compression ratio for each layer.
+- `PerLayerCompressionPruner`: Same as DefaultPruner, but it is possible to specify a different compression ratio for each layer. This feature is experimental.
 - `EagerAttentionPruner`: This class is used in conjunction with `ObservedAttentionPress` for better memory management (attention matrix will be deleted after computing the score).
+
+
+It is also possible to create a custom press that does not consume a scorer, such an example would be `ThinKPress` that prunes across the channel dimension of the keys:
+```python
+from kvpress import ThinKPress, ExpectedAttentionPress
+press = ThinKPress(compression_ratio=0.1, inner_press=ExpectedAttentionPress(compression_ratio=0.1))
+```
+
 
 
 ## Evaluation
