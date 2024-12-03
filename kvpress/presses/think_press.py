@@ -52,7 +52,7 @@ class ThinKPress(BasePress):
         # Apply RoPE
         position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
         cos, sin = module.rotary_emb(query_states, position_ids)
-        query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+        query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
         return query_states
 
