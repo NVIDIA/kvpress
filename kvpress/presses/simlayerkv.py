@@ -85,13 +85,16 @@ class SimLayerKVPress(BasePress):
         initial_recent_attn = attn_weights[:, :, :, :self.initial_tokens].sum(dim=-1) + \
                               attn_weights[:, :, :, -self.recent_tokens:].sum(dim=-1)
 
+        # get the average attention of the last w_last tokens
         avg_attn = initial_recent_attn[:, :, -self.w_last:].mean()
-
+        
+        # check if the layer is lazy 
         is_lazy_layer = avg_attn > self.compression_ratio
 
         # Create scores tensor
         scores = torch.zeros(bsz, num_heads, seq_len, device=device, dtype=dtype)
-
+        # if the layer is lazy, set the scores of the initial and recent tokens to 1
+        # else set all scores to 1
         if is_lazy_layer:
             scores[:, :, :self.initial_tokens] = 1.0
             scores[:, :, -self.recent_tokens:] = 1.0
