@@ -13,6 +13,7 @@ from kvpress import (
     ObservedAttentionPress,
     RandomPress,
     SnapKVPress,
+    SimLayerKVPress,
     StreamingLLMPress,
     TOVAPress,
 )
@@ -20,7 +21,7 @@ from tests.fixtures import unit_test_model, unit_test_model_output_attention  # 
 
 
 def test_presses_run(unit_test_model):  # noqa: F811
-    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress]:
+    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress,SimLayerKVPress]:
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
             press = cls(compression_ratio=compression_ratio)
             if cls == SnapKVPress:
