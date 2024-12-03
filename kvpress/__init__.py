@@ -15,6 +15,7 @@ from kvpress.pipeline import KVPressTextGenerationPipeline
 from kvpress.prunners.default_pruner import DefaultPruner
 from kvpress.prunners.eager_attention_pruner import EagerAttentionPruner
 from kvpress.prunners.per_layer_compression_pruner import PerLayerCompressionPruner
+from kvpress.prunners.think_press import ThinKPress
 from kvpress.scorers.expected_attention_scorer import ExpectedAttentionScorer
 from kvpress.scorers.knorm_scorer import KnormScorer
 from kvpress.scorers.observed_attention_scorer import ObservedAttentionScorer
