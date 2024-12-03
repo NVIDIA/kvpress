@@ -19,14 +19,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerLayerCompressionPruner(BasePruner):
     scorer: BaseScorer
-    compression_ratios: List[float] = None
+    compression_ratios: List[float]
 
     def __post_init__(self):
         logger.warning(
             "Per layer compression wrapper is an experimental feature and only works with flash attention. "
             "Please make sure that the model uses flash attention."
         )
-        assert self.compression_ratios is not None, "Please provide a list of compression ratios for each layer."
         self.pruner = DefaultPruner(scorer=self.scorer)
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
