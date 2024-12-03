@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-This file provides the default presses for the KVPress library.
+This file provides the default presses for the KVPress library that are composed of pruner+scorers.
 Each press is a shortcut to a specific pruner and scorer combination.
 Function names are uppercase for backwards compatibility.
 """
