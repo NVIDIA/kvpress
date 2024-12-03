@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import inspect
 from dataclasses import dataclass
 from typing import Optional
 
@@ -30,7 +29,7 @@ class ThinKPress(BasePress):
 
     compression_ratio: float = 0.0
     inner_press: Optional[BasePress] = None
-    window_size: int = 64
+    window_size: int = 32
 
     def compute_window_queries(self, module, hidden_states):
         """
@@ -51,12 +50,8 @@ class ThinKPress(BasePress):
         query_states = query_states.view(bsz, self.window_size, module.num_heads, module.head_dim).transpose(1, 2)
 
         # Apply RoPE
-        if "position_ids" in inspect.signature(module.rotary_emb.forward).parameters:
-            position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
-            cos, sin = module.rotary_emb(query_states, position_ids)
-        else:
-            cos, sin = module.rotary_emb(query_states, q_len)
-            cos, sin = cos[-self.window_size :].unsqueeze(0), sin[-self.window_size :].unsqueeze(0)
+        position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
+        cos, sin = module.rotary_emb(query_states, position_ids)
         query_states = (query_states * cos) + (rotate_half(query_states) * sin)
 
         return query_states
