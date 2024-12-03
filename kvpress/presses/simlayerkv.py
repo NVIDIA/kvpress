@@ -93,9 +93,9 @@ class SimLayerKVPress(BasePress):
 
         # Create scores tensor
         scores = torch.zeros(bsz, num_heads, seq_len, device=device, dtype=dtype)
-        # if the layer is lazy, set the scores of the initial and recent tokens to 1
-        # else set all scores to 1
+      
         if is_lazy_layer:
+            # if layer is lazy , only keep the initial and recent tokens and the rest is set to 0 
             scores[:, :, :self.initial_tokens] = 1.0
             scores[:, :, -self.recent_tokens:] = 1.0
         else:
