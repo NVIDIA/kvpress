@@ -14,9 +14,9 @@ from kvpress.default_presses import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
-    ThinKPress,
     TOVAPress,
 )
+from kvpress.prunners.think_press import ThinKPress
 from kvpress.scorers.base_scorer import BaseScorer
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 

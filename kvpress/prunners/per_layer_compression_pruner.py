@@ -9,23 +9,38 @@ from typing import List
 import torch
 from torch import nn
 
+from kvpress.prunners.base_pruner import BasePruner
 from kvpress.prunners.default_pruner import DefaultPruner
+from kvpress.scorers.base_scorer import BaseScorer
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PerLayerCompressionPruner(DefaultPruner):
+class PerLayerCompressionPruner(BasePruner):
+    scorer: BaseScorer
     compression_ratios: List[float] = None
 
     def __post_init__(self):
-        super().__post_init__()
         logger.warning(
             "Per layer compression wrapper is an experimental feature and only works with flash attention. "
             "Please make sure that the model uses flash attention."
         )
         assert self.compression_ratios is not None, "Please provide a list of compression ratios for each layer."
+        self.pruner = DefaultPruner(scorer=self.scorer)
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        self.compression_ratio = self.compression_ratios[module.layer_idx]
-        return super().forward_hook(module, input, kwargs, output)
+        self.pruner.compression_ratio = self.compression_ratios[module.layer_idx]
+        return self.pruner.forward_hook(module, input, kwargs, output)
+
+    @property
+    def compression_ratio(self):
+        return sum(self.compression_ratios) / len(self.compression_ratios)
+
+    @compression_ratio.setter
+    def compression_ratio(self, value):
+        # While we could set a uniform compression ratio, raise an error to indicate that this may rather be a mistake
+        raise NotImplementedError(
+            "Setting compression ratio is not supported for PerLayerCompressionPruner. "
+            "Please use DefaultPruner for a uniform compression ratio."
+        )

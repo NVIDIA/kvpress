@@ -11,10 +11,11 @@ from transformers.cache_utils import QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress import DefaultPruner
+from kvpress.prunners.base_pruner import BasePruner
 
 
 @dataclass
-class ThinKPress(DefaultPruner):
+class ThinKPress(BasePruner):
     """
     ThinK (https://arxiv.org/pdf/2407.21018) compresses the dimensions of the keys, and not the sequence length.
     Hence it can be combined with any other press that compresses the sequence length, e.g.

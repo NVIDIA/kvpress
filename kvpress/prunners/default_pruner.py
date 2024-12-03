@@ -3,30 +3,24 @@
 
 
 import logging
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Generator
 
 import torch
 from torch import nn
 from transformers import (
-    LlamaForCausalLM,
-    MistralForCausalLM,
-    Phi3ForCausalLM,
-    PreTrainedModel,
     QuantizedCache,
-    Qwen2ForCausalLM,
 )
 
+from kvpress.prunners.base_pruner import BasePruner
 from kvpress.scorers.base_scorer import BaseScorer
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DefaultPruner:
+class DefaultPruner(BasePruner):
     """
-    Base class for pruning methods.
+    Default pruning method.
     The `forward_hook` method is called after the forward pass of an attention layer.
     and updates the cache with the pruned KV pairs.
     """
@@ -38,9 +32,10 @@ class DefaultPruner:
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        """Cache compression hook called after the forward pass of an attention layer.
+        """
+        Default cache compression hook called after the forward pass of an attention layer.
         The hook is applied only during the pre-filling phase if there is some pruning ratio.
-        The current implementation only allows to remove a constant number of KV pairs.
+        This implementation allows to remove a constant number of KV pairs.
 
         Parameters
         ----------
@@ -97,28 +92,3 @@ class DefaultPruner:
             cache.value_cache[module.layer_idx] = values
 
         return output
-
-    @contextmanager
-    def __call__(self, model: PreTrainedModel) -> Generator:
-        """
-        Context manager to apply a compression method to a model.
-        Apply this context manager during the pre-filling phase to compress the context.
-
-        Parameters
-        ----------
-        model : PreTrainedModel
-            Model to apply the compression method to
-        """
-
-        if not isinstance(model, (LlamaForCausalLM, MistralForCausalLM, Phi3ForCausalLM, Qwen2ForCausalLM)):
-            logger.warning(f"Model {type(model)} not tested")
-
-        try:
-            hooks = []
-            for layer in model.model.layers:
-                hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
-
-            yield
-        finally:
-            for forward_hook in hooks:
-                forward_hook.remove()
