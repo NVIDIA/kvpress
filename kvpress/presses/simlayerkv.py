@@ -14,10 +14,10 @@ from kvpress.presses.snapkv_press import SnapKVPress
 
 @dataclass
 class SlimLayerKVPress(SnapKVPress):
-    threshold: float = 0.7
-    initial_tokens: int = 5
-    recent_tokens: int = 5
-    compression_ratio: float = 0.25  
+    initial_tokens: int = 4  
+    recent_tokens: int = 1024   # according to paper 
+    w_last: int = 32  
+    compression_ratio: float = 0.9  
 
     def score(
         self,
@@ -28,32 +28,43 @@ class SlimLayerKVPress(SnapKVPress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
-        
         bsz, num_heads, seq_len, _ = keys.shape
-
+        
         if attentions is not None:
             attn_weights = attentions[..., -1:, :-1]
         else:
             attn_weights = self.compute_window_attention(module, hidden_states, keys)
-
-        initial_weights = attn_weights[..., :self.initial_tokens].mean()
-        recent_weights = attn_weights[..., -self.recent_tokens:].mean()
-        
+            
         scores = torch.zeros((bsz, num_heads, seq_len), device=keys.device)
         
-        if (initial_weights + recent_weights) > self.threshold:
-            keep_tokens = int(seq_len * (1 - self.compression_ratio))
-            scores[:, :, :self.initial_tokens] = 1.0  
-            scores[:, :, -self.recent_tokens:] = 1.0  
+        if seq_len > 1: 
+
+            last_window = attn_weights[..., -self.w_last:, :]
             
-            remaining_slots = keep_tokens - (self.initial_tokens + self.recent_tokens)
-            if remaining_slots > 0:
-                middle_scores = attn_weights.mean(dim=1)  
-                middle_indices = torch.topk(middle_scores[:, self.initial_tokens:-self.recent_tokens], 
-                                         k=remaining_slots, dim=-1).indices
-                scores[:, :, middle_indices + self.initial_tokens] = 1.0
-        else:
-            scores.fill_(1.0)  #
-  
-        
+            initial_attn = last_window[..., :self.initial_tokens].mean(dim=(-2, -1))
+            recent_attn = last_window[..., -self.recent_tokens:].mean(dim=(-2, -1))
+            
+            total_attn = (initial_attn + recent_attn) / self.w_last
+            
+            is_lazy = total_attn > self.compression_ratio
+            
+            if is_lazy.any():
+                scores[..., self.initial_tokens:-self.recent_tokens] = float('-inf')
+            else:
+                scores = attn_weights.mean(dim=-2)
+                
+        else: 
+
+            initial_attn = attn_weights[..., :self.initial_tokens].mean(dim=-1)
+            recent_attn = attn_weights[..., -self.recent_tokens:].mean(dim=-1)
+            
+            total_attn = initial_attn + recent_attn
+            
+            is_lazy = total_attn > self.compression_ratio
+            
+            if is_lazy.any():
+                scores[..., self.initial_tokens:-self.recent_tokens] = float('-inf')
+            else:
+                scores = attn_weights.squeeze(-2)
+                
         return scores

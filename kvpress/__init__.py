@@ -10,6 +10,7 @@ from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.random_press import RandomPress
 from kvpress.presses.snapkv_press import SnapKVPress
+from kvpress.presses.snapkv_press import SlimLayerKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.tova_press import TOVAPress
 
@@ -20,6 +21,7 @@ __all__ = [
     "ObservedAttentionPress",
     "RandomPress",
     "SnapKVPress",
+    "SlimLayerKVPress",
     "StreamingLLMPress",
     "TOVAPress",
     "KVPressTextGenerationPipeline",
