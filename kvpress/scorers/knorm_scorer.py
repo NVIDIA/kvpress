@@ -5,10 +5,10 @@
 import torch
 from torch import nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.scorers.base_scorer import BaseScorer
 
 
-class KnormPress(BasePress):
+class KnormScorer(BaseScorer):
     """Prune KV pairs with highest L2 norm of keys (https://arxiv.org/pdf/2406.11430)"""
 
     def score(

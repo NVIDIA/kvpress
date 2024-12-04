@@ -6,8 +6,7 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
-from kvpress import (
-    BasePress,
+from kvpress.presses.default_presses import (
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -15,25 +14,26 @@ from kvpress import (
     SnapKVPress,
     StreamingLLMPress,
     TOVAPress,
-    ThinKPress,
 )
-
+from kvpress.presses.think_press import ThinKPress
+from kvpress.prunners.default_pruner import DefaultPruner
+from kvpress.scorers.base_scorer import BaseScorer
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
 def test_think_inner_press(unit_test_model):  # noqa: F811
-    press = ThinKPress(compression_ratio=0.5, window_size=2, inner_press=KnormPress(0.5))
+    press = ThinKPress(key_channel_compression_ratio=0.5, window_size=2, inner_press=KnormPress(0.5))
     with press(unit_test_model):
         input_ids = unit_test_model.dummy_inputs["input_ids"]
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
 def test_presses_run(unit_test_model):  # noqa: F811
-    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]:
+    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress]:
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
             press = cls(compression_ratio=compression_ratio)
-            if cls in [SnapKVPress, ThinKPress]:
-                press.window_size = 2
+            if cls in [SnapKVPress]:
+                press.scorer.window_size = 2
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
@@ -48,10 +48,9 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-class StoreKnormPress(BasePress):
+class StoreKnormScorer(BaseScorer):
 
-    def __init__(self, compression_ratio: float = 0.0) -> None:
-        super().__init__(compression_ratio=compression_ratio)
+    def __init__(self) -> None:
         self.scores = []
 
     def score(
@@ -74,12 +73,12 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     Test that kept keys are those with the highest score
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
-        press = StoreKnormPress(compression_ratio=compresion_ratio)
+        press = DefaultPruner(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
-        for scores, key in zip(press.scores, past_key_values.key_cache):
+        for scores, key in zip(press.scorer.scores, past_key_values.key_cache):
             max_scores = -key.norm(dim=-1)
             for batch_idx in range(scores.shape[0]):
                 for head_idx in range(scores.shape[1]):
