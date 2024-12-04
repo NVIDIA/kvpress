@@ -11,7 +11,6 @@ from transformers.cache_utils import QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.prunners.base_pruner import BasePruner
-from kvpress.prunners.default_pruner import DefaultPruner
 
 
 @dataclass
@@ -29,7 +28,7 @@ class ThinKPress(BasePruner):
     """
 
     compression_ratio: float = 0.0
-    inner_press: Optional[DefaultPruner] = None
+    inner_press: Optional[BasePruner] = None
     window_size: int = 32
 
     def compute_window_queries(self, module, hidden_states):
