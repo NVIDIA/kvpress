@@ -85,7 +85,7 @@ Currently, the following pruning strategies are available:
 It is also possible to create a custom press that does not consume a scorer, such an example would be `ThinKPress` that prunes across the channel dimension of the keys:
 ```python
 from kvpress import ThinKPress, ExpectedAttentionPress
-press = ThinKPress(compression_ratio=0.1, inner_press=ExpectedAttentionPress(compression_ratio=0.1))
+press = ThinKPress(key_channel_compression_ratio=0.1, inner_press=ExpectedAttentionPress(compression_ratio=0.1))
 ```
 
 
