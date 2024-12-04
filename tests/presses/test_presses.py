@@ -33,7 +33,7 @@ def test_presses_run(unit_test_model):  # noqa: F811
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
             press = cls(compression_ratio=compression_ratio)
             if cls in [SnapKVPress, ThinKPress]:
-                press.window_size = 2
+                press.scorer.window_size = 2
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
