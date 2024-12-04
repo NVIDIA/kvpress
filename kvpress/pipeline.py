@@ -11,8 +11,8 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, Qu
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress import ObservedAttentionScorer
 from kvpress.prunners.base_pruner import BasePruner
+from kvpress.scorers.observed_attention_scorer import ObservedAttentionScorer
 
 logger = logging.getLogger(__name__)
 
