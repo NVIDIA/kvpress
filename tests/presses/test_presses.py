@@ -6,8 +6,7 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
-from kvpress.default_presses import (
-    DefaultPruner,
+from kvpress.presses.default_presses import (
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -16,6 +15,7 @@ from kvpress.default_presses import (
     StreamingLLMPress,
     TOVAPress,
 )
+from kvpress.prunners.default_pruner import DefaultPruner
 from kvpress.prunners.think_press import ThinKPress
 from kvpress.scorers.base_scorer import BaseScorer
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
