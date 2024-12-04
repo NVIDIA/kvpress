@@ -5,7 +5,7 @@
 from transformers import DynamicCache
 
 from kvpress.prunners.default_pruner import DefaultPruner
-from kvpress.scorers.knorm_scorer import KnormPress
+from kvpress.presses.default_presses import KnormPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
