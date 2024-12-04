@@ -10,8 +10,8 @@ from torch import nn
 from transformers.cache_utils import QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
-from kvpress import DefaultPruner
 from kvpress.prunners.base_pruner import BasePruner
+from kvpress.prunners.default_pruner import DefaultPruner
 
 
 @dataclass
