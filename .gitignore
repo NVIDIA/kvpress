@@ -172,7 +172,8 @@ cython_debug/
 
 # bash
 evaluation/modified_evaluate.py
-evaluation/A100_evaluate.sh
-evaluation/4090_evaluate_ada.sh
+evaluation/a100_*.sh
+evaluation/4090_*.sh
 evaluation/logs/*
 evaluation/results/*
+evaluation/ruler/data/*

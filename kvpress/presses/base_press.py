@@ -237,7 +237,7 @@ class AdaBasePress(BasePress):
         # print(f"compressed_cu_seqlens_k: {compressed_cu_seqlens_k.dtype}")
 
         compressed_max_seqlen_k = compressed_head_lens.max().cpu().item()
-        module._update_metadata_while_compressing(compressed_head_lens,compressed_cu_seqlens_k,compressed_max_seqlen_k)
+        module.metadata._update_metadata_while_compressing(compressed_head_lens,compressed_cu_seqlens_k,compressed_max_seqlen_k)
 
         # sort the cache topk idx, cluster the retained cache in each head
         sorted_4_cache_topk_idx = torch.argsort(cache_topk_head_idx,descending=False)

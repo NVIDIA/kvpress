@@ -7,6 +7,7 @@
 from attr import dataclass
 from transformers.utils import is_flash_attn_greater_or_equal_2_10
 from transformers.models.llama.modeling_llama import LlamaAttention
+from transformers.models.mistral.modeling_mistral import MistralAttention
 from transformers.models.llama.modeling_llama import (
     apply_rotary_pos_emb,
 )
@@ -33,40 +34,29 @@ if is_flash_attn_2_available():
 
 @dataclass
 class MetaData:
-    decoding_cu_seqlens_q: torch.Tensor
-    cu_seqlens_k: torch.Tensor
-    max_seqlen_k: int
-    cu_offset: torch.Tensor
-    cu_head_offset: torch.Tensor
-    head_lens: torch.Tensor
-    bsz: int
-    num_key_value_heads: int
-    seen_tokens: int
+    decoding_cu_seqlens_q: torch.Tensor = None
+    cu_seqlens_k: torch.Tensor = None
+    max_seqlen_k: int = None
+    cu_offset: torch.Tensor = None
+    cu_head_offset: torch.Tensor = None
+    head_lens: torch.Tensor = None 
+    bsz: int = None 
+    num_key_value_heads: int = None
+    seen_tokens: int = None
 
-
-
-
-class AdaLlamaFlashAttention(LlamaAttention):
-
-    """
-    Llama flash attention module for AdaKV. This module inherits from `LlamaAttention` as the weights of the module stays untouched.
-    Utilizing the flash_attn_varlen_func from the flash_attn library to perform the attention operation with flattened KV Cache layout.
-    """
-
-    # update the metadata for the flatten cache during the decoding phase
     def _update_metadata_while_compressing(self, head_lens, cu_seqlens_k,max_seqlen_k):
-        self.metadata.head_lens = head_lens
-        self.metadata.cu_seqlens_k = cu_seqlens_k
-        self.metadata.max_seqlen_k = max_seqlen_k
+        self.head_lens = head_lens
+        self.cu_seqlens_k = cu_seqlens_k
+        self.max_seqlen_k = max_seqlen_k
 
 
     def _update_metadata(self, key_states):
         bs, head, seqlen, dim = key_states.shape
 
-        self.metadata.max_seqlen_k += seqlen
-        self.metadata.cu_seqlens_k += self.metadata.cu_offset * seqlen
-        self.metadata.head_lens += seqlen
-        self.metadata.seen_tokens += seqlen
+        self.max_seqlen_k += seqlen
+        self.cu_seqlens_k += self.cu_offset * seqlen
+        self.head_lens += seqlen
+        self.seen_tokens += seqlen
 
     # init the metadata for the flattened cache during the prefilling phase
     def _init_metadata(self, key_states):
@@ -97,18 +87,26 @@ class AdaLlamaFlashAttention(LlamaAttention):
         cu_offset = torch.arange(0, bsz * num_key_value_heads + 1, dtype=torch.int32, device=_device)
         cu_head_offset = torch.arange(1, bsz * num_key_value_heads + 1, dtype=torch.int32, device=_device)
 
-        self.metadata = MetaData(
-                decoding_cu_seqlens_q = decoding_cu_seqlens_q,
-                cu_seqlens_k = cu_seqlens_k,
-                max_seqlen_k = max_seqlen_k,
-                cu_offset = cu_offset,
-                cu_head_offset = cu_head_offset,
-                head_lens = head_seqlens_k,
-                bsz = bsz,
-                num_key_value_heads = num_key_value_heads,
-                seen_tokens= k_len
-            )
+        # init metadata
+        self.decoding_cu_seqlens_q = decoding_cu_seqlens_q
+        self.cu_seqlens_k = cu_seqlens_k
+        self.max_seqlen_k = max_seqlen_k
+        self.cu_offset = cu_offset
+        self.cu_head_offset = cu_head_offset
+        self.head_lens = head_seqlens_k
+        self.bsz = bsz
+        self.num_key_value_heads = num_key_value_heads
+        self.seen_tokens = k_len
 
+class AdaLlamaFlashAttention(LlamaAttention):
+
+    """
+    Llama flash attention module for AdaKV. This module inherits from `LlamaAttention` as the weights of the module stays untouched.
+    Utilizing the flash_attn_varlen_func from the flash_attn library to perform the attention operation with flattened KV Cache layout.
+    """
+
+    # update the metadata for the flatten cache during the decoding phase
+    
 
 
     def __init__(self, *args, **kwargs):
@@ -120,7 +118,7 @@ class AdaLlamaFlashAttention(LlamaAttention):
         self._flash_attn_uses_top_left_mask = not is_flash_attn_greater_or_equal_2_10()
         
         # used to store the metadata for the flatten cache
-        self.metadata = None
+        self.metadata = MetaData()
 
     def forward(
         self,
@@ -182,6 +180,158 @@ class AdaLlamaFlashAttention(LlamaAttention):
         # This might slowdown training & inference so it is recommended to not cast the LayerNorms
         # in fp32. (LlamaRMSNorm handles it correctly)
 
+        input_dtype = query_states.dtype
+        if input_dtype == torch.float32:
+            if torch.is_autocast_enabled():
+                target_dtype = torch.get_autocast_gpu_dtype()
+            # Handle the case where the model is quantized
+            elif hasattr(self.config, "_pre_quantization_dtype"):
+                target_dtype = self.config._pre_quantization_dtype
+            else:
+                target_dtype = self.q_proj.weight.dtype
+
+            logger.warning_once(
+                f"The input hidden states seems to be silently casted in float32, this might be related to"
+                f" the fact you have upcasted embedding or layer norm layers in float32. We will cast back the input in"
+                f" {target_dtype}."
+            )
+
+            query_states = query_states.to(target_dtype)
+            key_states = key_states.to(target_dtype)
+            value_states = value_states.to(target_dtype)
+
+
+
+        query_states = query_states.view(bsz,-1, self.num_key_value_groups,q_len ,self.head_dim)
+
+        query_states = query_states.transpose(2, 3)
+        query_states = query_states.reshape(-1,self.num_key_value_groups,self.head_dim)
+
+
+        key_states = key_states.view(-1,1,self.head_dim)
+        value_states = value_states.view(-1,1,self.head_dim)
+
+
+        if q_len == 1:
+            # init metadata for flatten query states during prefilling phase
+            cu_seqlens_q = self.metadata.decoding_cu_seqlens_q
+            max_seqlen_q = 1
+        else:
+            # init metadata for flatten query states during prefilling phase
+            prefill_q_lens = bsz * self.num_heads//self.num_key_value_groups * [q_len]
+            head_seqlens_q = torch.tensor(prefill_q_lens, dtype=torch.int32, device=query_states.device)
+            cu_seqlens_q = torch.cumsum(head_seqlens_q, dim=0, dtype=torch.int32)
+            cu_seqlens_q = torch.cat(
+            [torch.tensor([0], dtype=torch.int32, device=query_states.device), cu_seqlens_q], dim=0)
+            max_seqlen_q = q_len
+            
+        cu_seqlens_k = self.metadata.cu_seqlens_k
+        max_seqlen_k = self.metadata.max_seqlen_k
+
+
+        attn_output = flash_attn_varlen_func(query_states, key_states, value_states, cu_seqlens_q,
+                                                cu_seqlens_k, max_seqlen_q, max_seqlen_k, causal=True)
+        # TODO: support batch size > 1
+        assert bsz == 1
+
+        attn_output = attn_output.reshape(bsz, self.num_key_value_heads, q_len, self.num_key_value_groups, self.head_dim)
+        attn_output = attn_output.transpose(1, 2).reshape(bsz, q_len, self.hidden_size)
+        attn_output = self.o_proj(attn_output)
+
+        if not output_attentions:
+            attn_weights = None
+
+        return attn_output, attn_weights, past_key_value
+
+
+class AdaMistralFlashAttention(MistralAttention):
+    """
+    Mistral flash attention module. This module inherits from `MistralAttention` as the weights of the module stays
+    untouched. The only required change would be on the forward pass where it needs to correctly call the public API of
+    flash attention and deal with padding tokens in case the input contains any of them.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # TODO: Should be removed once Flash Attention for RoCm is bumped to 2.1.
+        # flash_attn<2.1 generates top-left aligned causal mask, while what is needed here is bottom-right alignement, that was made default for flash_attn>=2.1. This attribute is used to handle this difference. Reference: https://github.com/Dao-AILab/flash-attention/releases/tag/v2.1.0.
+        # Beware that with flash_attn<2.1, using q_seqlen != k_seqlen (except for the case q_seqlen == 1) produces a wrong mask (top-left).
+        self._flash_attn_uses_top_left_mask = not is_flash_attn_greater_or_equal_2_10()
+        
+        # used to store the metadata for the flatten cache
+        self.metadata = MetaData()
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_value: Optional[Cache] = None,
+        output_attentions: bool = False,
+        use_cache: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
+    ):
+        if not isinstance(past_key_value, DynamicCacheSplitHeadFlatten):
+            raise ValueError(
+                "current implementation of `AdaKV` only supports `DynamicCacheSplitHeadFlatten` as the cache type."
+            )
+        output_attentions = False
+
+        bsz, q_len, _ = hidden_states.size()
+
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        kv_seq_len = key_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += cache_position[0]
+
+        cos, sin = self.rotary_emb(value_states, position_ids)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+
+        if past_key_value is not None:
+            # Activate slicing cache only if the config has a value `sliding_windows` attribute
+            cache_has_contents = past_key_value.get_seq_length(self.layer_idx) > 0
+            if (
+                getattr(self.config, "sliding_window", None) is not None
+                and kv_seq_len > self.config.sliding_window
+                and cache_has_contents
+            ):
+                slicing_tokens = 1 - self.config.sliding_window
+
+                past_key = past_key_value[self.layer_idx][0]
+                past_value = past_key_value[self.layer_idx][1]
+
+                past_key = past_key[:, :, slicing_tokens:, :].contiguous()
+                past_value = past_value[:, :, slicing_tokens:, :].contiguous()
+
+                if past_key.shape[-2] != self.config.sliding_window - 1:
+                    raise ValueError(
+                        f"past key must have a shape of (`batch_size, num_heads, self.config.sliding_window-1, head_dim`), got"
+                        f" {past_key.shape}"
+                    )
+
+                if attention_mask is not None:
+                    attention_mask = attention_mask[:, slicing_tokens:]
+                    attention_mask = torch.cat([attention_mask, torch.ones_like(attention_mask[:, -1:])], dim=-1)
+
+            cache_kwargs = {"sin": sin, "cos": cos, "attn": self}  # Specific to RoPE models
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+
+        # repeat k/v heads if n_kv_heads < n_heads
+        # key_states = repeat_kv(key_states, self.num_key_value_groups)
+        # value_states = repeat_kv(value_states, self.num_key_value_groups)
+        # dropout_rate = 0.0 if not self.training else self.attention_dropout
+
+        # In PEFT, usually we cast the layer norms in float32 for training stability reasons
+        # therefore the input hidden states gets silently casted in float32. Hence, we need
+        # cast them back in float16 just to be sure everything works as expected.
         input_dtype = query_states.dtype
         if input_dtype == torch.float32:
             if torch.is_autocast_enabled():

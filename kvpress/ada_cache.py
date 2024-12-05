@@ -48,7 +48,7 @@ class DynamicCacheSplitHeadFlatten(Cache):
             self.value_cache.append(flatten_value_cache)
 
             # init metadata for flatten key states
-            attn._init_metadata(key_states)
+            attn.metadata._init_metadata(key_states)
             self._seen_tokens = attn.metadata.seen_tokens
         else:
             # decoding
@@ -70,7 +70,7 @@ class DynamicCacheSplitHeadFlatten(Cache):
             self.value_cache[layer_idx] = new_value_cache
 
             # update metadata
-            attn._update_metadata(key_states)
+            attn.metadata._update_metadata(key_states)
             self._seen_tokens = attn.metadata.seen_tokens
 
         return self.key_cache[layer_idx], self.value_cache[layer_idx]
@@ -87,22 +87,25 @@ class DynamicCacheSplitHeadFlatten(Cache):
 
     def to_legacy_cache(self) -> Tuple[Tuple[torch.Tensor], Tuple[torch.Tensor]]:
         """Converts the `DynamicCache` instance into the its equivalent in the legacy cache format."""
-        legacy_cache = ()
-        for layer_idx in range(len(self)):
-            legacy_cache += ((self.key_cache[layer_idx], self.value_cache[layer_idx],),)
-        return legacy_cache
+        # print(f"to_legacy_cache")
+        # legacy_cache = ()
+        # for layer_idx in range(len(self)):
+        #     legacy_cache += ((self.key_cache[layer_idx], self.value_cache[layer_idx],),)
+        # return legacy_cache
+        raise NotImplementedError
 
     @classmethod
     def from_legacy_cache(cls, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None) -> "DynamicCacheEachHead":
         """Converts a cache in the legacy cache format into an equivalent `DynamicCache`."""
-        cache = cls()
-        print(f"from_legacy_cache past_key_values")
-        if past_key_values is not None:
-            for layer_idx in range(len(past_key_values)):
-                key_states, value_states = past_key_values[layer_idx]
-                cache.key_cache.append(key_states)
-                cache.value_cache.append(value_states)
+        # cache = cls()
+        # print(f"from_legacy_cache past_key_values")
+        # if past_key_values is not None:
+        #     for layer_idx in range(len(past_key_values)):
+        #         key_states, value_states = past_key_values[layer_idx]
+        #         cache.key_cache.append(key_states)
+        #         cache.value_cache.append(value_states)
 
-                # TODO seen tokens  should be updated
-                cache._seen_tokens = None
-        return cache
+        #         # TODO seen tokens  should be updated
+        #         cache._seen_tokens = None
+        # return cache
+        raise NotImplementedError
