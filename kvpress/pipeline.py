@@ -4,7 +4,9 @@
 
 from calendar import c
 import contextlib
+import copy
 import logging
+from time import sleep
 from typing import Optional
 
 import torch
@@ -183,6 +185,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Greedy decoding for each question
         answers = []
+        assert len(input_tensors["questions_ids"]) == 1 , "Only support single question for now"
         for question_ids in input_tensors["questions_ids"]:
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),
@@ -190,9 +193,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 context_length=context_length,
                 max_new_tokens=max_new_tokens,
             )
-            # print(answer)
-            # input('one answer')
-
             answers.append(answer)
 
         return answers
@@ -225,7 +225,11 @@ class KVPressTextGenerationPipeline(Pipeline):
             The generated answer.
         """
 
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+        if isinstance(cache, AdaBasePress):
+            first_head_lens = cache.metadata_list.head_lens[0]
+        else:
+            cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -257,14 +261,20 @@ class KVPressTextGenerationPipeline(Pipeline):
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
-        # # Remove the generated tokens from the cache
-        # if isinstance(cache, QuantizedCache):
-        #     key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
-        # else:
-        #     key_attr, value_attr = "key_cache", "value_cache"
+        sleep(1000)
 
-        # setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
-        # setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
+        # Remove the generated tokens from the cache
+        if isinstance(cache, AdaBasePress):
+            n = cache.metadata_list.head_lens[0] - first_head_lens
+            cache.remove_tokens(n)
+        else:
+            if isinstance(cache, QuantizedCache):
+                key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
+            else:
+                key_attr, value_attr = "key_cache", "value_cache"
+
+            setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
+            setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
 
         return answer
 

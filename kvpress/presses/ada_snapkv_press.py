@@ -78,7 +78,9 @@ class AdaSnapKVPress(AdaBasePress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
-        cache_metadata = module.metadata
+        
+        cache_metadata = kwargs.get("metadata", None)
+        assert cache_metadata is not None, "cache_metadata is required for AdaSnapKVPress"
         
         # Current implementation only allows to compress once
         # check if first time compression

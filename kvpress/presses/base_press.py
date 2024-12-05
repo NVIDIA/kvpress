@@ -213,10 +213,11 @@ class AdaBasePress(BasePress):
             keys = cache.key_cache[module.layer_idx]
             values = cache.value_cache[module.layer_idx]
         
+        cache_metadata = cache.metadata_list[module.layer_idx]
         with torch.no_grad():
+            kwargs["metadata"]  = cache_metadata
             scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
-        cache_metadata = module.metadata
         num_key_value_heads = cache_metadata.num_key_value_heads
         # Prune KV pairs with the lowest scores
         n_kept = int(q_len * (1 - self.compression_ratio)) * num_key_value_heads
@@ -237,7 +238,7 @@ class AdaBasePress(BasePress):
         # print(f"compressed_cu_seqlens_k: {compressed_cu_seqlens_k.dtype}")
 
         compressed_max_seqlen_k = compressed_head_lens.max().cpu().item()
-        module.metadata._update_metadata_while_compressing(compressed_head_lens,compressed_cu_seqlens_k,compressed_max_seqlen_k)
+        cache_metadata._update_metadata_while_compressing(compressed_head_lens,compressed_cu_seqlens_k,compressed_max_seqlen_k)
 
         # sort the cache topk idx, cluster the retained cache in each head
         sorted_4_cache_topk_idx = torch.argsort(cache_topk_head_idx,descending=False)

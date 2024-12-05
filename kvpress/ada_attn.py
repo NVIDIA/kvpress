@@ -4,7 +4,6 @@
 # This file is part of the YuanFeng project and is licensed under the MIT License.
 # SPDX-License-Identifier: MIT
 
-from attr import dataclass
 from transformers.utils import is_flash_attn_greater_or_equal_2_10
 from transformers.models.llama.modeling_llama import LlamaAttention
 from transformers.models.mistral.modeling_mistral import MistralAttention
@@ -32,71 +31,6 @@ if is_flash_attn_2_available():
     from flash_attn import  flash_attn_varlen_func
 
 
-@dataclass
-class MetaData:
-    decoding_cu_seqlens_q: torch.Tensor = None
-    cu_seqlens_k: torch.Tensor = None
-    max_seqlen_k: int = None
-    cu_offset: torch.Tensor = None
-    cu_head_offset: torch.Tensor = None
-    head_lens: torch.Tensor = None 
-    bsz: int = None 
-    num_key_value_heads: int = None
-    seen_tokens: int = None
-
-    def _update_metadata_while_compressing(self, head_lens, cu_seqlens_k,max_seqlen_k):
-        self.head_lens = head_lens
-        self.cu_seqlens_k = cu_seqlens_k
-        self.max_seqlen_k = max_seqlen_k
-
-
-    def _update_metadata(self, key_states):
-        bs, head, seqlen, dim = key_states.shape
-
-        self.max_seqlen_k += seqlen
-        self.cu_seqlens_k += self.cu_offset * seqlen
-        self.head_lens += seqlen
-        self.seen_tokens += seqlen
-
-    # init the metadata for the flattened cache during the prefilling phase
-    def _init_metadata(self, key_states):
-
-        """
-        this method is used to initialize metadata for the flatten cache,
-        input key_states is a regular key states with shape [bsz, num_key_value_heads, seqlen, head_dim]
-        """
-
-        bsz, num_key_value_heads, k_len, head_dim = key_states.shape
-        k_lens = bsz *  num_key_value_heads * [k_len]
-        _device = key_states.device
-        max_seqlen_k = max(k_lens)
-
-        head_seqlens_k = torch.tensor(k_lens, dtype=torch.int32, device=_device)
-        cu_seqlens = torch.cumsum(head_seqlens_k, dim=0, dtype=torch.int32)
-        cu_seqlens_k = torch.cat(
-            [torch.tensor([0], dtype=torch.int32, device=_device), cu_seqlens], dim=0)
-        
-
-        decoding_q_lens = bsz *  num_key_value_heads * [1] 
-        decoding_head_seqlens_q = torch.tensor(decoding_q_lens, dtype=torch.int32,device=_device)
-        decoding_cu_seqlens_q = torch.cumsum(decoding_head_seqlens_q, dim=0, dtype=torch.int32)
-        decoding_cu_seqlens_q = torch.cat(
-            [ torch.tensor([0], dtype=torch.int32, device=_device), decoding_cu_seqlens_q], dim=0)
-        
-        
-        cu_offset = torch.arange(0, bsz * num_key_value_heads + 1, dtype=torch.int32, device=_device)
-        cu_head_offset = torch.arange(1, bsz * num_key_value_heads + 1, dtype=torch.int32, device=_device)
-
-        # init metadata
-        self.decoding_cu_seqlens_q = decoding_cu_seqlens_q
-        self.cu_seqlens_k = cu_seqlens_k
-        self.max_seqlen_k = max_seqlen_k
-        self.cu_offset = cu_offset
-        self.cu_head_offset = cu_head_offset
-        self.head_lens = head_seqlens_k
-        self.bsz = bsz
-        self.num_key_value_heads = num_key_value_heads
-        self.seen_tokens = k_len
 
 class AdaLlamaFlashAttention(LlamaAttention):
 
@@ -117,8 +51,6 @@ class AdaLlamaFlashAttention(LlamaAttention):
         # Beware that with flash_attn<2.1, using q_seqlen != k_seqlen (except for the case q_seqlen == 1) produces a wrong mask (top-left).
         self._flash_attn_uses_top_left_mask = not is_flash_attn_greater_or_equal_2_10()
         
-        # used to store the metadata for the flatten cache
-        self.metadata = MetaData()
 
     def forward(
         self,
@@ -211,10 +143,11 @@ class AdaLlamaFlashAttention(LlamaAttention):
         key_states = key_states.view(-1,1,self.head_dim)
         value_states = value_states.view(-1,1,self.head_dim)
 
-
+        # get metadata for the flatten cache in the current layer
+        current_layer_metadata = past_key_value.metadata_list[self.layer_idx]
         if q_len == 1:
-            # init metadata for flatten query states during prefilling phase
-            cu_seqlens_q = self.metadata.decoding_cu_seqlens_q
+            # get metadata for flatten query states during decoding phase
+            cu_seqlens_q = current_layer_metadata.decoding_cu_seqlens_q
             max_seqlen_q = 1
         else:
             # init metadata for flatten query states during prefilling phase
@@ -224,9 +157,9 @@ class AdaLlamaFlashAttention(LlamaAttention):
             cu_seqlens_q = torch.cat(
             [torch.tensor([0], dtype=torch.int32, device=query_states.device), cu_seqlens_q], dim=0)
             max_seqlen_q = q_len
-            
-        cu_seqlens_k = self.metadata.cu_seqlens_k
-        max_seqlen_k = self.metadata.max_seqlen_k
+        
+        cu_seqlens_k = current_layer_metadata.cu_seqlens_k
+        max_seqlen_k = current_layer_metadata.max_seqlen_k
 
 
         attn_output = flash_attn_varlen_func(query_states, key_states, value_states, cu_seqlens_q,
@@ -260,7 +193,6 @@ class AdaMistralFlashAttention(MistralAttention):
         self._flash_attn_uses_top_left_mask = not is_flash_attn_greater_or_equal_2_10()
         
         # used to store the metadata for the flatten cache
-        self.metadata = MetaData()
 
     def forward(
         self,
@@ -363,10 +295,11 @@ class AdaMistralFlashAttention(MistralAttention):
         key_states = key_states.view(-1,1,self.head_dim)
         value_states = value_states.view(-1,1,self.head_dim)
 
+        current_layer_metadata = past_key_value.metadata_list[self.layer_idx]
 
         if q_len == 1:
-            # init metadata for flatten query states during prefilling phase
-            cu_seqlens_q = self.metadata.decoding_cu_seqlens_q
+            # init metadata for flatten query states during decoding phase
+            cu_seqlens_q = current_layer_metadata.decoding_cu_seqlens_q
             max_seqlen_q = 1
         else:
             # init metadata for flatten query states during prefilling phase
@@ -377,8 +310,8 @@ class AdaMistralFlashAttention(MistralAttention):
             [torch.tensor([0], dtype=torch.int32, device=query_states.device), cu_seqlens_q], dim=0)
             max_seqlen_q = q_len
             
-        cu_seqlens_k = self.metadata.cu_seqlens_k
-        max_seqlen_k = self.metadata.max_seqlen_k
+        cu_seqlens_k = current_layer_metadata.cu_seqlens_k
+        max_seqlen_k = current_layer_metadata.max_seqlen_k
 
 
         attn_output = flash_attn_varlen_func(query_states, key_states, value_states, cu_seqlens_q,
