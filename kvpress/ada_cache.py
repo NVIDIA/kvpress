@@ -16,7 +16,6 @@ class MetaData:
     cu_seqlens_k: torch.Tensor = None
     max_seqlen_k: int = None
     cu_offset: torch.Tensor = None
-    cu_head_offset: torch.Tensor = None
     head_lens: torch.Tensor = None 
     bsz: int = None 
     num_key_value_heads: int = None
@@ -68,14 +67,12 @@ class MetaData:
         
         
         cu_offset = torch.arange(0, bsz * num_key_value_heads + 1, dtype=torch.int32, device=_device)
-        cu_head_offset = torch.arange(1, bsz * num_key_value_heads + 1, dtype=torch.int32, device=_device)
 
         # init metadata
         self.decoding_cu_seqlens_q = decoding_cu_seqlens_q
         self.cu_seqlens_k = cu_seqlens_k
         self.max_seqlen_k = max_seqlen_k
         self.cu_offset = cu_offset
-        self.cu_head_offset = cu_head_offset
         self.head_lens = head_seqlens_k
         self.bsz = bsz
         self.num_key_value_heads = num_key_value_heads
@@ -108,13 +105,9 @@ class DynamicCacheSplitHeadFlatten(Cache):
             raise KeyError(f"Cache only has {len(self)} layers, attempted to access layer with index {layer_idx}")
 
     def update(self, key_states, value_states, layer_idx, cache_kwargs=None):
-        # NOTE: k, v = [head_num]( bs, 1, seqlen, dim)
-        # each layer is a flatten layout like:
-        # [bsz * (head_0_len + head_1_len + ...+ head_n_len) , dim]
-        # attn = cache_kwargs.get("attn", None)
+        # each layer is a flatten layout like: [bsz * (head_0_len + head_1_len + ...+ head_n_len) , dim]
         if len(self.key_cache) <= layer_idx:
-            # prefilling
-            # flatten key and value
+            # flatten key and value in prefilling
             bs, head_num, seqlen, head_dim = key_states.shape
             flatten_key_cachee = key_states.reshape(bs* head_num* seqlen, head_dim)
             flatten_value_cache = value_states.reshape(bs* head_num* seqlen, head_dim)
@@ -123,8 +116,6 @@ class DynamicCacheSplitHeadFlatten(Cache):
             meta_data = MetaData()
             meta_data._init_metadata(key_states)
             self.metadata_list.append(meta_data)
-            # init metadata for flatten key states
-            # self.metadata._init_metadata(key_states)
             self._seen_tokens = seqlen
         else:
             # decoding
@@ -158,39 +149,34 @@ class DynamicCacheSplitHeadFlatten(Cache):
         return 1
 
     def remove_tokens(self, n: int):
-        raise NotImplementedError
-        # for layer_idx in range(len(self.key_cache)):
-        #     head_num = len(self.metadata_list[layer_idx].head_lens)
-        #     cache_idx = torch.arange(0, self.key_cache[layer_idx].shape[0] - n * head_num, dtype=torch.int32, device=self.key_cache[layer_idx].device)
-        #     pass 
+        """remove last n tokens from the cache for multi questions setting"""
+        for layer_idx in range(len(self.key_cache)):
 
-        #     self.metadata_list[layer_idx]._update_metadata_remove_n(n)
-        # self._seen_tokens -= n
+            # calculate index
+            head_lens = self.metadata_list[layer_idx].head_lens
+            cache_idx = torch.arange(0, self.key_cache[layer_idx].shape[0] - n * head_lens.shape[0], dtype=torch.int32, device=head_lens.device)
+            head_offset = torch.arange(0, head_lens.shape[0], dtype=torch.int64, device=head_lens.device)
+            removed_head_lens = head_lens - n
+            offset_repeat = torch.repeat_interleave(head_offset * n, removed_head_lens) 
+            cache_idx = cache_idx + offset_repeat
+            cache_idx = cache_idx.unsqueeze(-1).expand(-1, self.key_cache[layer_idx].shape[-1])
+            
+            # select cache
+            self.key_cache[layer_idx] = self.key_cache[layer_idx].gather(0, cache_idx)
+            self.value_cache[layer_idx] = self.value_cache[layer_idx].gather(0, cache_idx)
+
+            self.metadata_list[layer_idx]._update_metadata_remove_n(n)
+
+
 
     def get_max_length(self) -> Optional[int]:
-        return None
+        raise NotImplementedError
 
     def to_legacy_cache(self) -> Tuple[Tuple[torch.Tensor], Tuple[torch.Tensor]]:
         """Converts the `DynamicCache` instance into the its equivalent in the legacy cache format."""
-        # print(f"to_legacy_cache")
-        # legacy_cache = ()
-        # for layer_idx in range(len(self)):
-        #     legacy_cache += ((self.key_cache[layer_idx], self.value_cache[layer_idx],),)
-        # return legacy_cache
         raise NotImplementedError
 
     @classmethod
     def from_legacy_cache(cls, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None) -> "DynamicCacheEachHead":
         """Converts a cache in the legacy cache format into an equivalent `DynamicCache`."""
-        # cache = cls()
-        # print(f"from_legacy_cache past_key_values")
-        # if past_key_values is not None:
-        #     for layer_idx in range(len(past_key_values)):
-        #         key_states, value_states = past_key_values[layer_idx]
-        #         cache.key_cache.append(key_states)
-        #         cache.value_cache.append(value_states)
-
-        #         # TODO seen tokens  should be updated
-        #         cache._seen_tokens = None
-        # return cache
         raise NotImplementedError

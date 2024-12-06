@@ -4,9 +4,7 @@
 
 from calendar import c
 import contextlib
-import copy
 import logging
-from time import sleep
 from typing import Optional
 
 import torch
@@ -225,8 +223,9 @@ class KVPressTextGenerationPipeline(Pipeline):
             The generated answer.
         """
 
-        if isinstance(cache, AdaBasePress):
-            first_head_lens = cache.metadata_list.head_lens[0]
+        if isinstance(cache, DynamicCacheSplitHeadFlatten):
+            # use the first head length to present the cache sequence length in AdaKV
+            cache_seq_lengths = cache.metadata_list[0].head_lens[0].cpu().item()
         else:
             cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
 
@@ -261,11 +260,10 @@ class KVPressTextGenerationPipeline(Pipeline):
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
-        sleep(1000)
 
         # Remove the generated tokens from the cache
-        if isinstance(cache, AdaBasePress):
-            n = cache.metadata_list.head_lens[0] - first_head_lens
+        if isinstance(cache, DynamicCacheSplitHeadFlatten):
+            n = cache.metadata_list[0].head_lens[0].cpu().item() - cache_seq_lengths
             cache.remove_tokens(n)
         else:
             if isinstance(cache, QuantizedCache):
