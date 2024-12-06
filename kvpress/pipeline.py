@@ -8,12 +8,12 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline, StaticCache
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress.ada_cache import DynamicCacheSplitHeadFlatten
 from kvpress.presses.base_press import BasePress, AdaBasePress
+from kvpress.ada_cache import DynamicCacheSplitHeadFlatten
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 
 logger = logging.getLogger(__name__)
