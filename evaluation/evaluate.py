@@ -135,7 +135,6 @@ def evaluate(
     else:
         try:
             import flash_attn  # noqa: F401
-            
             model_kwargs = {"attn_implementation": "flash_attention_2"}
         except ImportError:
             model_kwargs = {}

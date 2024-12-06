@@ -19,8 +19,6 @@ from kvpress.presses.observed_attention_press import ObservedAttentionPress
 logger = logging.getLogger(__name__)
 
 
-
-
 class KVPressTextGenerationPipeline(Pipeline):
     """
     Pipeline for key-value compression in causal language models.
@@ -116,7 +114,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Add question_suffix and answer prefix
         # e.g. for llama3.1, question_suffix="<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
         questions = [question + question_suffix + answer_prefix for question in questions]
-        
         # Tokenize the context and questions
         context_ids = self.tokenizer.encode(context, return_tensors="pt", add_special_tokens=False)
         question_ids = [
@@ -183,7 +180,6 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Greedy decoding for each question
         answers = []
-        assert len(input_tensors["questions_ids"]) == 1 , "Only support single question for now"
         for question_ids in input_tensors["questions_ids"]:
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),

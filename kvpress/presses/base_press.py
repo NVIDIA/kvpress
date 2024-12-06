@@ -21,8 +21,8 @@ from transformers import (
     QuantizedCache,
 )
 
-
 logger = logging.getLogger(__name__)
+
 
 class BasePress:
     """Base class for pruning methods.
