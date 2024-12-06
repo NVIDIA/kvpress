@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import inspect
 import math
 from dataclasses import dataclass
 
@@ -45,13 +44,9 @@ class SnapKVPress(BasePress):
         query_states = query_states.view(bsz, self.window_size, module.num_heads, module.head_dim).transpose(1, 2)
 
         # Apply RoPE
-        if "position_ids" in inspect.signature(module.rotary_emb.forward).parameters:
-            position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
-            cos, sin = module.rotary_emb(query_states, position_ids)
-        else:
-            cos, sin = module.rotary_emb(query_states, q_len)
-            cos, sin = cos[-self.window_size :].unsqueeze(0), sin[-self.window_size :].unsqueeze(0)
-        query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+        position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
+        cos, sin = module.rotary_emb(query_states, position_ids)
+        query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
         # Compute attention for first q_len - window_size tokens
         key_states = repeat_kv(keys, module.num_key_value_groups)
