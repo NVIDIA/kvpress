@@ -154,7 +154,7 @@ class DynamicCacheSplitHeadFlatten(Cache):
 
             # calculate index
             head_lens = self.metadata_list[layer_idx].head_lens
-            cache_idx = torch.arange(0, self.key_cache[layer_idx].shape[0] - n * head_lens.shape[0], dtype=torch.int32, device=head_lens.device)
+            cache_idx = torch.arange(0, self.key_cache[layer_idx].shape[0] - n * head_lens.shape[0], dtype=torch.int64, device=head_lens.device)
             head_offset = torch.arange(0, head_lens.shape[0], dtype=torch.int64, device=head_lens.device)
             removed_head_lens = head_lens - n
             offset_repeat = torch.repeat_interleave(head_offset * n, removed_head_lens) 
