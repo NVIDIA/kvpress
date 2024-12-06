@@ -30,7 +30,19 @@ from transformers.utils import (
 if is_flash_attn_2_available():
     from flash_attn import  flash_attn_varlen_func
 
+# replace the vanilla flash attention in the model with the flash_attn_varlen_func for AdaKV support
+def replace_var_flash_attn(model:str):
+    from kvpress.ada_attn import AdaLlamaFlashAttention, AdaMistralFlashAttention
+    from transformers.models.llama.modeling_llama import LLAMA_ATTENTION_CLASSES
+    from transformers.models.mistral.modeling_mistral import MISTRAL_ATTENTION_CLASSES
 
+    if "llama" in model.lower():
+        LLAMA_ATTENTION_CLASSES["flash_attention_2"] = AdaLlamaFlashAttention
+    elif "mistral" in model.lower():
+        MISTRAL_ATTENTION_CLASSES["flash_attention_2"] = AdaMistralFlashAttention
+    else:
+        raise ValueError(f"Unsupported model: {model}")
+    
 
 class AdaLlamaFlashAttention(LlamaAttention):
 

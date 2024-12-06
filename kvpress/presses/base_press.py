@@ -220,7 +220,8 @@ class AdaBasePress(BasePress):
 
         num_key_value_heads = cache_metadata.num_key_value_heads
         # Prune KV pairs with the lowest scores
-        n_kept = int(q_len * (1 - self.compression_ratio)) * num_key_value_heads
+        n_kept = int(q_len * (1 - self.compression_ratio) * num_key_value_heads)
+
 
         # AdaKV paradigm
         # TODO: current implementation only support bsz 1
