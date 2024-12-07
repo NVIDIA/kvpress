@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from calendar import c
 import contextlib
 import logging
 from typing import Optional
@@ -11,7 +12,8 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCac
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.base_press import BasePress, AdaBasePress
+from kvpress.ada_cache import DynamicCacheSplitHeadFlatten
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 
 logger = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ class KVPressTextGenerationPipeline(Pipeline):
                 - forward_kwargs: The keyword arguments for the forward function.
                 - postprocess_kwargs: The keyword arguments for the postprocess function.
         """
-
+        
         answer_prefix = answer_prefix or ""
         postprocess_kwargs = {"single_question": questions is None}
         assert question is None or questions is None, "Either question or questions should be provided, not both."
@@ -161,7 +163,11 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Prefilling using the press on the context
         if cache is None:
-            cache = DynamicCache()
+            # check if the press is an case of AdaKV
+            if isinstance(press, AdaBasePress):
+                cache = DynamicCacheSplitHeadFlatten()
+            else:
+                cache = DynamicCache()
 
         with press(self.model) if press is not None else contextlib.nullcontext():
             self.model(
@@ -215,7 +221,12 @@ class KVPressTextGenerationPipeline(Pipeline):
             The generated answer.
         """
 
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+        if isinstance(cache, DynamicCacheSplitHeadFlatten):
+            # use the first head length to present the cache sequence length in AdaKV
+            cache_seq_lengths = cache.metadata_list[0].head_lens[0].cpu().item()
+        else:
+            cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -247,14 +258,19 @@ class KVPressTextGenerationPipeline(Pipeline):
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
-        # Remove the generated tokens from the cache
-        if isinstance(cache, QuantizedCache):
-            key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
-        else:
-            key_attr, value_attr = "key_cache", "value_cache"
 
-        setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
-        setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
+        # Remove the generated tokens from the cache
+        if isinstance(cache, DynamicCacheSplitHeadFlatten):
+            n = cache.metadata_list[0].head_lens[0].cpu().item() - cache_seq_lengths
+            cache.remove_tokens(n)
+        else:
+            if isinstance(cache, QuantizedCache):
+                key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
+            else:
+                key_attr, value_attr = "key_cache", "value_cache"
+
+            setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
+            setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
 
         return answer
 

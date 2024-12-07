@@ -4,7 +4,7 @@
 
 from kvpress.per_layer_compression_wrapper import apply_per_layer_compression
 from kvpress.pipeline import KVPressTextGenerationPipeline
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.base_press import BasePress, AdaBasePress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
@@ -13,9 +13,11 @@ from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.tova_press import TOVAPress
 from kvpress.presses.think_press import ThinKPress
+from kvpress.presses.ada_snapkv_press import AdaSnapKVPress
 
 __all__ = [
     "BasePress",
+    "AdaBasePress",
     "ExpectedAttentionPress",
     "KnormPress",
     "ObservedAttentionPress",
@@ -26,4 +28,5 @@ __all__ = [
     "TOVAPress",
     "KVPressTextGenerationPipeline",
     "apply_per_layer_compression",
+    "AdaSnapKVPress",
 ]
