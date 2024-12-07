@@ -68,6 +68,7 @@ class KVPressTextGenerationPipeline(Pipeline):
                 - forward_kwargs: The keyword arguments for the forward function.
                 - postprocess_kwargs: The keyword arguments for the postprocess function.
         """
+        
         answer_prefix = answer_prefix or ""
         postprocess_kwargs = {"single_question": questions is None}
         assert question is None or questions is None, "Either question or questions should be provided, not both."
@@ -114,6 +115,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Add question_suffix and answer prefix
         # e.g. for llama3.1, question_suffix="<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
         questions = [question + question_suffix + answer_prefix for question in questions]
+
         # Tokenize the context and questions
         context_ids = self.tokenizer.encode(context, return_tensors="pt", add_special_tokens=False)
         question_ids = [
