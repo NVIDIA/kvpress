@@ -1,5 +1,5 @@
 # Author: Yuan Feng
-# Corresponding Paper: Ada-KV
+# Paper: [Ada-KV: Optimizing KV Cache Eviction by Adaptive Budget Allocation for Efficient LLM Inference](https://arxiv.org/abs/2407.11550)
 
 
 import inspect

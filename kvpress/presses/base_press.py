@@ -2,14 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from bz2 import compress
-import getpass
 import logging
 from contextlib import contextmanager
 from typing import Generator
-from unittest.mock import Base
 
-from numpy import dtype
 import torch
 from torch import nn
 from transformers import (
@@ -158,7 +154,7 @@ class BasePress:
 
 
 class AdaBasePress(BasePress):
-    """Base class for pruning methods with Ada-KV Paramdigm.
+    """Base class for pruning methods with Ada-KV Paramdigm: Optimizing kv cache eviction by adaptive budget allocation.
     Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
     This score is used to prune the KV pairs with the lowest scores in the `hook` method
     The `hook` method is called after the forward pass of a layer and updates the cache with the pruned KV pairs.
@@ -222,7 +218,6 @@ class AdaBasePress(BasePress):
         # Prune KV pairs with the lowest scores
         n_kept = int(q_len * (1 - self.compression_ratio) * num_key_value_heads)
 
-
         # AdaKV paradigm
         # TODO: current implementation only support bsz 1
         flatten_scores = scores.view( -1)
@@ -233,10 +228,8 @@ class AdaBasePress(BasePress):
         compressed_head_lens = torch.zeros(num_key_value_heads, dtype=torch.int32,device=keys.device)
         compressed_head_lens.scatter_add_(0, cache_topk_head_idx, torch.ones_like(cache_topk_head_idx, dtype=torch.int32))
         compressed_cu_seqlens_k = torch.cumsum(compressed_head_lens, dim=0, dtype=torch.int32)
-        # print(f"compressed_cu_seqlens_k: {compressed_cu_seqlens_k.dtype}")
 
         compressed_cu_seqlens_k = torch.cat([torch.tensor([0],dtype=torch.int32,device=keys.device), compressed_cu_seqlens_k])
-        # print(f"compressed_cu_seqlens_k: {compressed_cu_seqlens_k.dtype}")
 
         compressed_max_seqlen_k = compressed_head_lens.max().cpu().item()
         cache_metadata._update_metadata_while_compressing(compressed_head_lens,compressed_cu_seqlens_k,compressed_max_seqlen_k)
