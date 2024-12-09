@@ -8,6 +8,7 @@ from transformers import DynamicCache
 
 from kvpress import (
     BasePress,
+    ComposedPress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -21,9 +22,11 @@ from kvpress import (
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
-def test_think_inner_press(unit_test_model):  # noqa: F811
-    press = ThinKPress(compression_ratio=0.5, window_size=2, inner_press=KnormPress(0.5))
-    with press(unit_test_model):
+def test_composed_press(unit_test_model):  # noqa: F811
+    press1 = KnormPress(0.5)
+    press2 = ThinKPress(compression_ratio=0.5, window_size=2)
+    composed_press = ComposedPress([press1, press2])
+    with composed_press(unit_test_model):
         input_ids = unit_test_model.dummy_inputs["input_ids"]
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
