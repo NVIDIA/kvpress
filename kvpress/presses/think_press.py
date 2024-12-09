@@ -3,7 +3,6 @@
 
 
 from dataclasses import dataclass
-from typing import Optional
 
 import torch
 from torch import nn
@@ -18,7 +17,7 @@ class ThinKPress(BasePress):
     """
     ThinK (https://arxiv.org/pdf/2407.21018) compresses the dimensions of the keys, and not the sequence length.
     Hence it can be combined with any other press that compresses the sequence length, e.g.
-    press = ThinKPress(compression_ratio=0.5, inner_press=SnapKVPress(compression_ratio=0.5))
+    press = ComposedPress([SnapKVPress(0.5), ThinKPress(0.5)])
 
     Here, we zero out the pruned dimensions resulting in no memory gain (the shape of the keys remains the same).
     To achieve memory savings, several options can be considered (see https://github.com/NVIDIA/kvpress/pull/18/),
@@ -28,7 +27,6 @@ class ThinKPress(BasePress):
     """
 
     compression_ratio: float = 0.0
-    inner_press: Optional[BasePress] = None
     window_size: int = 32
 
     def compute_window_queries(self, module, hidden_states):
@@ -58,13 +56,9 @@ class ThinKPress(BasePress):
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
-        We first apply the inner press, then we prune the key dimensions. If other similar presses are requested,
-        we will create a dedicated DimensionBasePress class to avoid code duplication.
+        If other similar presses are requested, we might create a generic forward_hook for dimension pruning
+        to avoid code duplication.
         """
-
-        # Apply the forward hook of the inner press
-        if self.inner_press is not None:
-            output = self.inner_press.forward_hook(module, input, kwargs, output)
 
         # Don't compress if the compression ratio is 0 or this is not pre-filling
         cache = output[-1]

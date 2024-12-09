@@ -13,9 +13,11 @@ from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.tova_press import TOVAPress
 from kvpress.presses.think_press import ThinKPress
+from kvpress.presses.composed_press import ComposedPress
 
 __all__ = [
     "BasePress",
+    "ComposedPress",
     "ExpectedAttentionPress",
     "KnormPress",
     "ObservedAttentionPress",
