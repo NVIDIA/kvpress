@@ -13,6 +13,7 @@ from kvpress import (
     ObservedAttentionPress,
     RandomPress,
     SnapKVPress,
+    SimLayerKVPress,
     StreamingLLMPress,
     TOVAPress,
     ThinKPress,
@@ -29,9 +30,18 @@ def test_think_inner_press(unit_test_model):  # noqa: F811
 
 
 def test_presses_run(unit_test_model):  # noqa: F811
-    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]:
+    for cls in [
+        KnormPress,
+        ExpectedAttentionPress,
+        RandomPress,
+        SimLayerKVPress,
+        StreamingLLMPress,
+        SnapKVPress,
+        TOVAPress,
+        ThinKPress,
+    ]:
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
-            press = cls(compression_ratio=compression_ratio)
+            press = cls(compression_ratio)
             if cls in [SnapKVPress, ThinKPress]:
                 press.window_size = 2
             with press(unit_test_model):
