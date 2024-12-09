@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, QuantizedCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -215,7 +215,11 @@ class KVPressTextGenerationPipeline(Pipeline):
             The generated answer.
         """
 
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+        if hasattr(cache, "_quantized_key_cache"):
+            cache_seq_lengths = [cache._quantized_key_cache[layer_idx].shape[-2] for layer_idx in range(len(cache))]
+        else:
+            cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -248,13 +252,14 @@ class KVPressTextGenerationPipeline(Pipeline):
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
         # Remove the generated tokens from the cache
-        if isinstance(cache, QuantizedCache):
-            key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
-        else:
-            key_attr, value_attr = "key_cache", "value_cache"
-
-        setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
-        setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
+        cache.key_cache = [
+            cache.key_cache[layer_idx][:, :, :sequence_length]
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+        ]
+        cache.key_cache = [
+            cache.key_cache[layer_idx][:, :, :sequence_length]
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+        ]
 
         return answer
 

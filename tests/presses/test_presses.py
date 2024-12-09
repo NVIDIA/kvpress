@@ -14,10 +14,9 @@ from kvpress import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
-    TOVAPress,
     ThinKPress,
+    TOVAPress,
 )
-
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
