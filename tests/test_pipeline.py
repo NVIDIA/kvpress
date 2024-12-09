@@ -99,7 +99,7 @@ def generate_answer(model):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model.to(device)
     context = "This is a test article. It was written on 2022-01-01."
-    questions = ["When was this article written?"]
+    questions = ["When was this article written?", "When was this article written?"]
     press = ExpectedAttentionPress(compression_ratio=0.4)
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
     answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)(
