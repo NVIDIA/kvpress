@@ -27,6 +27,17 @@ def test_pipeline(kv_press_pipeline, caplog):  # noqa: F811
     assert "Compressed Context Length: 13" in messages, messages
 
 
+def test_pipeline_With_cache(kv_press_pipeline, caplog):  # noqa: F811
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["When was this article written?"]
+    press = ExpectedAttentionPress(compression_ratio=0.4)
+    cache = DynamicCache()
+    answers = kv_press_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+
+    assert len(answers) == 1
+    assert isinstance(answers[0], str)
+
+
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
 def test_pipeline_single_or_no_question(kv_press_pipeline, question, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
