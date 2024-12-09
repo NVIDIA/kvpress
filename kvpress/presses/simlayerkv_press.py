@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
+from transformers import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.snapkv_press import SnapKVPress
@@ -63,17 +64,26 @@ class SimLayerKVPress(BasePress):
             self.compression_ratios = []
             assert hidden_states.shape[1] > self.n_last, "Query length should be greater than the window size"
 
-        keys, values = cache.key_cache[module.layer_idx], cache.value_cache[module.layer_idx]
+        if isinstance(cache, QuantizedCache):
+            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
+            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+        else:
+            keys = cache.key_cache[module.layer_idx]
+            values = cache.value_cache[module.layer_idx]
+
         if self.is_lazy(module, hidden_states, keys):
             # If layer is lazy, only keep the initial and recent KV pairs
-            cache.key_cache[module.layer_idx] = torch.cat(
-                [keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2
-            )
-            cache.value_cache[module.layer_idx] = torch.cat(
-                [values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2
-            )
+            keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2)
+            values = torch.cat([values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2)
             self.compression_ratios.append((q_len - self.n_initial - self.n_recent + 1) / q_len)
         else:
             self.compression_ratios.append(0)
+
+        if isinstance(cache, QuantizedCache):
+            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
+            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
+        else:
+            cache.key_cache[module.layer_idx] = keys
+            cache.value_cache[module.layer_idx] = values
 
         return output
