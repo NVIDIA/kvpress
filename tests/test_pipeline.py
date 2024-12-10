@@ -44,6 +44,7 @@ def test_pipeline_quantized(kv_press_danube_pipeline, caplog):  # noqa: F811
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
+    assert cache.get_seq_length() == 13
 
     messages = [record.message for record in caplog.records]
     assert "Context Length: 23" in messages, messages
