@@ -263,6 +263,15 @@ class KVPressTextGenerationPipeline(Pipeline):
             cache.value_cache[layer_idx][:, :, :sequence_length]
             for layer_idx, sequence_length in enumerate(cache_seq_lengths)
         ]
+        if hasattr(cache, "_quantized_key_cache"):
+            cache._quantized_key_cache = [
+                cache._quantized_key_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
+            cache._quantized_value_cache = [
+                cache._quantized_value_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
 
         return answer
 
