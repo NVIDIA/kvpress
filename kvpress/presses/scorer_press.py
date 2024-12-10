@@ -21,7 +21,7 @@ class ScorerPress(BasePress):
     The KV pairs with the lowest scores will be pruned in the `compress` method.
     The cache is uniformly pruned across all heads and layers using the compression_ratio parameter.
     """
-    
+
     compression_ratio: float = 0.0
 
     def __post_init__(self):

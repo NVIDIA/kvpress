@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.cache_utils import QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
