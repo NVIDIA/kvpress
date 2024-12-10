@@ -99,7 +99,7 @@ def test_pipeline_compresses_context(unit_test_model, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         answers = generate_answer(unit_test_model)
 
-    assert len(answers) == 1
+    assert len(answers) == 2
     assert isinstance(answers[0], str)
 
     messages = [record.message for record in caplog.records]
