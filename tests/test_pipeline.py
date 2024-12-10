@@ -8,7 +8,8 @@ import pytest
 import torch
 from transformers import AutoTokenizer, DynamicCache
 
-from kvpress import ExpectedAttentionPress, KVPressTextGenerationPipeline
+from kvpress import ExpectedAttentionPress
+from kvpress.pipeline import KVPressTextGenerationPipeline
 from tests.fixtures import danube_500m_model, kv_press_pipeline, unit_test_model  # noqa: F401
 
 

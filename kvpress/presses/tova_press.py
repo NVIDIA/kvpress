@@ -1,18 +1,19 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+
 from dataclasses import dataclass
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.snapkv_press import SnapKVPress
 
 
 @dataclass
-class TOVAPress(BasePress):
+class TOVAPress(ScorerPress):
     """
     TOVA (https://arxiv.org/abs/2401.06104) use the attention of the last token averaged across heads
     to estimate the importance of the previous KV pairs. This press was reviewed by Michael Hassid,

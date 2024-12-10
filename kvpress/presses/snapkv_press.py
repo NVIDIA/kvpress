@@ -6,15 +6,15 @@ import math
 from dataclasses import dataclass
 
 import torch
-import torch.nn.functional as F
 from torch import nn
+from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 
 @dataclass
-class SnapKVPress(BasePress):
+class SnapKVPress(ScorerPress):
     """
     SnapKV (https://arxiv.org/abs/2404.14469) use the attention of the latest window_size tokens to estimate the
     importance of the previous KV pairs. We use the default settings from:

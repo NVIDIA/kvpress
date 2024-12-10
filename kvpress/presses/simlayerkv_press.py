@@ -54,29 +54,28 @@ class SimLayerKVPress(BasePress):
 
     @compression_ratio.setter
     def compression_ratio(self, value):
-        raise AttributeError("Cannot set the compression ratio")
+        raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")
 
-    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+    def compress(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        cache = output[-1]
-        hidden_states = kwargs["hidden_states"]
+        # Don't compress if the query length is less than the initial and recent tokens
         q_len = hidden_states.shape[1]
+        if q_len < self.n_initial + self.n_recent:
+            self.compression_ratios = [0.0]
+            return keys, values
 
-        # Don't compress if this is not pre-filling or if there are not enough tokens
-        if (cache.seen_tokens > q_len) or (cache.seen_tokens < self.n_initial + self.n_recent):
-            return output
-
-        # Re-initialize the compression_ratios list
+        # If first layer, initialize compression_ratios
         if module.layer_idx == 0:
             self.compression_ratios = []
             assert hidden_states.shape[1] > self.n_last, "Query length should be greater than the window size"
-
-        if isinstance(cache, QuantizedCache):
-            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
-        else:
-            keys = cache.key_cache[module.layer_idx]
-            values = cache.value_cache[module.layer_idx]
 
         if self.is_lazy(module, hidden_states, keys):
             # If layer is lazy, only keep the initial and recent KV pairs
@@ -86,11 +85,4 @@ class SimLayerKVPress(BasePress):
         else:
             self.compression_ratios.append(0)
 
-        if isinstance(cache, QuantizedCache):
-            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
-            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
-        else:
-            cache.key_cache[module.layer_idx] = keys
-            cache.value_cache[module.layer_idx] = values
-
-        return output
+        return keys, values
