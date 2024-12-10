@@ -11,3 +11,4 @@ class RandomPress(ScorerPress):
 
     def __post_init__(self):
         self.scorer = RandomScorer()
+        super().__post_init__()

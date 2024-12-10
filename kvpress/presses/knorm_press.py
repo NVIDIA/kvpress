@@ -11,3 +11,4 @@ class KnormPress(ScorerPress):
 
     def __post_init__(self):
         self.scorer = KnormScorer()
+        super().__post_init__()
