@@ -6,8 +6,8 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
-from kvpress import ExpectedAttentionPress
-from kvpress.presses.default_presses import (
+from kvpress import (
+    ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
     RandomPress,

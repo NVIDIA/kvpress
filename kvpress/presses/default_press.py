@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DefaultPress(BasePress):
     """
-    Default pruning method.
+    Default press method.
     The `forward_hook` method is called after the forward pass of an attention layer.
     and updates the cache with the pruned KV pairs.
     """

@@ -120,10 +120,10 @@ def evaluate(
     # Load press
     assert press_name in PRESS_DICT
     press = PRESS_DICT[press_name]
-    press.key_channel_compression_ratio = compression_ratio
+    press.compression_ratio = compression_ratio
 
     # Initialize pipeline with the correct attention implementation
-    if isinstance(press.press, ObservedAttentionScorer):
+    if isinstance(press.scorer, ObservedAttentionScorer):
         model_kwargs = {"attn_implementation": "eager"}
     else:
         try:

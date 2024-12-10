@@ -7,7 +7,7 @@ import logging
 import torch
 from transformers import DynamicCache
 
-from kvpress.presses.default_presses import ObservedAttentionPress
+from kvpress import ObservedAttentionPress
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 

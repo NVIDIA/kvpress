@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from kvpress.presses.default_presses import KnormPress
+from kvpress import KnormPress
 from tests.fixtures import kv_press_pipeline  # noqa: F401
 
 

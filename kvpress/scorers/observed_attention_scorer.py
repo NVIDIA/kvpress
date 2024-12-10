@@ -20,8 +20,6 @@ class ObservedAttentionScorer(BaseScorer):
     This approach is related to H2O (https://arxiv.org/abs/2306.14048).
     """
 
-    compression_ratio: float = 0.0
-
     def score(
         self,
         module: nn.Module,
