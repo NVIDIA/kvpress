@@ -26,14 +26,13 @@ class ThinKPress(BasePress):
     This press has been reviewed by Yuhui Xu, first author of the ThinK paper.
     """
 
-    compression_ratio: float = 0.0
+    key_channel_compression_ratio: float = 0.0
     window_size: int = 32
 
     def compute_window_queries(self, module, hidden_states):
         """
         Re-compute the last window_size query states
         """
-
         bsz, q_len, _ = hidden_states.shape
 
         # Get last window_size queries
@@ -66,7 +65,7 @@ class ThinKPress(BasePress):
         q_len = hidden_states.shape[1]
         assert q_len > self.window_size, "Query length should be greater than the window size"
 
-        if (self.compression_ratio == 0) or (cache.seen_tokens > q_len):
+        if (self.key_channel_compression_ratio == 0) or (cache.seen_tokens > q_len):
             return output
 
         # Get keys
@@ -86,7 +85,7 @@ class ThinKPress(BasePress):
         key_scores = queries_norm * keys_norm  # (bsz, num_key_value_heads, head_dim)
 
         # Prune dimensions with the lowest scores by setting them to 0
-        n_pruned = int(head_dim * self.compression_ratio)
+        n_pruned = int(head_dim * self.key_channel_compression_ratio)
         indices = key_scores.topk(n_pruned, dim=-1, largest=False).indices
         indices = indices.unsqueeze(2).expand(-1, -1, q_len, -1)
         keys = keys.scatter_(-1, indices, 0)
@@ -98,3 +97,16 @@ class ThinKPress(BasePress):
             cache.key_cache[module.layer_idx] = keys
 
         return output
+
+    @property
+    def compression_ratio(self):
+        compression_ratio = self.key_channel_compression_ratio / 2
+        if self.inner_press is not None and hasattr(self.inner_press, "compression_ratio"):
+            compression_ratio += self.inner_press.compression_ratio
+        return compression_ratio
+
+    @compression_ratio.setter
+    def compression_ratio(self, value):
+        raise AttributeError(
+            "Cannot set the compression ratio of ThinKPress directly. " "Set key_channel_compression_ratio instead."
+        )
