@@ -172,8 +172,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             )
 
         logger.debug(f"Context Length: {context_length}")
-        compressed_context_length = cache.get_seq_length()
-        logger.debug(f"Compressed Context Length: {compressed_context_length}")
+        logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
         # Greedy decoding for each question
         answers = []
