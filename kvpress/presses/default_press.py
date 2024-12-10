@@ -9,14 +9,14 @@ import torch
 from torch import nn
 from transformers import QuantizedCache
 
-from kvpress.prunners.base_pruner import BasePruner
+from kvpress.presses.base_press import BasePress
 from kvpress.scorers.base_scorer import BaseScorer
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DefaultPruner(BasePruner):
+class DefaultPress(BasePress):
     """
     Default pruning method.
     The `forward_hook` method is called after the forward pass of an attention layer.

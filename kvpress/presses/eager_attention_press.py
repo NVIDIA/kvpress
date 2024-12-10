@@ -8,13 +8,13 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
-from kvpress.prunners.default_pruner import DefaultPruner
+from kvpress.presses.default_press import DefaultPress
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class EagerAttentionPruner(DefaultPruner):
+class EagerAttentionPruner(DefaultPress):
     """
     This pruner can be used when eager attention is used in the model (i.e. the attention is materialized).
     It will not return attentions in its output to save memory.

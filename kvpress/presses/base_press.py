@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class BasePruner:
+class BasePress:
     """
     Base class for all pruning methods.
     The `forward_hook` method is called after the forward pass of an attention layer.

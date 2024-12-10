@@ -70,9 +70,9 @@ Most presses are composed of two main components, the scorer class that identifi
 As an example, it is possible to initialize `ExpectedAttentionPress` as follows:
 
 ```python
-from kvpress import DefaultPruner, ExpectedAttentionScorer
+from kvpress import DefaultPress, ExpectedAttentionScorer
 
-press = DefaultPruner(compression_ratio=0.1, scorer=ExpectedAttentionScorer())
+press = DefaultPress(compression_ratio=0.1, scorer=ExpectedAttentionScorer())
 ```
 
 This allows for easy customization of the press behavior.

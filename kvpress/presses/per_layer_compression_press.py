@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
-
+import inspect
 import logging
 from dataclasses import dataclass
 from typing import List
@@ -9,16 +8,14 @@ from typing import List
 import torch
 from torch import nn
 
-from kvpress.prunners.base_pruner import BasePruner
-from kvpress.prunners.default_pruner import DefaultPruner
-from kvpress.scorers.base_scorer import BaseScorer
+from kvpress.presses.base_press import BasePress
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PerLayerCompressionPruner(BasePruner):
-    scorer: BaseScorer
+class PerLayerCompressionPress(BasePress):
+    press: BasePress
     compression_ratios: List[float]
 
     def __post_init__(self):
@@ -26,11 +23,16 @@ class PerLayerCompressionPruner(BasePruner):
             "Per layer compression wrapper is an experimental feature and only works with flash attention. "
             "Please make sure that the model uses flash attention."
         )
-        self.pruner = DefaultPruner(scorer=self.scorer)
+        assert "compression_ratio" in inspect.signature(
+            self.press.__init__
+        ), f"compression_ratio can't be set in the provided press: {self.press.__class__}"
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        self.pruner.compression_ratio = self.compression_ratios[module.layer_idx]
-        return self.pruner.forward_hook(module, input, kwargs, output)
+        original_compression_ratio = self.press.compression_ratio  # type:ignore[attr-defined]
+        self.press.compression_ratio = self.compression_ratios[module.layer_idx]  # type:ignore[attr-defined]
+        output = self.press.forward_hook(module, input, kwargs, output)
+        self.press.compression_ratio = original_compression_ratio  # type:ignore[attr-defined]
+        return output
 
     @property
     def compression_ratio(self):

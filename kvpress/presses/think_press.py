@@ -10,11 +10,11 @@ from torch import nn
 from transformers.cache_utils import QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
-from kvpress.prunners.base_pruner import BasePruner
+from kvpress.presses.base_press import BasePress
 
 
 @dataclass
-class ThinKPress(BasePruner):
+class ThinKPress(BasePress):
     """
     ThinK (https://arxiv.org/pdf/2407.21018) compresses the dimensions of the keys, and not the sequence length.
     Hence it can be combined with any other press that compresses the sequence length, e.g.
@@ -28,7 +28,7 @@ class ThinKPress(BasePruner):
     """
 
     key_channel_compression_ratio: float = 0.0
-    inner_press: Optional[BasePruner] = None
+    inner_press: Optional[BasePress] = None
     window_size: int = 32
 
     def compute_window_queries(self, module, hidden_states):

@@ -6,8 +6,8 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
+from kvpress import ExpectedAttentionPress
 from kvpress.presses.default_presses import (
-    ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
     RandomPress,
@@ -16,7 +16,7 @@ from kvpress.presses.default_presses import (
     TOVAPress,
 )
 from kvpress.presses.think_press import ThinKPress
-from kvpress.prunners.default_pruner import DefaultPruner
+from kvpress.prunners.default_press import DefaultPress
 from kvpress.scorers.base_scorer import BaseScorer
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
@@ -33,7 +33,7 @@ def test_presses_run(unit_test_model):  # noqa: F811
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
             press = cls(compression_ratio=compression_ratio)
             if cls in [SnapKVPress]:
-                press.scorer.window_size = 2
+                press.press.window_size = 2
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
@@ -73,7 +73,7 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     Test that kept keys are those with the highest score
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
-        press = DefaultPruner(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
+        press = DefaultPress(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values

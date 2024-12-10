@@ -11,7 +11,7 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, Qu
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress.prunners.base_pruner import BasePruner
+from kvpress.presses.base_press import BasePress
 from kvpress.scorers.observed_attention_scorer import ObservedAttentionScorer
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         question: Optional[str] = None,
         questions: Optional[list[str]] = None,
         answer_prefix: Optional[str] = None,
-        press: Optional[BasePruner] = None,
+        press: Optional[BasePress] = None,
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
         cache: Optional[Cache] = None,
@@ -133,7 +133,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         self,
         input_tensors: dict[str, GenericTensor],
         max_new_tokens: int = 50,
-        press: Optional[BasePruner] = None,
+        press: Optional[BasePress] = None,
         cache: Optional[Cache] = None,
     ):
         """
