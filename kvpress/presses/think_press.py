@@ -100,13 +100,8 @@ class ThinKPress(BasePress):
 
     @property
     def compression_ratio(self):
-        compression_ratio = self.key_channel_compression_ratio / 2
-        if self.inner_press is not None and hasattr(self.inner_press, "compression_ratio"):
-            compression_ratio += self.inner_press.compression_ratio
-        return compression_ratio
+        return self.key_channel_compression_ratio / 2
 
     @compression_ratio.setter
     def compression_ratio(self, value):
-        raise AttributeError(
-            "Cannot set the compression ratio of ThinKPress directly. " "Set key_channel_compression_ratio instead."
-        )
+        raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")
