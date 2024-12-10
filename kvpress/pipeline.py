@@ -216,7 +216,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         """
 
         cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
-
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)

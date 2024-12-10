@@ -67,4 +67,5 @@ class ScorerPress(BasePress):
         # Prune keys and values
         keys = keys.gather(2, indices).contiguous()
         values = values.gather(2, indices).contiguous()
+
         return keys, values
