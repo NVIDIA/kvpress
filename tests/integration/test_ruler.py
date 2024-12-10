@@ -11,7 +11,7 @@ from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 @pytest.fixture(scope="session")
 def df_ruler():
     df = datasets.load_dataset("simonjegou/ruler", "4096")["test"].to_pandas()
-    df = df.loc[df["task"] == "niah_single_3"].reset_index(drop=True)
+    df = df.loc[df["task"] == "niah_multikey_1"].reset_index(drop=True)
     return df
 
 
