@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import dataclasses
+from dataclasses import dataclass
 
 import torch
+import torch.nn.functional as F
 from torch import nn
-from torch.nn import functional as F
 
 from kvpress import SnapKVPress
 
 
-@dataclasses.dataclass
+@dataclass
 class TOVAPress(SnapKVPress):
     """
     TOVA (https://arxiv.org/abs/2401.06104) use the attention of the last token averaged across heads
