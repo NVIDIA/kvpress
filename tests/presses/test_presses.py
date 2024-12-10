@@ -35,7 +35,7 @@ def test_presses_run(unit_test_model):  # noqa: F811
             else:
                 press = cls(compression_ratio=compression_ratio)
             if cls in [SnapKVPress]:
-                press.scorer.window_size = 2
+                press.window_size = 2
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
