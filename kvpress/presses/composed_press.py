@@ -14,5 +14,5 @@ class ComposedPress(BasePress):
         self.compression_ratio = 1
         for press in self.presses:
             output = press.forward_hook(module, input, kwargs, output)
-            self.compression_ratio *= press.compression_ratio
+            self.compression_ratio *= press.compression_ratio  # type: ignore
         return output

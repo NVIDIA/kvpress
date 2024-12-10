@@ -53,32 +53,26 @@ class ThinKPress(BasePress):
 
         return query_states
 
-    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+    def compress(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        If other similar presses are requested, we might create a generic forward_hook for dimension pruning
+        If other similar presses are requested, we might create a generic compress method for dimension pruning
         to avoid code duplication.
         """
 
-        # Don't compress if the compression ratio is 0 or this is not pre-filling
-        cache = output[-1]
-        hidden_states = kwargs["hidden_states"]
-        q_len = hidden_states.shape[1]
-        assert q_len > self.window_size, "Query length should be greater than the window size"
-
-        if (self.key_channel_compression_ratio == 0) or (cache.seen_tokens > q_len):
-            return output
-
-        # Get keys
-        if isinstance(cache, QuantizedCache):
-            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-        else:
-            keys = cache.key_cache[module.layer_idx]
-        bsz, num_key_value_heads, q_len, head_dim = keys.shape
-
-        # ThinK specific code
-        queries = self.compute_window_queries(module, kwargs["hidden_states"])
+        if self.key_channel_compression_ratio == 0:
+            return keys, values
 
         # Compute scores per dimension
+        bsz, num_key_value_heads, q_len, head_dim = keys.shape
+        queries = self.compute_window_queries(module, kwargs["hidden_states"])
         queries_norm = torch.pow(queries, 2).mean(dim=2)  # (bsz, num_heads, head_dim)
         queries_norm = queries_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, module.head_dim).mean(2)
         keys_norm = torch.pow(keys, 2).mean(dim=2)
@@ -90,13 +84,7 @@ class ThinKPress(BasePress):
         indices = indices.unsqueeze(2).expand(-1, -1, q_len, -1)
         keys = keys.scatter_(-1, indices, 0)
 
-        # Update cache
-        if isinstance(cache, QuantizedCache):
-            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
-        else:
-            cache.key_cache[module.layer_idx] = keys
-
-        return output
+        return keys, values
 
     @property
     def compression_ratio(self):
