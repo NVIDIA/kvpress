@@ -40,8 +40,12 @@ def test_presses_run(unit_test_model):  # noqa: F811
         TOVAPress,
         ThinKPress,
     ]:
-        for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
-            press = cls(compression_ratio)
+        for value in [0.2, 0.4, 0.6, 0.8]:
+            if cls == SimLayerKVPress:
+                press = cls(lazy_threshold=value)
+            else:
+                press = cls(compression_ratio=value)
+
             if cls in [SnapKVPress, ThinKPress]:
                 press.window_size = 2
             with press(unit_test_model):

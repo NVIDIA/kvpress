@@ -26,6 +26,9 @@ class SimLayerKVPress(BasePress):
     n_recent: int = 1024
     n_initial: int = 4
 
+    def __post_init__(self):
+        self.compression_ratios = None
+
     def is_lazy(
         self,
         module: nn.Module,
@@ -33,8 +36,8 @@ class SimLayerKVPress(BasePress):
         keys: torch.Tensor,
     ) -> bool:
         """
-        Compute the average attention weights of the last tokens over the initial and recent tokens.
-        A slight difference with the original implementation is that we
+        Compute the attention weights of the last tokens over the initial and recent tokens.
+        The layer is considered lazy if the sum of these attention weights is above the lazy_threshold.
         """
 
         attn_weights = SnapKVPress.compute_window_attention(module, hidden_states, keys, self.n_last)
@@ -44,10 +47,14 @@ class SimLayerKVPress(BasePress):
 
     @property
     def compression_ratio(self):
-        if hasattr(self, "compression_ratios"):
+        if self.compression_ratios is not None:
             return sum(self.compression_ratios) / len(self.compression_ratios)
         else:
             raise ValueError("Forward pass must be run to compute the compression ratio")
+
+    @compression_ratio.setter
+    def compression_ratio(self, value):
+        raise AttributeError("Cannot set the compression ratio")
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
 
