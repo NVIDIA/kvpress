@@ -13,6 +13,7 @@ from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.presses.rerotate_keys_press import KeyRerotationPress
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             )
 
         logger.debug(f"Context Length: {context_length}")
-        logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
+        compressed_context_length = cache.get_seq_length()
+        logger.debug(f"Compressed Context Length: {compressed_context_length}")
 
         # Greedy decoding for each question
         answers = []
@@ -180,9 +182,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),
                 cache=cache,
-                context_length=(
-                    context_length if "apply_key_rerotation" not in press.wrappers_applied else cache.get_seq_length()
-                ),
+                context_length=(compressed_context_length if isinstance(press, KeyRerotationPress) else context_length),
                 max_new_tokens=max_new_tokens,
             )
             answers.append(answer)

@@ -27,8 +27,6 @@ __all__ = [
     "TOVAPress",
     "KVPressTextGenerationPipeline",
     "PerLayerCompressionPress",
-    "apply_per_layer_compression",
-    "apply_key_rerotation",
 ]
 
 from kvpress.presses.tova_press import TOVAPress
