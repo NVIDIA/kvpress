@@ -64,32 +64,6 @@ All current presses are training free. We provide the following presses associat
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
-## Customization
-
-Most presses are composed of two main components, the scorer class that identifies important tokens and a pruner class that implements the pruning strategy.
-As an example, it is possible to initialize `ExpectedAttentionPress` as follows:
-
-```python
-from kvpress import ScorerPress, ExpectedAttentionScorer
-
-press = ScorerPress(compression_ratio=0.1, scorer=ExpectedAttentionScorer())
-```
-
-This allows for easy customization of the press behavior.
-Currently, the following pruning strategies are available:
-- `DefaultPruner`: Prunes the least important key-value pairs based on the score computed by the scorer.
-- `PerLayerCompressionPruner`: Same as DefaultPruner, but it is possible to specify a different compression ratio for each layer. This feature is experimental.
-- `EagerAttentionPruner`: This class is used in conjunction with `ObservedAttentionPress` for better memory management (attention matrix will be deleted after computing the score).
-
-
-It is also possible to create a custom press that does not consume a scorer, such an example would be `ThinKPress` that prunes across the channel dimension of the keys:
-```python
-from kvpress import ThinKPress, ExpectedAttentionPress
-press = ThinKPress(key_channel_compression_ratio=0.1, inner_press=ExpectedAttentionPress(compression_ratio=0.1))
-```
-
-
-
 ## Evaluation
 
 See the [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook on how to measure peak memory usage and total time gain.
@@ -198,4 +172,19 @@ All presses are stored in the `presses` directory. The easiest way to create a n
 
 Before opening a pull request with a new press, make sure to register it in the `__init__.py` file of repository and to add it in [test_presses.py](tests/presses/test_presses.py).
 
+</details>
+
+<details><summary> 
+
+### Can I change the compression ratio from one layer to another ?
+</summary>
+
+We provide an experimental feature, which only works with flash attention:
+```python
+from kvpress import PerLayerCompressionPress
+# compression_ratios should have the same length as the number of layers
+press = PerLayerCompressionPress(press, compression_ratios=[...])
+```
+
+Check the [demo notebook](notebooks/per_layer_compression_demo.ipynb) for more details.
 </details>
