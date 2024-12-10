@@ -172,9 +172,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             )
 
         logger.debug(f"Context Length: {context_length}")
-        compressed_context_length = (
-            cache._quantized_key_cache[0].shape[-2] if isinstance(cache, QuantizedCache) else cache.get_seq_length()
-        )
+        compressed_context_length = cache.get_seq_length()
         logger.debug(f"Compressed Context Length: {compressed_context_length}")
 
         # Greedy decoding for each question
