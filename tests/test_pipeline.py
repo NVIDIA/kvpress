@@ -112,7 +112,7 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     questions = ["When was this article written?"]
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
 
-    compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)
+    compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=torch.device("cpu"))
     input_ids_question = tokenizer(questions[0], return_tensors="pt", add_special_tokens=False)["input_ids"]
 
     seq_len = 256
