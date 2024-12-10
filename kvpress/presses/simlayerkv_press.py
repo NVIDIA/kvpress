@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.snapkv_press import SnapKVPress
@@ -17,12 +16,17 @@ class SimLayerKVPress(BasePress):
 
     To identify lazy layers, the last attention weights are used. If the sum of attention weights of the last tokens
     over the initial and recent tokens is above the lazy_threshold, the layer is considered lazy.
-
-    Official implementation: https://github.com/sail-sg/SimLayerKV. We use n_last=1 to match SKLV-decode
+    
+    Recommended values for lazy_threshold from the official repository:
+        - llama3: 0.9
+        - llama2: 0.65
+        - mistral: 0.8
+        - qwen: 0.85
+    (Source: https://github.com/sail-sg/SimLayerKV/blob/main/LongBench/pred.py#L167)
     """
 
     lazy_threshold: float
-    n_last: int = 1
+    n_last: int = 1  # n_last=1 to match SKLV-decode
     n_recent: int = 1024
     n_initial: int = 4
 
