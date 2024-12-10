@@ -10,7 +10,7 @@ from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
-def kv_press_llama3_1_flash_attn_pipeline(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
+def test_kv_press_llama3_1_flash_attn_pipeline(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
     df = datasets.load_dataset("simonjegou/ruler", "4096")["test"].to_pandas()
     df = df.loc[df["task"] == "niah_single_3"].reset_index(drop=True)
     press = ExpectedAttentionPress(0.3)
@@ -27,7 +27,7 @@ def kv_press_llama3_1_flash_attn_pipeline(kv_press_llama3_1_flash_attn_pipeline)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.skipif(not is_optimum_quanto_available(), reason="QuantizedCache is not available")
-def kv_press_llama3_1_flash_attn_pipeline(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
+def test_kv_press_llama3_1_flash_attn_pipeline(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
     df = datasets.load_dataset("simonjegou/ruler", "4096")["test"].to_pandas()
     df = df.loc[df["task"] == "niah_single_3"].reset_index(drop=True)
     press = ExpectedAttentionPress(0.15)
