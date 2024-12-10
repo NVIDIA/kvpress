@@ -22,7 +22,7 @@ class TOVAPress(SnapKVPress):
     """
 
     compression_ratio: float = 0.0
-    window_size: int = 1
+    window_size: int = 1  # re-use the attention weight computation from SnapKVPress for last token
 
     def score(
         self,
