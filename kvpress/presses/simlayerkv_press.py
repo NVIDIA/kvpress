@@ -16,7 +16,7 @@ class SimLayerKVPress(BasePress):
 
     To identify lazy layers, the last attention weights are used. If the sum of attention weights of the last tokens
     over the initial and recent tokens is above the lazy_threshold, the layer is considered lazy.
-    
+
     Recommended values for lazy_threshold from the official repository:
         - llama3: 0.9
         - llama2: 0.65
