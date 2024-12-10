@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 
-from kvpress import DefaultPress, StreamingLLMScorer
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.streaming_llm_scorer import StreamingLLMScorer
 
 
 @dataclass
-class StreamingLLMPress(DefaultPress):
+class StreamingLLMPress(ScorerPress):
     scorer: StreamingLLMScorer = field(default_factory=StreamingLLMScorer)
     compression_ratio: float = 0.0
     n_sink: int = 4

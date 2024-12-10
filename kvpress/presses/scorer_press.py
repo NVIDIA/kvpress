@@ -10,15 +10,15 @@ from torch import nn
 from transformers import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
-from kvpress.scorers.base_scorer import BaseScorer
+from kvpress.presses.scorers.base_scorer import BaseScorer
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DefaultPress(BasePress):
+class ScorerPress(BasePress):
     """
-    Default press method.
+    Default press method for using a scorer.
     The `forward_hook` method is called after the forward pass of an attention layer.
     and updates the cache with the pruned KV pairs.
     """

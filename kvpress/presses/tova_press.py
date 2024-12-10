@@ -1,10 +1,11 @@
 import dataclasses
 
-from kvpress import DefaultPress, TOVAScorer
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.tova_scorer import TOVAScorer
 
 
 @dataclasses.dataclass
-class TOVAPress(DefaultPress):
+class TOVAPress(ScorerPress):
     scorer: TOVAScorer = dataclasses.field(default_factory=TOVAScorer)
     compression_ratio: float = 0.0
     window_size: int = 1

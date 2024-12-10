@@ -8,14 +8,14 @@ from dataclasses import dataclass, field
 import torch
 from torch import nn
 
-from kvpress import ObservedAttentionScorer
-from kvpress.presses.default_press import DefaultPress
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.observed_attention_scorer import ObservedAttentionScorer
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ObservedAttentionPress(DefaultPress):
+class ObservedAttentionPress(ScorerPress):
     """
     This pruner can be used when eager attention is used in the model (i.e. the attention is materialized).
     It will not return attentions in its output to save memory.

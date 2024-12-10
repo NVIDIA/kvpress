@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from kvpress.scorers.snapkv_scorer import SnapKVScorer
+from kvpress.presses.scorers.snapkv_scorer import SnapKVScorer
 
 
 @dataclass

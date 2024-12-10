@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
-from kvpress.scorers.base_scorer import BaseScorer
+from kvpress.presses.scorers.base_scorer import BaseScorer
 
 
 @dataclass

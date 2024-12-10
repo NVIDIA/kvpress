@@ -12,7 +12,7 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
-from kvpress.scorers.observed_attention_scorer import ObservedAttentionScorer
+from kvpress.presses.scorers.observed_attention_scorer import ObservedAttentionScorer
 
 logger = logging.getLogger(__name__)
 

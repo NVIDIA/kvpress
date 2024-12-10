@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from transformers.utils import logging
 
-from kvpress.scorers.base_scorer import BaseScorer
+from kvpress.presses.scorers.base_scorer import BaseScorer
 
 logger = logging.get_logger(__name__)
 

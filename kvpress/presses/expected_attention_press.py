@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 
-from kvpress import DefaultPress, ExpectedAttentionScorer
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.expected_attention_scorer import ExpectedAttentionScorer
 
 
 @dataclass
-class ExpectedAttentionPress(DefaultPress):
+class ExpectedAttentionPress(ScorerPress):
     scorer: ExpectedAttentionScorer = field(default_factory=ExpectedAttentionScorer)
     compression_ratio: float = 0.0
     n_future_positions: int = 512

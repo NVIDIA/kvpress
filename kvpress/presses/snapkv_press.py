@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 
-from kvpress import DefaultPress, SnapKVScorer
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.snapkv_scorer import SnapKVScorer
 
 
 @dataclass
-class SnapKVPress(DefaultPress):
+class SnapKVPress(ScorerPress):
     scorer: SnapKVScorer = field(default_factory=SnapKVScorer)
     compression_ratio: float = 0.0
     window_size: int = 64

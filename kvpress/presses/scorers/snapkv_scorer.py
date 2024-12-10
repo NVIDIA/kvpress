@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch import nn
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
-from kvpress.scorers.base_scorer import BaseScorer
+from kvpress.presses.scorers.base_scorer import BaseScorer
 
 
 @dataclass

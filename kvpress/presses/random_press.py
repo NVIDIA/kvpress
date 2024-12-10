@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 
-from kvpress import DefaultPress, RandomScorer
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.random_scorer import RandomScorer
 
 
 @dataclass
-class RandomPress(DefaultPress):
+class RandomPress(ScorerPress):
     scorer: RandomScorer = field(default_factory=RandomScorer)
     compression_ratio: float = 0.0
 
