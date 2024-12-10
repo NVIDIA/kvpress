@@ -4,9 +4,8 @@
 
 from transformers import DynamicCache
 
-from kvpress import KnormPress
+from kvpress import KnormPress, KnormScorer
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.scorers.knorm_scorer import KnormScorer
 from tests.fixtures import unit_test_model  # noqa: F401
 
 

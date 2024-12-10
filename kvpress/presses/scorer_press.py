@@ -10,7 +10,6 @@ from torch import nn
 from transformers import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.scorers.base_scorer import BaseScorer
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +17,47 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScorerPress(BasePress):
     """
-    Default press method for using a scorer.
+    Default press method for using a score method.
     The `forward_hook` method is called after the forward pass of an attention layer.
     and updates the cache with the pruned KV pairs.
     """
 
-    scorer: BaseScorer
     compression_ratio: float = 0.0
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
+
+    def score(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs,
+    ) -> torch.Tensor:
+        """Compute the scores for each KV pair in the layer.
+
+        Parameters
+        ----------
+        module :
+            Transformer layer, see `hook` method for more details.
+        hidden_states :
+            Hidden states of the layer.
+        keys :
+            Keys of the cache. Note keys are after RoPE.
+        values :
+            Values of the cache.
+        attentions :
+            Attention weights of the layer.
+        kwargs :
+            Keyword arguments, as given to the forward pass of the layer.
+
+        Returns
+        -------
+            Scores for each KV pair in the layer, shape keys.shape[:-1].
+        """
+        raise NotImplementedError
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
@@ -72,7 +102,7 @@ class ScorerPress(BasePress):
             values = cache.value_cache[module.layer_idx]
 
         with torch.no_grad():
-            scores = self.scorer.score(module, hidden_states, keys, values, attentions, kwargs)
+            scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Prune KV pairs with the lowest scores
         n_kept = int(q_len * (1 - self.compression_ratio))

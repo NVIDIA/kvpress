@@ -9,13 +9,14 @@ import torch
 from torch import nn
 
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PerLayerCompressionPress(BasePress):
-    press: BasePress
+    press: ScorerPress
     compression_ratios: List[float]
 
     def __post_init__(self):

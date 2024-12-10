@@ -1,14 +1,22 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+import torch
+from torch import nn
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.scorers.knorm_scorer import KnormScorer
 
 
 @dataclass
 class KnormPress(ScorerPress):
-    scorer: KnormScorer = field(default_factory=KnormScorer, init=False)
-    compression_ratio: float = 0.0
+    """Prune KV pairs with highest L2 norm of keys (https://arxiv.org/pdf/2406.11430)"""
 
-    def __post_init__(self):
-        self.scorer = KnormScorer()
-        super().__post_init__()
+    def score(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs,
+    ) -> torch.Tensor:
+        return -keys.norm(dim=-1)

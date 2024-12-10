@@ -1,15 +1,47 @@
 import dataclasses
 
-from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.scorers.tova_scorer import TOVAScorer
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+from kvpress import SnapKVPress
 
 
 @dataclasses.dataclass
-class TOVAPress(ScorerPress):
-    scorer: TOVAScorer = dataclasses.field(default_factory=TOVAScorer, init=False)
+class TOVAPress(SnapKVPress):
+    """
+    TOVA (https://arxiv.org/abs/2401.06104) use the attention of the last token averaged across heads
+    to estimate the importance of the previous KV pairs. This press was reviewed by Michael Hassid,
+    one of the authors of the TOVA paper.
+
+    Official implementation can be found here: https://github.com/schwartz-lab-NLP/TOVA/blob/main/src/tova_cache.py
+    """
+
     compression_ratio: float = 0.0
     window_size: int = 1
 
-    def __post_init__(self):
-        self.scorer = TOVAScorer(window_size=self.window_size)
-        super().__post_init__()
+    def score(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs,
+    ) -> torch.Tensor:
+
+        if attentions is not None:
+            attn_weights = attentions[..., -1:, :-1]
+        else:
+            attn_weights = self.compute_window_attention(module, hidden_states, keys)
+
+        # Average across heads and repeat num_key_value_head times
+        scores = attn_weights.mean(1)
+        scores = scores.repeat(1, keys.shape[1], 1)
+
+        # Add back the last token. Use max score to make sure the window is not pruned.
+        # This is a very slight difference from TOVA that don't enforce it, but the
+        # last attention weight is usually very high so it should not change the results.
+        scores = F.pad(scores, (0, 1), value=scores.max().item())
+
+        return scores

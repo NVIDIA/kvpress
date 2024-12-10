@@ -11,8 +11,8 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, Qu
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
+from kvpress import ObservedAttentionPress
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.scorers.observed_attention_scorer import ObservedAttentionScorer
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             self.model(
                 input_ids=context_ids,
                 past_key_values=cache,
-                output_attentions=isinstance(getattr(press, "scorer", None), ObservedAttentionScorer),
+                output_attentions=isinstance(press, ObservedAttentionPress),
                 num_logits_to_keep=1,
             )
 

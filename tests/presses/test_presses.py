@@ -16,7 +16,6 @@ from kvpress import (
     TOVAPress,
 )
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.scorers.base_scorer import BaseScorer
 from kvpress.presses.think_press import ThinKPress
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
@@ -48,7 +47,7 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-class StoreKnormScorer(BaseScorer):
+class StoreKnormScorer(ScorerPress):
 
     def __init__(self) -> None:
         self.scores = []
