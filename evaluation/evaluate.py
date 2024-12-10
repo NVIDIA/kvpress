@@ -9,22 +9,21 @@ from typing import Optional
 import torch
 from datasets import load_dataset
 from fire import Fire
-from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
-from loogle.calculate_metrics import calculate_metrics as loogle_scorer
-from ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from tqdm import tqdm
 from transformers import pipeline
-from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
+from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
 from kvpress import (
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
-    ObservedAttentionScorer,
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
 )
+from loogle.calculate_metrics import calculate_metrics as loogle_scorer
+from ruler.calculate_metrics import calculate_metrics as ruler_scorer
+from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +122,7 @@ def evaluate(
     press.compression_ratio = compression_ratio
 
     # Initialize pipeline with the correct attention implementation
-    if isinstance(press.scorer, ObservedAttentionScorer):
+    if isinstance(press, ObservedAttentionPress):
         model_kwargs = {"attn_implementation": "eager"}
     else:
         try:
