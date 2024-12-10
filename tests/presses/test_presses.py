@@ -42,6 +42,8 @@ def test_presses_run(unit_test_model):  # noqa: F811
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
+            # Check that the press has a compression_ratio attribute
+            assert hasattr(press, "compression_ratio")
 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811
