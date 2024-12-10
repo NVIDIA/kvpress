@@ -1,27 +1,27 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
+from dataclasses import dataclass
 
 import torch
 from torch import nn
 from transformers import DynamicCache
 
 from kvpress import (
-    BasePress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
-    ThinKPress,
     TOVAPress,
 )
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.think_press import ThinKPress
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
 def test_think_inner_press(unit_test_model):  # noqa: F811
-    press = ThinKPress(compression_ratio=0.5, window_size=2, inner_press=KnormPress(0.5))
+    press = ThinKPress(key_channel_compression_ratio=0.5, window_size=2, inner_press=KnormPress(0.5))
     with press(unit_test_model):
         input_ids = unit_test_model.dummy_inputs["input_ids"]
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
@@ -30,8 +30,11 @@ def test_think_inner_press(unit_test_model):  # noqa: F811
 def test_presses_run(unit_test_model):  # noqa: F811
     for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]:
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
-            press = cls(compression_ratio=compression_ratio)
-            if cls in [SnapKVPress, ThinKPress]:
+            if cls == ThinKPress:
+                press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
+            else:
+                press = cls(compression_ratio=compression_ratio)
+            if cls in [SnapKVPress]:
                 press.window_size = 2
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
@@ -47,10 +50,10 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-class StoreKnormPress(BasePress):
+@dataclass
+class StoreKnormPress(ScorerPress):
 
-    def __init__(self, compression_ratio: float = 0.0) -> None:
-        super().__init__(compression_ratio=compression_ratio)
+    def __post_init__(self):
         self.scores = []
 
     def score(

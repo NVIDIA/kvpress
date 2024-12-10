@@ -8,8 +8,9 @@ import pytest
 import torch
 from transformers import AutoTokenizer, DynamicCache
 
-from kvpress import ExpectedAttentionPress, KVPressTextGenerationPipeline
-from tests.fixtures import danube_500m_model, kv_press_unit_test_pipeline, unit_test_model  # noqa: F401
+from kvpress import ExpectedAttentionPress
+from kvpress.pipeline import KVPressTextGenerationPipeline
+from tests.fixtures import danube_500m_model, kv_press_pipeline, unit_test_model  # noqa: F401
 
 
 def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
