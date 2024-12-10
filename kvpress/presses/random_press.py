@@ -8,3 +8,6 @@ from kvpress.presses.scorers.random_scorer import RandomScorer
 class RandomPress(ScorerPress):
     scorer: RandomScorer = field(default_factory=RandomScorer, init=False)
     compression_ratio: float = 0.0
+
+    def __post_init__(self):
+        self.scorer = RandomScorer()

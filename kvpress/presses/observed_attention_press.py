@@ -26,12 +26,13 @@ class ObservedAttentionPress(ScorerPress):
     output_attentions: bool = False
 
     def __post_init__(self):
-        super().__post_init__()
+        self.scorer = ObservedAttentionScorer()
         if not self.output_attentions:
             logger.warning(
                 "Model will not return attentions in its output to save memory. Please use DefaultPruner if"
                 " attentions are needed in the output."
             )
+        super().__post_init__()
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         output = super().forward_hook(module, input, kwargs, output)

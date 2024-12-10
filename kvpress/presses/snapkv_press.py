@@ -12,6 +12,5 @@ class SnapKVPress(ScorerPress):
     kernel_size: int = 5
 
     def __post_init__(self):
-        self.scorer.window_size = self.window_size
-        self.scorer.kernel_size = self.kernel_size
+        self.scorer = SnapKVScorer(window_size=self.window_size, kernel_size=self.kernel_size)
         super().__post_init__()

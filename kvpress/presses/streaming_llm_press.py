@@ -11,5 +11,5 @@ class StreamingLLMPress(ScorerPress):
     n_sink: int = 4
 
     def __post_init__(self):
-        self.scorer.n_sink = self.n_sink
+        self.scorer = StreamingLLMScorer(n_sink=self.n_sink)
         super().__post_init__()

@@ -20,7 +20,6 @@ class TOVAScorer(SnapKVScorer):
     Official implementation can be found here: https://github.com/schwartz-lab-NLP/TOVA/blob/main/src/tova_cache.py
     """
 
-    compression_ratio: float = 0.0
     window_size: int = 1  # re-use the attention weight computation from SnapKVPress for last token
 
     def score(

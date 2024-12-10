@@ -14,8 +14,10 @@ class ExpectedAttentionPress(ScorerPress):
     use_vnorm: bool = True
 
     def __post_init__(self):
-        self.scorer.n_future_positions = self.n_future_positions
-        self.scorer.n_sink = self.n_sink
-        self.scorer.use_covariance = self.use_covariance
-        self.scorer.use_vnorm = self.use_vnorm
+        self.scorer = ExpectedAttentionScorer(
+            n_future_positions=self.n_future_positions,
+            n_sink=self.n_sink,
+            use_covariance=self.use_covariance,
+            use_vnorm=self.use_vnorm,
+        )
         super().__post_init__()
