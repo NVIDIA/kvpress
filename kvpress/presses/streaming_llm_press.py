@@ -7,11 +7,11 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 
 @dataclass
-class StreamingLLMPress(BasePress):
+class StreamingLLMPress(ScorerPress):
     """
     Prune a fixed number of KV pairs at the beginning and end of the sequence (https://arxiv.org/abs/2309.17453)
     We keep the first n_sink tokens and the last n_local tokens.

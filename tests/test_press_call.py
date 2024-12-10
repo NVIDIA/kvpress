@@ -4,12 +4,12 @@
 
 from transformers import DynamicCache
 
-from kvpress import BasePress, KnormPress
+from kvpress import KnormPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
 def test_context_manager_adds_and_removes_hook(unit_test_model):  # noqa: F811
-    press = BasePress()
+    press = KnormPress(compression_ratio=0.2)
 
     with press(unit_test_model):
         for layer in unit_test_model.model.layers:

@@ -2,13 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from dataclasses import dataclass
+
 import torch
 from torch import nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 
-class KnormPress(BasePress):
+@dataclass
+class KnormPress(ScorerPress):
     """Prune KV pairs with highest L2 norm of keys (https://arxiv.org/pdf/2406.11430)"""
 
     def score(

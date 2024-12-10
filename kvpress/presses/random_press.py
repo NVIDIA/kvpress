@@ -2,13 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from dataclasses import dataclass
+
 import torch
 from torch import nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 
-class RandomPress(BasePress):
+@dataclass
+class RandomPress(ScorerPress):
     """Randomly prune KV pairs"""
 
     def score(
