@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
+from dataclasses import dataclass
 
 import torch
 from torch import nn
@@ -50,9 +50,10 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-class StoreKnormScorer(ScorerPress):
+@dataclass
+class StoreKnormPress(ScorerPress):
 
-    def __init__(self) -> None:
+    def __post_init__(self):
         self.scores = []
 
     def score(
@@ -75,12 +76,12 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     Test that kept keys are those with the highest score
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
-        press = ScorerPress(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
+        press = StoreKnormPress(compression_ratio=compresion_ratio)
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
-        for scores, key in zip(press.scorer.scores, past_key_values.key_cache):
+        for scores, key in zip(press.scores, past_key_values.key_cache):
             max_scores = -key.norm(dim=-1)
             for batch_idx in range(scores.shape[0]):
                 for head_idx in range(scores.shape[1]):
