@@ -29,5 +29,3 @@ __all__ = [
     "KVPressTextGenerationPipeline",
     "PerLayerCompressionPress",
 ]
-
-from kvpress.presses.tova_press import TOVAPress
