@@ -6,7 +6,7 @@ from kvpress.presses.scorers.tova_scorer import TOVAScorer
 
 @dataclasses.dataclass
 class TOVAPress(ScorerPress):
-    scorer: TOVAScorer = dataclasses.field(default_factory=TOVAScorer)
+    scorer: TOVAScorer = dataclasses.field(default_factory=TOVAScorer, init=False)
     compression_ratio: float = 0.0
     window_size: int = 1
 

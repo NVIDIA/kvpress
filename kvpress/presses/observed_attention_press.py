@@ -21,7 +21,7 @@ class ObservedAttentionPress(ScorerPress):
     It will not return attentions in its output to save memory.
     """
 
-    scorer: ObservedAttentionScorer = field(default_factory=ObservedAttentionScorer)
+    scorer: ObservedAttentionScorer = field(default_factory=ObservedAttentionScorer, init=False)
     compression_ratio: float = 0.0
     output_attentions: bool = False
 
