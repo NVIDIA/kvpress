@@ -16,8 +16,8 @@ from kvpress import (
     TOVAPress,
 )
 from kvpress.presses.think_press import ThinKPress
-from kvpress.prunners.default_press import DefaultPress
-from kvpress.scorers.base_scorer import BaseScorer
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.scorers.base_scorer import BaseScorer
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
@@ -73,7 +73,7 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     Test that kept keys are those with the highest score
     """
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
-        press = DefaultPress(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
+        press = ScorerPress(compression_ratio=compresion_ratio, scorer=StoreKnormScorer())
         with press(unit_test_model):
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
