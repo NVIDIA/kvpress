@@ -48,7 +48,7 @@ def kv_press_llama3_1_flash_attn_pipeline():
     ckpt = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     attn_implementation = "flash_attention_2"
     pipe = pipeline(
-        "kv-press-new-text-generation",
+        "kv-press-text-generation",
         model=ckpt,
         device=device,
         torch_dtype="auto",
