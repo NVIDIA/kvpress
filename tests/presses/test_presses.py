@@ -28,9 +28,12 @@ def test_think_inner_press(unit_test_model):  # noqa: F811
 
 
 def test_presses_run(unit_test_model):  # noqa: F811
-    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress]:
+    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]:
         for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
-            press = cls(compression_ratio=compression_ratio)
+            if cls == ThinKPress:
+                press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
+            else:
+                press = cls(compression_ratio=compression_ratio)
             if cls in [SnapKVPress]:
                 press.scorer.window_size = 2
             with press(unit_test_model):
