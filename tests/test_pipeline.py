@@ -11,25 +11,35 @@ from transformers.utils import is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
-from tests.fixtures import danube_500m_model, kv_press_unit_test_pipeline, unit_test_model  # noqa: F401
+from tests.fixtures import danube_500m_model  # noqa: F401
+from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
+from tests.fixtures import kv_press_unit_test_pipeline  # noqa: F401
+from tests.fixtures import unit_test_model  # noqa: F401
 
 
-@pytest.mark.parametrize("cache", ["dynamic", "quantized"])
-def test_pipeline(kv_press_unit_test_pipeline, caplog, cache):  # noqa: F811
+def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        if cache == "dynamic":
-            cache = DynamicCache()
-        elif cache == "quantized" and is_optimum_quanto_available():
-            config = QuantizedCacheConfig(nbits=4)
-            cache = QuantoQuantizedCache(config)
-        elif cache == "quantized":
-            pytest.skip("Optimum Quanto is not available")
-        else:
-            raise ValueError(f"Unknown cache type: {cache}")
-        answers = kv_press_unit_test_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+        answers = kv_press_unit_test_pipeline(context, questions=questions, press=press)["answers"]
+
+    assert len(answers) == 1
+    assert isinstance(answers[0], str)
+
+    messages = [record.message for record in caplog.records]
+    assert "Context Length: 23" in messages, messages
+    assert "Compressed Context Length: 13" in messages, messages
+
+
+@pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
+def test_pipeline_qunatized(kv_press_danube_pipeline, caplog, cache):  # noqa: F811
+    with caplog.at_level(logging.DEBUG):
+        context = "This is a test article. It was written on 2022-01-01."
+        questions = ["When was this article written?"]
+        press = ExpectedAttentionPress(compression_ratio=0.4)
+        config = QuantizedCacheConfig(nbits=4)
+        answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
