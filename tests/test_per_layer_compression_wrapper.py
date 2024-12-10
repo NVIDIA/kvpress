@@ -9,7 +9,7 @@ from torch import nn
 from transformers import DynamicCache
 
 from kvpress import KnormPress, apply_per_layer_compression
-from tests.fixtures import kv_press_pipeline, unit_test_model  # noqa: F401
+from tests.fixtures import kv_press_unit_test_pipeline, unit_test_model  # noqa: F401
 
 
 @dataclass
@@ -22,7 +22,7 @@ class RecordCompressionKnormPress(KnormPress):
         return super().forward_hook(module, input, kwargs, output)
 
 
-def test_presses_run(kv_press_pipeline):  # noqa: F811
+def test_presses_run(kv_press_unit_test_pipeline):  # noqa: F811
     press = RecordCompressionKnormPress(compression_ratio=0)
     compression_ratios = [0.1, 0.2]
     wrapped_press = apply_per_layer_compression(press, compression_ratios)
@@ -30,7 +30,7 @@ def test_presses_run(kv_press_pipeline):  # noqa: F811
 
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?"]
-    answers = kv_press_pipeline(context, questions=questions, press=wrapped_press)["answers"]
+    answers = kv_press_unit_test_pipeline(context, questions=questions, press=wrapped_press)["answers"]
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
