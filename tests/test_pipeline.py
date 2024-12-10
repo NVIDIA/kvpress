@@ -33,12 +33,13 @@ def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
 
 
 @pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
-def test_pipeline_qunatized(kv_press_danube_pipeline, caplog, cache):  # noqa: F811
+def test_pipeline_quantized(kv_press_danube_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
         config = QuantizedCacheConfig(nbits=4)
+        cache = QuantoQuantizedCache(config)
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
