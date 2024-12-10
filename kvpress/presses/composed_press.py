@@ -10,6 +10,9 @@ class ComposedPress(BasePress):
 
     presses: list[BasePress]
 
+    def __post_init__(self):
+        self.compression_ratio = 1.0
+
     def forward_hook(self, module, input, kwargs, output):
         self.compression_ratio = 1
         for press in self.presses:

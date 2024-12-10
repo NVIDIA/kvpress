@@ -95,7 +95,7 @@ class BasePress:
         hidden_states = kwargs["hidden_states"]
         q_len = hidden_states.shape[1]
 
-        # Don't compress during pre-filling
+        # Don't compress after pre-filling
         if cache.seen_tokens > q_len:
             return output
 
