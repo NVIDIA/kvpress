@@ -46,8 +46,4 @@ class PerLayerCompressionPress(BasePress):
 
     @compression_ratio.setter
     def compression_ratio(self, value):
-        # While we could set a uniform compression ratio, raise an error to indicate that this may rather be a mistake
-        raise NotImplementedError(
-            "Setting compression ratio is not supported for PerLayerCompressionPruner. "
-            "Please use DefaultPruner for a uniform compression ratio."
-        )
+        raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")
