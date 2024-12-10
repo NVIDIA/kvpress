@@ -9,7 +9,14 @@ from typing import Generator
 
 import torch
 from torch import nn
-from transformers import LlamaForCausalLM, MistralForCausalLM, Phi3ForCausalLM, PreTrainedModel, Qwen2ForCausalLM
+from transformers import (
+    LlamaForCausalLM,
+    MistralForCausalLM,
+    Phi3ForCausalLM,
+    PreTrainedModel,
+    Qwen2ForCausalLM,
+    QuantizedCache,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +24,51 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BasePress:
     """
-    Base class for all pruning methods.
-    The `forward_hook` method is called after the forward pass of an attention layer.
-    Any pruning/updating method should be implemented in the derived class.
+    Base class for all KV cache compression methods.
+    The `forward_hook` method is called after the forward pass of an attention layer to update the cache.
     """
 
+    def compress(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        The core logic of the compression method.
+
+        Parameters
+        ----------
+        module :
+            Transformer layer, see `hook` method for more details
+        hidden_states :
+            Hidden states of the layer
+        keys :
+            Keys of the cache (unquantized)
+        values :
+            Values of the cache (unquantized)
+        attentions :
+            Attention weights of the layer
+        kwargs :
+            Keyword arguments, as given to the forward pass of the layer
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Updated keys and values
+        """
+
+        raise NotImplementedError("compress method must be implemented in subclass")
+
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        """Cache compression hook called after the forward pass of an attention layer.
-        The hook is applied only during the pre-filling phase if there is some pruning ratio.
+        """
+        Default forward hook called after the forward pass of an attention layer.
+        The hook calls the compress method to compress the KV cache while ensuring:
+            - compression is only applied only during the pre-filling phase
+            - KV cache quantization is handled correctly
 
         Parameters
         ----------
@@ -40,8 +84,38 @@ class BasePress:
         Returns
         -------
             Modified output of the forward pass of the layer.
+
         """
-        raise NotImplementedError("forward_hook method must be implemented in the derived class")
+        # See e.g. LlamaDecoderLayer.forward for the output structure
+        if len(output) == 3:
+            _, attentions, cache = output
+        else:
+            attentions, cache = None, output[-1]
+
+        hidden_states = kwargs["hidden_states"]
+        q_len = hidden_states.shape[1]
+
+        # Don't compress after pre-filling
+        if cache.seen_tokens > q_len:
+            return output
+
+        if isinstance(cache, QuantizedCache):
+            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
+            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+        else:
+            keys = cache.key_cache[module.layer_idx]
+            values = cache.value_cache[module.layer_idx]
+
+        keys, values = self.compress(module, hidden_states, keys, values, attentions, kwargs)
+
+        if isinstance(cache, QuantizedCache):
+            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
+            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
+        else:
+            cache.key_cache[module.layer_idx] = keys
+            cache.value_cache[module.layer_idx] = values
+
+        return output
 
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:

@@ -3,11 +3,9 @@
 
 
 from dataclasses import dataclass
-from typing import Optional
 
 import torch
 from torch import nn
-from transformers.cache_utils import QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
@@ -18,7 +16,7 @@ class ThinKPress(BasePress):
     """
     ThinK (https://arxiv.org/pdf/2407.21018) compresses the dimensions of the keys, and not the sequence length.
     Hence it can be combined with any other press that compresses the sequence length, e.g.
-    press = ThinKPress(compression_ratio=0.5, inner_press=SnapKVPress(compression_ratio=0.5))
+    press = ComposedPress([SnapKVPress(0.5), ThinKPress(0.5)])
 
     Here, we zero out the pruned dimensions resulting in no memory gain (the shape of the keys remains the same).
     To achieve memory savings, several options can be considered (see https://github.com/NVIDIA/kvpress/pull/18/),
@@ -28,7 +26,6 @@ class ThinKPress(BasePress):
     """
 
     key_channel_compression_ratio: float = 0.0
-    inner_press: Optional[BasePress] = None
     window_size: int = 32
 
     def compute_window_queries(self, module, hidden_states):
@@ -55,36 +52,26 @@ class ThinKPress(BasePress):
 
         return query_states
 
-    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+    def compress(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        We first apply the inner press, then we prune the key dimensions. If other similar presses are requested,
-        we will create a dedicated DimensionBasePress class to avoid code duplication.
+        If other similar presses are requested, we might create a generic compress method for dimension pruning
+        to avoid code duplication.
         """
 
-        # Apply the forward hook of the inner press
-        if self.inner_press is not None:
-            output = self.inner_press.forward_hook(module, input, kwargs, output)
-
-        # Don't compress if the compression ratio is 0 or this is not pre-filling
-        cache = output[-1]
-        hidden_states = kwargs["hidden_states"]
-        q_len = hidden_states.shape[1]
-        assert q_len > self.window_size, "Query length should be greater than the window size"
-
-        if (self.key_channel_compression_ratio == 0) or (cache.seen_tokens > q_len):
-            return output
-
-        # Get keys
-        if isinstance(cache, QuantizedCache):
-            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-        else:
-            keys = cache.key_cache[module.layer_idx]
-        bsz, num_key_value_heads, q_len, head_dim = keys.shape
-
-        # ThinK specific code
-        queries = self.compute_window_queries(module, kwargs["hidden_states"])
+        if self.key_channel_compression_ratio == 0:
+            return keys, values
 
         # Compute scores per dimension
+        bsz, num_key_value_heads, q_len, head_dim = keys.shape
+        queries = self.compute_window_queries(module, kwargs["hidden_states"])
         queries_norm = torch.pow(queries, 2).mean(dim=2)  # (bsz, num_heads, head_dim)
         queries_norm = queries_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, module.head_dim).mean(2)
         keys_norm = torch.pow(keys, 2).mean(dim=2)
@@ -96,23 +83,12 @@ class ThinKPress(BasePress):
         indices = indices.unsqueeze(2).expand(-1, -1, q_len, -1)
         keys = keys.scatter_(-1, indices, 0)
 
-        # Update cache
-        if isinstance(cache, QuantizedCache):
-            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
-        else:
-            cache.key_cache[module.layer_idx] = keys
-
-        return output
+        return keys, values
 
     @property
     def compression_ratio(self):
-        compression_ratio = self.key_channel_compression_ratio / 2
-        if self.inner_press is not None and hasattr(self.inner_press, "compression_ratio"):
-            compression_ratio += self.inner_press.compression_ratio
-        return compression_ratio
+        return self.key_channel_compression_ratio / 2
 
     @compression_ratio.setter
     def compression_ratio(self, value):
-        raise AttributeError(
-            "Cannot set the compression ratio of ThinKPress directly. " "Set key_channel_compression_ratio instead."
-        )
+        raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")

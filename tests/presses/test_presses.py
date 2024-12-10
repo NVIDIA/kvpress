@@ -7,6 +7,7 @@ from torch import nn
 from transformers import DynamicCache
 
 from kvpress import (
+    ComposedPress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -20,9 +21,11 @@ from kvpress.presses.think_press import ThinKPress
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
-def test_think_inner_press(unit_test_model):  # noqa: F811
-    press = ThinKPress(key_channel_compression_ratio=0.5, window_size=2, inner_press=KnormPress(0.5))
-    with press(unit_test_model):
+def test_composed_press(unit_test_model):  # noqa: F811
+    press1 = KnormPress(compression_ratio=0.5)
+    press2 = ThinKPress(key_channel_compression_ratio=0.5, window_size=2)
+    composed_press = ComposedPress([press1, press2])
+    with composed_press(unit_test_model):
         input_ids = unit_test_model.dummy_inputs["input_ids"]
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
@@ -39,6 +42,8 @@ def test_presses_run(unit_test_model):  # noqa: F811
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
+            # Check that the press has a compression_ratio attribute
+            assert hasattr(press, "compression_ratio")
 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811
