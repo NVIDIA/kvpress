@@ -7,10 +7,10 @@ from kvpress import DefaultPress, ExpectedAttentionScorer
 class ExpectedAttentionPress(DefaultPress):
     scorer: ExpectedAttentionScorer = field(default_factory=ExpectedAttentionScorer)
     compression_ratio: float = 0.0
-    n_future_positions: int = (512,)
-    n_sink: int = (4,)
-    use_covariance: bool = (True,)
-    use_vnorm: bool = (True,)
+    n_future_positions: int = 512
+    n_sink: int = 4
+    use_covariance: bool = True
+    use_vnorm: bool = True
 
     def __post_init__(self):
         self.scorer = ExpectedAttentionScorer(
