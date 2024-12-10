@@ -67,14 +67,4 @@ class ScorerPress(BasePress):
         # Prune keys and values
         keys = keys.gather(2, indices).contiguous()
         values = values.gather(2, indices).contiguous()
-        if isinstance(cache, QuantizedCache):
-            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
-            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
-            cache.key_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache._seen_tokens = n_kept
-        else:
-            cache.key_cache[module.layer_idx] = keys
-            cache.value_cache[module.layer_idx] = values
-
         return keys, values
