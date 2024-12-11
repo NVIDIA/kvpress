@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 import torch
@@ -5,6 +6,8 @@ from torch import nn
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.snapkv_press import SnapKVPress
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,10 +25,11 @@ class SimLayerKVPress(BasePress):
         - llama2: 0.65
         - mistral: 0.8
         - qwen: 0.85
+    By default, lazy_threshold is set to 1.0 (no compression)
     (Source: https://github.com/sail-sg/SimLayerKV/blob/main/LongBench/pred.py#L167)
     """
 
-    lazy_threshold: float
+    lazy_threshold: float = 1.0  # no compression
     n_last: int = 1  # n_last=1 to match SKLV-decode
     n_recent: int = 1024
     n_initial: int = 4
@@ -72,7 +76,11 @@ class SimLayerKVPress(BasePress):
 
         # Don't compress if the query length is less than the initial and recent tokens
         q_len = hidden_states.shape[1]
-        if q_len < self.n_initial + self.n_recent:
+        if (q_len < self.n_initial + self.n_recent) or (self.lazy_threshold == 1):
+            if self.lazy_threshold != 1:
+                logger.warning(
+                    f"Query length {q_len} is less than the initial and recent tokens {self.n_initial} + {self.n_recent}. No compression will be applied." # noqa
+                )
             self.compression_ratios = [0.0]
             return keys, values
 
