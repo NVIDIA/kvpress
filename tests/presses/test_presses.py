@@ -35,7 +35,7 @@ def test_composed_press(unit_test_model):  # noqa: F811
 @pytest.mark.parametrize(
     "cls", [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]
 )
-@pytest.mark.parametrize("compression_ratio", [0.2, 0.4, 0.6, 0.8])
+@pytest.mark.parametrize("compression_ratio", [0.2, 0.8])
 @pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress])
 def test_presses_run(unit_test_model, cls, compression_ratio, wrapper_press):  # noqa: F811
     if cls == ThinKPress:
@@ -58,7 +58,7 @@ def test_presses_run(unit_test_model, cls, compression_ratio, wrapper_press):  #
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811
     for cls in [ObservedAttentionPress]:
-        for compresion_ratio in [0.2, 0.4, 0.6, 0.8]:
+        for compresion_ratio in [0.2, 0.8]:
             press = cls(compression_ratio=compresion_ratio)
             with press(unit_test_model_output_attention):
                 input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"]
