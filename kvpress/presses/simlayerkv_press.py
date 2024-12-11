@@ -29,13 +29,17 @@ class SimLayerKVPress(BasePress):
     (Source: https://github.com/sail-sg/SimLayerKV/blob/main/LongBench/pred.py#L167)
     """
 
-    lazy_threshold: float = 1.0  # no compression
+    lazy_threshold: float = 1.0
     n_last: int = 1  # n_last=1 to match SKLV-decode
     n_recent: int = 1024
     n_initial: int = 4
 
     def __post_init__(self):
-        self.compression_ratios = None
+        assert 0.0 <= self.lazy_threshold <= 1.0, "lazy_threshold should be in [0, 1]"
+        if self.lazy_threshold == 1.0:
+            self.compression_ratios = [0.0]
+        else:
+            self.compression_ratios = []
 
     def is_lazy(
         self,
@@ -55,7 +59,7 @@ class SimLayerKVPress(BasePress):
 
     @property
     def compression_ratio(self):
-        if self.compression_ratios is not None:
+        if len(self.compression_ratios) > 0:
             return sum(self.compression_ratios) / len(self.compression_ratios)
         else:
             raise ValueError("Forward pass must be run to compute the compression ratio")
@@ -74,20 +78,15 @@ class SimLayerKVPress(BasePress):
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        # Don't compress if the query length is less than the initial and recent tokens
-        q_len = hidden_states.shape[1]
-        if (q_len < self.n_initial + self.n_recent) or (self.lazy_threshold == 1):
-            if self.lazy_threshold != 1:
-                logger.warning(
-                    f"Query length {q_len} is less than the initial and recent tokens {self.n_initial} + {self.n_recent}. No compression will be applied." # noqa
-                )
-            self.compression_ratios = [0.0]
+        if self.lazy_threshold == 1.0:
             return keys, values
 
-        # If first layer, initialize compression_ratios
+        # Sanity check and compression_ratios initialization
+        q_len = hidden_states.shape[1]
         if module.layer_idx == 0:
             self.compression_ratios = []
-            assert hidden_states.shape[1] > self.n_last, "Query length should be greater than the window size"
+            min_length = self.n_initial + self.n_recent + self.n_last
+            assert q_len >= min_length, f"Query length should be greater than the window size ({min_length})"
 
         if self.is_lazy(module, hidden_states, keys):
             # If layer is lazy, only keep the initial and recent KV pairs
