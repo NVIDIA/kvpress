@@ -7,20 +7,10 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
-from kvpress import (
-    ComposedPress,
-    ExpectedAttentionPress,
-    KeyRerotationPress,
-    KnormPress,
-    ObservedAttentionPress,
-    RandomPress,
-    SimLayerKVPress,
-    SnapKVPress,
-    StreamingLLMPress,
-    TOVAPress,
-)
+from kvpress import ComposedPress, KeyRerotationPress, KnormPress, ObservedAttentionPress
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.think_press import ThinKPress
+from tests.default_presses import default_presses
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
@@ -33,40 +23,22 @@ def test_composed_press(unit_test_model):  # noqa: F811
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-@pytest.mark.parametrize(
-    "cls",
-    [
-        KnormPress,
-        ExpectedAttentionPress,
-        RandomPress,
-        StreamingLLMPress,
-        SnapKVPress,
-        TOVAPress,
-        ThinKPress,
-        SimLayerKVPress,
-    ],
-)
-@pytest.mark.parametrize("compression_ratio", [0.2, 0.8])
+@pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress])
-def test_presses_run(unit_test_model, cls, compression_ratio, wrapper_press):  # noqa: F811
-    if cls == ThinKPress:
-        press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
-    elif cls == SimLayerKVPress:
-        press = cls(lazy_threshold=compression_ratio, n_initial=1, n_recent=1, n_last=1)
-    else:
-        press = cls(compression_ratio=compression_ratio)
-    if cls in [SnapKVPress]:
-        press.window_size = 2
-    if isinstance(wrapper_press, ComposedPress):
-        press = ComposedPress(presses=[press])
-    if isinstance(wrapper_press, KeyRerotationPress):
-        press = KeyRerotationPress(press=press)
+def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
+    cls = press_dict["cls"]
+    for kwargs in press_dict["kwargs"]:
+        press = cls(**kwargs)
+        if isinstance(wrapper_press, ComposedPress):
+            press = ComposedPress(presses=[press])
+        if isinstance(wrapper_press, KeyRerotationPress):
+            press = KeyRerotationPress(press=press)
 
-    with press(unit_test_model):
-        input_ids = unit_test_model.dummy_inputs["input_ids"]
-        unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
-    # Check that the press has a compression_ratio attribute
-    assert hasattr(press, "compression_ratio")
+        with press(unit_test_model):
+            input_ids = unit_test_model.dummy_inputs["input_ids"]
+            unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
+        # Check that the press has a compression_ratio attribute
+        assert hasattr(press, "compression_ratio")
 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811

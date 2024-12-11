@@ -4,15 +4,7 @@ import torch
 from transformers import DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
-from kvpress import (
-    ExpectedAttentionPress,
-    KnormPress,
-    SimLayerKVPress,
-    SnapKVPress,
-    StreamingLLMPress,
-    ThinKPress,
-    TOVAPress,
-)
+from tests.default_presses import default_presses
 from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
 
@@ -25,18 +17,13 @@ def df_ruler():
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
-@pytest.mark.parametrize(
-    "cls", [KnormPress, ExpectedAttentionPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress, SimLayerKVPress]
-)
-@pytest.mark.parametrize("compression_ratio", [0.1, 0.2])
+@pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
-def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, cls, compression_ratio, cache):  # noqa: F811
-    if cls == ThinKPress:
-        press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
-    elif cls == SimLayerKVPress:
-        press = cls(lazy_threshold=1 - compression_ratio)
-    else:
-        press = cls(compression_ratio=compression_ratio)
+def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache):  # noqa: F811
+    cls = press_dict["cls"]
+    kwargs = press_dict["kwargs"][0]
+    press = cls(**kwargs)
+
     if cache == "dynamic":
         cache = DynamicCache()
     elif cache == "quantized" and is_optimum_quanto_available():
