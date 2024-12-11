@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import dataclass
 
+import pytest
 import torch
 from torch import nn
 from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, rotate_half
@@ -11,7 +12,8 @@ from kvpress.presses.key_rerotation_press import get_rope_embeddings
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
-def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: LlamaForCausalLM):  # noqa: F811
+@pytest.mark.parametrize("precision", ["full", "half"])
+def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: LlamaForCausalLM, precision):  # noqa: F811
     """
     Compare KeyRerotationPress' rerotation of keys with the reference implementation.
     In the reference implementation, we are computing
@@ -19,11 +21,18 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
       2. keys_pruned = prune(keys)
       3. keys = RoPE(keys_pruned)
     """
+    if precision == "half" and torch.cuda.is_available():
+        unit_test_model = unit_test_model.cuda().half()
+    elif precision == "half" and not torch.cuda.is_available():
+        pytest.skip("Half precision test is skipped because CUDA is not available.")
+
     original_press = RandomPressWithSeed(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
 
     module = unit_test_model.model.layers[0].self_attn
-    hidden_states = torch.randn(8, 64, module.config.hidden_size)
+    hidden_states = torch.randn(
+        8, 64, module.config.hidden_size, device=unit_test_model.device, dtype=unit_test_model.dtype
+    )
 
     keys = get_keys_with_rope(module, hidden_states)
 
@@ -36,7 +45,7 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
     indices = original_press.indices
     keys_compressed_ref = compute_rerotated_keys_comparison_implementation(module, hidden_states, indices)
 
-    assert torch.allclose(keys_compressed, keys_compressed_ref, atol=1e-6)
+    assert torch.allclose(keys_compressed, keys_compressed_ref, atol=1e-6 if precision == "full" else 1e-3)
 
 
 def get_keys_with_rope(module, hidden_states):
