@@ -36,10 +36,7 @@ class SimLayerKVPress(BasePress):
 
     def __post_init__(self):
         assert 0.0 <= self.lazy_threshold <= 1.0, "lazy_threshold should be in [0, 1]"
-        if self.lazy_threshold == 1.0:
-            self.compression_ratios = [0.0]
-        else:
-            self.compression_ratios = []
+        self.compression_ratios = []
 
     def is_lazy(
         self,
@@ -78,9 +75,6 @@ class SimLayerKVPress(BasePress):
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        if self.lazy_threshold == 1.0:
-            return keys, values
-
         # Sanity check and compression_ratios initialization
         q_len = hidden_states.shape[1]
         if module.layer_idx == 0:
@@ -88,12 +82,16 @@ class SimLayerKVPress(BasePress):
             min_length = self.n_initial + self.n_recent + self.n_last
             assert q_len >= min_length, f"Query length should be greater than the window size ({min_length})"
 
+        if self.lazy_threshold == 1.0:
+            self.compression_ratios.append(0.0)
+            return keys, values
+
         if self.is_lazy(module, hidden_states, keys):
             # If layer is lazy, only keep the initial and recent KV pairs
             keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2)
             values = torch.cat([values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2)
             self.compression_ratios.append((q_len - self.n_initial - self.n_recent + 1) / q_len)
         else:
-            self.compression_ratios.append(0)
+            self.compression_ratios.append(0.0)
 
         return keys, values
