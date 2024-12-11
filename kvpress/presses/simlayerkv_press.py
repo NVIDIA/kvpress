@@ -82,6 +82,7 @@ class SimLayerKVPress(BasePress):
             min_length = self.n_initial + self.n_recent + self.n_last
             assert q_len >= min_length, f"Query length should be greater than the window size ({min_length})"
 
+        # Do not compress if lazy_threshold is 1.0
         if self.lazy_threshold == 1.0:
             self.compression_ratios.append(0.0)
             return keys, values
