@@ -12,6 +12,7 @@ from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 from kvpress.presses.random_press import RandomPress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.simlayerkv_press import SimLayerKVPress
 from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
@@ -25,6 +26,7 @@ __all__ = [
     "KnormPress",
     "ObservedAttentionPress",
     "RandomPress",
+    "SimLayerKVPress",
     "SnapKVPress",
     "StreamingLLMPress",
     "ThinKPress",

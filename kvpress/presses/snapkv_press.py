@@ -25,7 +25,10 @@ class SnapKVPress(ScorerPress):
     window_size: int = 64
     kernel_size: int = 5
 
-    def compute_window_attention(self, module, hidden_states, keys):
+    @staticmethod
+    def compute_window_attention(
+        module: nn.Module, hidden_states: torch.Tensor, keys: torch.Tensor, window_size: int
+    ) -> torch.Tensor:
         """
         Compute the last window_size queries and associated attention weights for the first q_len - window_size keys.
         """
@@ -34,17 +37,17 @@ class SnapKVPress(ScorerPress):
 
         # Get last window_size queries
         if hasattr(module, "q_proj"):
-            query_states = module.q_proj(hidden_states[:, -self.window_size :])
+            query_states = module.q_proj(hidden_states[:, -window_size:])
         elif hasattr(module, "qkv_proj"):
-            qkv = module.qkv_proj(hidden_states[:, -self.window_size :])
+            qkv = module.qkv_proj(hidden_states[:, -window_size:])
             query_states = qkv[..., : module.num_heads * module.head_dim]
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
 
-        query_states = query_states.view(bsz, self.window_size, module.num_heads, module.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, window_size, module.num_heads, module.head_dim).transpose(1, 2)
 
         # Apply RoPE
-        position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
+        position_ids = torch.arange(q_len - window_size, q_len).unsqueeze(0).to(query_states.device)
         cos, sin = module.rotary_emb(query_states, position_ids)
         query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
@@ -52,10 +55,10 @@ class SnapKVPress(ScorerPress):
         key_states = repeat_kv(keys, module.num_key_value_groups)
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(module.head_dim)
         attention_mask = torch.ones_like(attn_weights) * float("-inf")
-        attention_mask = torch.triu(attention_mask, diagonal=q_len - self.window_size + 1)
+        attention_mask = torch.triu(attention_mask, diagonal=q_len - window_size + 1)
         attn_weights += attention_mask
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
-        attn_weights = attn_weights[..., : -self.window_size]
+        attn_weights = attn_weights[..., :-window_size]
 
         return attn_weights
 
@@ -76,7 +79,7 @@ class SnapKVPress(ScorerPress):
         if attentions is not None:
             attn_weights = attentions[..., -self.window_size :, : -self.window_size]
         else:
-            attn_weights = self.compute_window_attention(module, hidden_states, keys)
+            attn_weights = self.compute_window_attention(module, hidden_states, keys, self.window_size)
 
         scores = attn_weights.mean(dim=-2)
         scores = F.avg_pool1d(scores, kernel_size=self.kernel_size, padding=self.kernel_size // 2, stride=1)

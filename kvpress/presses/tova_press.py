@@ -8,11 +8,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from kvpress import SnapKVPress
+from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.snapkv_press import SnapKVPress
 
 
 @dataclass
-class TOVAPress(SnapKVPress):
+class TOVAPress(ScorerPress):
     """
     TOVA (https://arxiv.org/abs/2401.06104) use the attention of the last token averaged across heads
     to estimate the importance of the previous KV pairs. This press was reviewed by Michael Hassid,
@@ -22,7 +23,6 @@ class TOVAPress(SnapKVPress):
     """
 
     compression_ratio: float = 0.0
-    window_size: int = 1  # re-use the attention weight computation from SnapKVPress for last token
 
     def score(
         self,
@@ -37,7 +37,7 @@ class TOVAPress(SnapKVPress):
         if attentions is not None:
             attn_weights = attentions[..., -1:, :-1]
         else:
-            attn_weights = self.compute_window_attention(module, hidden_states, keys)
+            attn_weights = SnapKVPress.compute_window_attention(module, hidden_states, keys, 1)
 
         # Average across heads and repeat num_key_value_head times
         scores = attn_weights.mean(1)
