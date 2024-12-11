@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from calendar import c
 import contextlib
 import logging
 from typing import Optional
@@ -69,7 +68,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 - forward_kwargs: The keyword arguments for the forward function.
                 - postprocess_kwargs: The keyword arguments for the postprocess function.
         """
-        
         answer_prefix = answer_prefix or ""
         postprocess_kwargs = {"single_question": questions is None}
         assert question is None or questions is None, "Either question or questions should be provided, not both."

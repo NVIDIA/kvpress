@@ -56,6 +56,7 @@ def test_ada_press():
     replace_var_flash_attn("mistral")
 
     model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.float16}
+    # Flash Attention only supports fp16 or fp16, thus we use fp16 for unit tests
     model = AutoModelForCausalLM.from_pretrained("MaxJeblick/llama2-0b-unit-test", 
                                                  **model_kwargs).eval().to("cuda:0")
     for cls in [AdaSnapKVPress, ]:
@@ -63,11 +64,9 @@ def test_ada_press():
             press = cls(compression_ratio=compression_ratio, window_size=2)
             with press(model):
                 input_ids = model.dummy_inputs["input_ids"].to("cuda:0")
-
                 # run the model with batch size 1
                 for i in range(input_ids.size(0)):
                     model(input_ids[i].unsqueeze(0), past_key_values=DynamicCacheSplitHeadFlatten()).past_key_values
-                # attn_implementation="flash_attention_2", 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811
     for cls in [ObservedAttentionPress]:
