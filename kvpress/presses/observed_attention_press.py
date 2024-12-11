@@ -2,26 +2,35 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import logging
 from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.utils import logging
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
-logger = logging.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ObservedAttentionPress(BasePress):
-    """The observed attention score is defined as the average attention weight over all prompt tokens
+class ObservedAttentionPress(ScorerPress):
+    """
+    The observed attention score is defined as the average attention weight over all prompt tokens
     Requires output_attentions=True and attn_implementation="eager" to have access to attentions
     This approach is related to H2O (https://arxiv.org/abs/2306.14048).
     """
 
     compression_ratio: float = 0.0
     output_attentions: bool = False
+
+    def __post_init__(self):
+        if not self.output_attentions:
+            logger.warning(
+                "Model will not return attentions in its output to save memory. Please use DefaultPruner if"
+                " attentions are needed in the output."
+            )
+        super().__post_init__()
 
     def score(
         self,
@@ -42,14 +51,9 @@ class ObservedAttentionPress(BasePress):
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         output = super().forward_hook(module, input, kwargs, output)
-
         # attentions are needed as input for the hook, but unless the user wants to return them in the output,
         # we can remove them to save memory
         if not self.output_attentions:
-            logger.warning_once(
-                "Model will not return attentions in its output to save memory. "
-                "Set output_attentions=True in ObservedAttentionPress to return attentions."
-            )
             output = list(output)
             output[-2] = None
             output = tuple(output)
