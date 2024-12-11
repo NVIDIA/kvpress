@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, LlamaRotaryEmbedding, rotate_half
+from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, rotate_half
 
 from kvpress import KeyRerotationPress, ScorerPress
 from kvpress.presses.key_rerotation_press import get_rope_embeddings
