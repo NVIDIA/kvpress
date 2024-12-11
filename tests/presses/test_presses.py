@@ -12,8 +12,8 @@ from kvpress import (
     KnormPress,
     ObservedAttentionPress,
     RandomPress,
-    SnapKVPress,
     SimLayerKVPress,
+    SnapKVPress,
     StreamingLLMPress,
     TOVAPress,
 )

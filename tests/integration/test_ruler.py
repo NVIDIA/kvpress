@@ -4,7 +4,15 @@ import torch
 from transformers import DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
-from kvpress import ExpectedAttentionPress, KnormPress, SnapKVPress, StreamingLLMPress, ThinKPress, TOVAPress
+from kvpress import (
+    ExpectedAttentionPress,
+    KnormPress,
+    SimLayerKVPress,
+    SnapKVPress,
+    StreamingLLMPress,
+    ThinKPress,
+    TOVAPress,
+)
 from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
 
@@ -18,7 +26,7 @@ def df_ruler():
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.parametrize(
-    "cls", [KnormPress, ExpectedAttentionPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]
+    "cls", [KnormPress, ExpectedAttentionPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress, SimLayerKVPress]
 )
 @pytest.mark.parametrize("compression_ratio", [0.1, 0.2])
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])

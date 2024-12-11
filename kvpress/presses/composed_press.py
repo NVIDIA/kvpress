@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 from kvpress.presses.base_press import BasePress
 
 
