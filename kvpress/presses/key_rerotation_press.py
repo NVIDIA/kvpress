@@ -17,18 +17,13 @@ from kvpress.presses.scorer_press import ScorerPress
 class KeyRerotationPress(BasePress):
     """
     Rerotate keys to have a uniform RoPE representation of keys after pruning.
-    This function wraps the forward hook of the press object.
-    See FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
-    https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280
-    for more details on this method.
+    This method is used in several key-value cache compression methods, such as
+    - SinkCache implementation in Hugging Face's transformers library
+    - FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
     Parameters
     ----------
-    press : BasePress
+    press : ScorerPress
         The press object to apply per-layer compression to.
-    Returns
-    -------
-    BasePress
-        The press object with rerotation applied.
     """
 
     press: ScorerPress

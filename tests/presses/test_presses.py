@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import dataclass
 
+import pytest
 import torch
 from torch import nn
 from transformers import DynamicCache
@@ -14,7 +15,7 @@ from kvpress import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
-    TOVAPress,
+    TOVAPress, KeyRerotationPress,
 )
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.think_press import ThinKPress
@@ -30,20 +31,26 @@ def test_composed_press(unit_test_model):  # noqa: F811
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
-def test_presses_run(unit_test_model):  # noqa: F811
-    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]:
-        for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
-            if cls == ThinKPress:
-                press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
-            else:
-                press = cls(compression_ratio=compression_ratio)
-            if cls in [SnapKVPress]:
-                press.window_size = 2
-            with press(unit_test_model):
-                input_ids = unit_test_model.dummy_inputs["input_ids"]
-                unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
-            # Check that the press has a compression_ratio attribute
-            assert hasattr(press, "compression_ratio")
+@pytest.mark.parametrize("cls", [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress])
+@pytest.mark.parametrize("compression_ratio", [0.2, 0.4, 0.6, 0.8])
+@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress])
+def test_presses_run(unit_test_model, cls, compression_ratio, wrapper_press):  # noqa: F811
+    if cls == ThinKPress:
+        press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
+    else:
+        press = cls(compression_ratio=compression_ratio)
+    if cls in [SnapKVPress]:
+        press.window_size = 2
+    if isinstance(wrapper_press, ComposedPress):
+        press = ComposedPress(presses=[press])
+    if isinstance(wrapper_press, KeyRerotationPress):
+        press = KeyRerotationPress(press=press)
+
+    with press(unit_test_model):
+        input_ids = unit_test_model.dummy_inputs["input_ids"]
+        unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
+    # Check that the press has a compression_ratio attribute
+    assert hasattr(press, "compression_ratio")
 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811

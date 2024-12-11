@@ -65,9 +65,10 @@ All current presses are training free. Several of them inherit from `ScorerPress
 We also provide presses relying on a different logic:
 - `ThinKPress`: compress the dimension of the keys based on the channel attention score on the last 64 queries ([paper](https://arxiv.org/pdf/2407.21018))
 
-Finally we provide two special presses:
-- `PerLayerCompressionPress`: compress each layer with a different compression ratio (experimental)
+Finally we provide special presses:
+- `PerLayerCompressionPress`: compress each layer with a different compression ratio (experimental). This press can be used with any other press.
 - `ComposedPress`: a press that composes multiple presses together by chaining their forward hooks
+- `KeyRerotationPress`: rerotate pruned keys to have continuous RoPE embeddings. This press can be used with any other press.
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
