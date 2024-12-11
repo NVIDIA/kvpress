@@ -4,6 +4,7 @@
 
 import logging
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Generator
 
 import torch
@@ -20,55 +21,54 @@ from transformers import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class BasePress:
-    """Base class for pruning methods.
-    Each pruning method should implement a `score` method that computes the scores for each KV pair in a layer.
-    This score is used to prune the KV pairs with the lowest scores in the `hook` method
-    The `hook` method is called after the forward pass of a layer and updates the cache with the pruned KV pairs.
-    The press can be applied to a model by calling it with the model as an argument.
+    """
+    Base class for all KV cache compression methods.
+    The `forward_hook` method is called after the forward pass of an attention layer to update the cache.
     """
 
-    def __init__(self, compression_ratio: float = 0.0):
-        self.compression_ratio = compression_ratio
-        assert 0 <= compression_ratio < 1, "Compression ratio must be between 0 and 1"
-
-    def score(
+    def compress(
         self,
         module: nn.Module,
         hidden_states: torch.Tensor,
         keys: torch.Tensor,
         values: torch.Tensor,
         attentions: torch.Tensor,
-        kwargs,
-    ) -> torch.Tensor:
-        """Compute the scores for each KV pair in the layer.
+        kwargs: dict,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        The core logic of the compression method.
 
         Parameters
         ----------
         module :
-            Transformer layer, see `hook` method for more details.
+            Transformer layer, see `hook` method for more details
         hidden_states :
-            Hidden states of the layer.
+            Hidden states of the layer
         keys :
-            Keys of the cache. Note keys are after RoPE.
+            Keys of the cache (unquantized)
         values :
-            Values of the cache.
+            Values of the cache (unquantized)
         attentions :
-            Attention weights of the layer.
+            Attention weights of the layer
         kwargs :
-            Keyword arguments, as given to the forward pass of the layer.
+            Keyword arguments, as given to the forward pass of the layer
 
         Returns
         -------
-            Scores for each KV pair in the layer, shape keys.shape[:-1].
-
+        tuple[torch.Tensor, torch.Tensor]
+            Updated keys and values
         """
-        raise NotImplementedError
+
+        raise NotImplementedError("compress method must be implemented in subclass")
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        """Cache compression hook called after the forward pass of a decoder layer.
-        The hook is applied only during the pre-filling phase if there is some pruning ratio.
-        The current implementation only allows to remove a constant number of KV pairs.
+        """
+        Default forward hook called after the forward pass of an attention layer.
+        The hook calls the compress method to compress the KV cache while ensuring:
+            - compression is only applied only during the pre-filling phase
+            - KV cache quantization is handled correctly
 
         Parameters
         ----------
@@ -95,8 +95,8 @@ class BasePress:
         hidden_states = kwargs["hidden_states"]
         q_len = hidden_states.shape[1]
 
-        # Don't compress if the compression ratio is 0 or this is not pre-filling
-        if (self.compression_ratio == 0) or (cache.seen_tokens > q_len):
+        # Don't compress after pre-filling
+        if cache.seen_tokens > q_len:
             return output
 
         if isinstance(cache, QuantizedCache):
@@ -106,17 +106,8 @@ class BasePress:
             keys = cache.key_cache[module.layer_idx]
             values = cache.value_cache[module.layer_idx]
 
-        with torch.no_grad():
-            scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
+        keys, values = self.compress(module, hidden_states, keys, values, attentions, kwargs)
 
-        # Prune KV pairs with the lowest scores
-        n_kept = int(q_len * (1 - self.compression_ratio))
-        indices = scores.topk(n_kept, dim=-1).indices
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
-
-        # Update cache
-        keys = keys.gather(2, indices).contiguous()
-        values = values.gather(2, indices).contiguous()
         if isinstance(cache, QuantizedCache):
             cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
             cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
@@ -141,8 +132,8 @@ class BasePress:
         if not isinstance(model, (LlamaForCausalLM, MistralForCausalLM, Phi3ForCausalLM, Qwen2ForCausalLM)):
             logger.warning(f"Model {type(model)} not tested")
 
+        hooks = []
         try:
-            hooks = []
             for layer in model.model.layers:
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
 

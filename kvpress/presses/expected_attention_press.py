@@ -7,15 +7,15 @@ import math
 from dataclasses import dataclass
 
 import torch
-import torch.nn.functional as F
 from torch import nn
+from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 
 @dataclass
-class ExpectedAttentionPress(BasePress):
+class ExpectedAttentionPress(ScorerPress):
     """
     Compute scores based on the expected attention on next positions. To do so
         1. Compute the mean and covariance matrix of the queries before RoPE.
