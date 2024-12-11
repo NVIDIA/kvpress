@@ -33,6 +33,8 @@ def df_ruler():
 def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, cls, compression_ratio, cache):  # noqa: F811
     if cls == ThinKPress:
         press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
+    elif cls == SimLayerKVPress:
+        press = cls(lazy_threshold=compression_ratio)
     else:
         press = cls(compression_ratio=compression_ratio)
     if cache == "dynamic":
