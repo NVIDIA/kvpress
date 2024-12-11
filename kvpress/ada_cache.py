@@ -19,7 +19,6 @@ class MetaData:
     head_lens: torch.Tensor = None 
     bsz: int = None 
     num_key_value_heads: int = None
-    seen_tokens: int = None
 
     def _update_metadata_while_compressing(self, head_lens, cu_seqlens_k,max_seqlen_k):
         self.head_lens = head_lens
@@ -28,7 +27,6 @@ class MetaData:
 
     def _update_metadata_remove_n(self, n):
         self.max_seqlen_k -= n
-        self.seen_tokens -= n
         self.head_lens -= n
         self.cu_seqlens_k -= self.cu_offset * n
 
@@ -38,7 +36,6 @@ class MetaData:
         self.max_seqlen_k += seqlen
         self.cu_seqlens_k += self.cu_offset * seqlen
         self.head_lens += seqlen
-        self.seen_tokens += seqlen
 
     # init the metadata for the flattened cache during the prefilling phase
     def _init_metadata(self, key_states):
@@ -76,7 +73,6 @@ class MetaData:
         self.head_lens = head_seqlens_k
         self.bsz = bsz
         self.num_key_value_heads = num_key_value_heads
-        self.seen_tokens = k_len
 
 class DynamicCacheSplitHeadFlatten(Cache):
     

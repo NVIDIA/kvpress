@@ -12,7 +12,8 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, Qu
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress.presses.base_press import BasePress, AdaBasePress
+from kvpress.presses.base_press import BasePress
+from kvpress.presses.ada_scorer_press import AdaScorerPress
 from kvpress.ada_cache import DynamicCacheSplitHeadFlatten
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 
@@ -164,7 +165,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Prefilling using the press on the context
         if cache is None:
             # check if the press is an case of AdaKV
-            if isinstance(press, AdaBasePress):
+            if isinstance(press, AdaScorerPress):
                 cache = DynamicCacheSplitHeadFlatten()
             else:
                 cache = DynamicCache()

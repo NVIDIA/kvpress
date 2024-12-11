@@ -8,6 +8,7 @@ from typing import Optional
 
 import torch
 from datasets import load_dataset
+import os
 from fire import Fire
 from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
 from kvpress.ada_attn import replace_var_flash_attn
@@ -25,7 +26,7 @@ from kvpress import (
     SnapKVPress,
     StreamingLLMPress,
     AdaSnapKVPress,
-    AdaBasePress
+    AdaScorerPress
 )
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ def evaluate(
     if isinstance(press, ObservedAttentionPress):
         model_kwargs = {"attn_implementation": "eager"}
     # Support AdaKV
-    elif isinstance(press, AdaBasePress):
+    elif isinstance(press, AdaScorerPress):
         replace_var_flash_attn(model=model)
         model_kwargs = {"attn_implementation": "flash_attention_2"}
     else:

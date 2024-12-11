@@ -30,12 +30,13 @@ from transformers.utils import (
 if is_flash_attn_2_available():
     from flash_attn import  flash_attn_varlen_func
 
-# replace the vanilla flash attention in the model with the flash_attn_varlen_func for AdaKV support
+# replace the vanilla flash attention in the model with the flash_attn_varlen_func for head-specific compression support
 def replace_var_flash_attn(model:str):
     from kvpress.ada_attn import AdaLlamaFlashAttention, AdaMistralFlashAttention
     from transformers.models.llama.modeling_llama import LLAMA_ATTENTION_CLASSES
     from transformers.models.mistral.modeling_mistral import MISTRAL_ATTENTION_CLASSES
-
+    print(f"Replacing vanilla flash attention in {model} with flash_attn_varlen_func for head-specific compression support.")
+    
     if "llama" in model.lower():
         LLAMA_ATTENTION_CLASSES["flash_attention_2"] = AdaLlamaFlashAttention
     elif "mistral" in model.lower():
@@ -50,9 +51,6 @@ class AdaLlamaFlashAttention(LlamaAttention):
     Llama flash attention module for AdaKV. This module inherits from `LlamaAttention` as the weights of the module stays untouched.
     Utilizing the flash_attn_varlen_func from the flash_attn library to perform the attention operation with flattened KV Cache layout.
     """
-
-    # update the metadata for the flatten cache during the decoding phase
-    
 
 
     def __init__(self, *args, **kwargs):
@@ -108,7 +106,7 @@ class AdaLlamaFlashAttention(LlamaAttention):
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
-            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position, "attn": self}
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
         # TODO: These transpose are quite inefficient but Flash Attention requires the layout [batch_size, sequence_length, num_heads, head_dim]. We would need to refactor the KV cache
         # to be able to avoid many of these transpose/reshape/view.

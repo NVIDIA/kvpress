@@ -10,12 +10,11 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
-import transformers.modeling_utils as modeling_utils
-from kvpress.presses.base_press import AdaBasePress
+from kvpress.presses.ada_scorer_press import AdaScorerPress
 
 
 @dataclass
-class AdaSnapKVPress(AdaBasePress):
+class AdaSnapKVPress(AdaScorerPress):
     """
     SnapKV (https://arxiv.org/abs/2404.14469) use the attention of the latest window_size tokens to estimate the
     importance of the previous KV pairs. We use the default settings from:
@@ -67,7 +66,7 @@ class AdaSnapKVPress(AdaBasePress):
 
 
     """
-        using mask to identify the KV Selection, with the selected KV pairs with MAX mask value
+        You can use mask to identify the KV selection, where the KV pairs with the maximum mask values are selected. If the number of KV pairs with maximum mask values is less than the compression budget, AdaScorerPress will retain additional KV pairs based on their relatively high scores.
     """
     def score(
         self,
@@ -117,4 +116,7 @@ class AdaSnapKVPress(AdaBasePress):
         # Add back the observation window. Use max score to make sure the window is not pruned.
         scores = F.pad(scores, (0, self.window_size), value=scores.max().item())
 
-        return scores
+        # Flatten scores
+        flatten_scores = scores.view(bsz, num_key_value_heads * q_len)
+
+        return flatten_scores
