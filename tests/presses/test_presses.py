@@ -48,7 +48,7 @@ def test_presses_run(unit_test_model):  # noqa: F811
             if cls == ThinKPress:
                 press = cls(key_channel_compression_ratio=value, window_size=2)
             elif cls == SimLayerKVPress:
-                press = cls(lazy_threshold=value, n_recent=2)
+                press = cls(lazy_threshold=value, n_initial=1, n_recent=1, n_last=1)
             else:
                 press = cls(compression_ratio=value)
             if cls == SnapKVPress:
