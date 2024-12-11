@@ -13,6 +13,7 @@ from kvpress import (
     ObservedAttentionPress,
     RandomPress,
     SnapKVPress,
+    SimLayerKVPress,
     StreamingLLMPress,
     TOVAPress,
 )
@@ -31,14 +32,29 @@ def test_composed_press(unit_test_model):  # noqa: F811
 
 
 def test_presses_run(unit_test_model):  # noqa: F811
-    for cls in [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]:
-        for compression_ratio in [0.2, 0.4, 0.6, 0.8]:
+    for cls in [
+        KnormPress,
+        ExpectedAttentionPress,
+        RandomPress,
+        StreamingLLMPress,
+        SimLayerKVPress,
+        SnapKVPress,
+        TOVAPress,
+        ThinKPress,
+    ]:
+        for value in [0.2, 0.4, 0.6, 0.8]:
+
+            # Load the press
             if cls == ThinKPress:
-                press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
+                press = cls(key_channel_compression_ratio=value, window_size=2)
+            elif cls == SimLayerKVPress:
+                press = cls(lazy_threshold=value, n_initial=1, n_recent=1, n_last=1)
             else:
-                press = cls(compression_ratio=compression_ratio)
-            if cls in [SnapKVPress]:
+                press = cls(compression_ratio=value)
+            if cls == SnapKVPress:
                 press.window_size = 2
+
+            # Run the press
             with press(unit_test_model):
                 input_ids = unit_test_model.dummy_inputs["input_ids"]
                 unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
