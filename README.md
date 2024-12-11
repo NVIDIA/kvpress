@@ -59,12 +59,12 @@ All current presses are training free. Several of them inherit from `ScorerPress
 - `SnapKVPress`: average attention weight of the last 64 queries ([paper](https://arxiv.org/abs/2404.14469))
 - `ExpectedAttentionPress` (ours): expected attention weight during the generation phase  (see [this notebook](notebooks/expected_attention.ipynb))
 - `StreamingLLMPress`: keep only the initial and recent tokens ([paper](https://arxiv.org/abs/2309.17453))
-- `SimLayerKVPress`: identify "lazy" layers, and apply the StreamingLLM approach to them ([paper](https://arxiv.org/abs/2410.13846)). The input of this press is the lazy threshold, not the compression ratio.
 - `TOVAPress`: attention weight of the last query averaged across heads ([paper](https://arxiv.org/abs/2401.06104))
 - `ObservedAttentionPress`: average attention weight observed during in pre-filling phase (similar to [H2O](https://arxiv.org/abs/2306.14048))
 
 We also provide presses relying on a different logic:
 - `ThinKPress`: compress the dimension of the keys based on the channel attention score on the last 64 queries ([paper](https://arxiv.org/pdf/2407.21018))
+- `SimLayerKVPress`: identify "lazy" layers, and apply the StreamingLLM approach to them ([paper](https://arxiv.org/abs/2410.13846)). The input of this press is the lazy threshold, not the compression ratio.
 
 Finally we provide special presses:
 - `PerLayerCompressionPress`: Compress each layer with a different compression ratio (experimental). This press can be used with any other press that allows to set a compression_ratio.

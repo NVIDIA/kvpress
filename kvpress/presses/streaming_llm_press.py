@@ -16,6 +16,10 @@ class StreamingLLMPress(ScorerPress):
     Prune a fixed number of KV pairs at the beginning and end of the sequence (https://arxiv.org/abs/2309.17453)
     We keep the first n_sink tokens and the last n_local tokens.
     n_local is computed using the compression ratio.
+
+    Note that the original implementation https://github.com/mit-han-lab/streaming-llm additionally rerotates keys.
+    This can be achieved by using
+    press = KeyRerotationPress(press=StreamingLLMPress(compression_ratio, n_sink))
     """
 
     compression_ratio: float = 0.0
