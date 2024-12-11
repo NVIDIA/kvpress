@@ -7,7 +7,7 @@ from transformers import DynamicCache
 
 from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
-from tests.fixtures import kv_press_pipeline, unit_test_model  # noqa: F401
+from tests.fixtures import unit_test_model  # noqa: F401
 
 
 def test_per_layer_compression_press(unit_test_model):  # noqa: F811

@@ -25,9 +25,33 @@ def danube_500m_model():
 
 
 @pytest.fixture(scope="session")
-def kv_press_pipeline():
+def kv_press_unit_test_pipeline():
     return pipeline(
         "kv-press-text-generation",
         model="maxjeblick/llama2-0b-unit-test",
         device=0 if torch.cuda.is_available() else -1,
     )
+
+
+@pytest.fixture(scope="session")
+def kv_press_danube_pipeline():
+    return pipeline(
+        "kv-press-text-generation",
+        model="h2oai/h2o-danube3-500m-chat",
+        device=0 if torch.cuda.is_available() else -1,
+    )
+
+
+@pytest.fixture(scope="session")
+def kv_press_llama3_1_flash_attn_pipeline():
+    device = "cuda:0"
+    ckpt = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    attn_implementation = "flash_attention_2"
+    pipe = pipeline(
+        "kv-press-text-generation",
+        model=ckpt,
+        device=device,
+        torch_dtype="auto",
+        model_kwargs={"attn_implementation": attn_implementation},
+    )
+    return pipe

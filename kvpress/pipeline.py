@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -264,13 +264,23 @@ class KVPressTextGenerationPipeline(Pipeline):
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
         # Remove the generated tokens from the cache
-        if isinstance(cache, QuantizedCache):
-            key_attr, value_attr = "_quantized_key_cache", "_quantized_value_cache"
-        else:
-            key_attr, value_attr = "key_cache", "value_cache"
-
-        setattr(cache, key_attr, [key[:, :, :c] for key, c in zip(getattr(cache, key_attr), cache_seq_lengths)])
-        setattr(cache, value_attr, [value[:, :, :c] for value, c in zip(getattr(cache, value_attr), cache_seq_lengths)])
+        cache.key_cache = [
+            cache.key_cache[layer_idx][:, :, :sequence_length]
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+        ]
+        cache.value_cache = [
+            cache.value_cache[layer_idx][:, :, :sequence_length]
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+        ]
+        if hasattr(cache, "_quantized_key_cache"):
+            cache._quantized_key_cache = [
+                cache._quantized_key_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
+            cache._quantized_value_cache = [
+                cache._quantized_value_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
 
         return answer
 

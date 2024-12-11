@@ -6,19 +6,23 @@ import logging
 
 import pytest
 import torch
-from transformers import AutoTokenizer, DynamicCache
+from transformers import AutoTokenizer, DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
+from transformers.utils import is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
-from tests.fixtures import danube_500m_model, kv_press_pipeline, unit_test_model  # noqa: F401
+from tests.fixtures import danube_500m_model  # noqa: F401
+from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
+from tests.fixtures import kv_press_unit_test_pipeline  # noqa: F401
+from tests.fixtures import unit_test_model  # noqa: F401
 
 
-def test_pipeline(kv_press_pipeline, caplog):  # noqa: F811
+def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        answers = kv_press_pipeline(context, questions=questions, press=press)["answers"]
+        answers = kv_press_unit_test_pipeline(context, questions=questions, press=press)["answers"]
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
@@ -28,12 +32,23 @@ def test_pipeline(kv_press_pipeline, caplog):  # noqa: F811
     assert "Compressed Context Length: 13" in messages, messages
 
 
+def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["When was this article written?"]
+    press = ExpectedAttentionPress(compression_ratio=0.4)
+    cache = DynamicCache()
+    answers = kv_press_unit_test_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+
+    assert len(answers) == 1
+    assert isinstance(answers[0], str)
+
+
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
-def test_pipeline_single_or_no_question(kv_press_pipeline, question, caplog):  # noqa: F811
+def test_pipeline_single_or_no_question(kv_press_unit_test_pipeline, question, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        answer = kv_press_pipeline(context, question=question, press=press)["answer"]
+        answer = kv_press_unit_test_pipeline(context, question=question, press=press)["answer"]
 
     assert isinstance(answer, str)
 
@@ -42,10 +57,10 @@ def test_pipeline_single_or_no_question(kv_press_pipeline, question, caplog):  #
     assert "Compressed Context Length: 13" in messages, messages
 
 
-def test_pipeline_no_press_works(kv_press_pipeline, caplog):  # noqa: F811
+def test_pipeline_no_press_works(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     context = "This is a test article. It was written on 2022-01-01."
     question = "When was this article written?"
-    kv_press_pipeline(context, question=question)
+    kv_press_unit_test_pipeline(context, question=question)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
@@ -61,11 +76,32 @@ def test_pipeline_answer_is_correct(danube_500m_model, caplog):  # noqa: F811
     assert "Compressed Context Length: 16" in messages
 
 
+@pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
+def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noqa: F811
+    with caplog.at_level(logging.DEBUG):
+        context = "This is a test article. It was written on 2022-01-01."
+        questions = ["When was this article written?"]
+        press = ExpectedAttentionPress(compression_ratio=0.4)
+        config = QuantizedCacheConfig(nbits=4)
+        cache = QuantoQuantizedCache(config)
+        answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+
+    assert len(answers) == 1
+    assert isinstance(answers[0], str)
+
+    for answer in answers:
+        assert answer == "This article was written on January 1, 2022."
+
+    messages = [record.message for record in caplog.records]
+    assert "Context Length: 28" in messages
+    assert "Compressed Context Length: 16" in messages
+
+
 def test_pipeline_compresses_context(unit_test_model, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         answers = generate_answer(unit_test_model)
 
-    assert len(answers) == 1
+    assert len(answers) == 2
     assert isinstance(answers[0], str)
 
     messages = [record.message for record in caplog.records]
@@ -100,7 +136,7 @@ def generate_answer(model):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model.to(device)
     context = "This is a test article. It was written on 2022-01-01."
-    questions = ["When was this article written?"]
+    questions = ["When was this article written?", "When was this article written?"]
     press = ExpectedAttentionPress(compression_ratio=0.4)
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
     answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)(
