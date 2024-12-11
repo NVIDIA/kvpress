@@ -7,6 +7,7 @@ from torch import nn
 from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, LlamaRotaryEmbedding, rotate_half
 
 from kvpress import KeyRerotationPress, ScorerPress
+from kvpress.presses.key_rerotation_press import get_rope_embeddings
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
@@ -41,7 +42,7 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
 def get_keys_with_rope(module, hidden_states):
     # Compute keys with RoPE
     keys = get_keys_without_pos_embedding(module, hidden_states)
-    cos, sin = get_position_embeddings(keys, module.rotary_emb)
+    cos, sin = get_rope_embeddings(module, keys)
     keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
     return keys
 
@@ -88,7 +89,7 @@ def compute_rerotated_keys_comparison_implementation(module: LlamaAttention, hid
     # 2.
     keys = keys.gather(2, indices).contiguous()
     # 3.
-    cos, sin = get_position_embeddings(keys, module.rotary_emb)
+    cos, sin = get_rope_embeddings(module, keys)
     keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
     return keys
 
@@ -99,10 +100,3 @@ def get_keys_without_pos_embedding(module, hidden_states):
         key_states.shape[0], key_states.shape[1], module.num_key_value_heads, module.head_dim
     ).transpose(1, 2)
     return key_states
-
-
-def get_position_embeddings(keys, rotary_emb: LlamaRotaryEmbedding):
-    length = keys.shape[2]
-    position_ids = torch.arange(length).unsqueeze(0).to(keys.device)
-    cos, sin = rotary_emb(keys, position_ids)
-    return cos, sin

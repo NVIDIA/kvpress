@@ -49,7 +49,7 @@ class KeyRerotationPress(BasePress):
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        cos, sin = get_position_embeddings(module, keys)
+        cos, sin = get_rope_embeddings(module, keys)
         # Rerotate as follows
         #  1. keys = RoPE(W_k * hidden_states)
         #  2. keys_unrotated = RoPE^-1(keys)
@@ -61,14 +61,14 @@ class KeyRerotationPress(BasePress):
         # 3. Prune keys
         keys = keys.gather(2, indices).contiguous()
         # 4. Apply RoPE
-        cos, sin = get_position_embeddings(module, keys)
+        cos, sin = get_rope_embeddings(module, keys)
         keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
 
         values = values.gather(2, indices).contiguous()
         return keys, values
 
 
-def get_position_embeddings(module, x):
+def get_rope_embeddings(module, x):
     length = x.shape[2]
     # rotary_emb function only needs .device and .dtype, so we can plug in any tensor regardless of shape
     if "position_ids" in inspect.signature(module.rotary_emb.forward).parameters:
