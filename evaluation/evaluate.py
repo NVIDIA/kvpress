@@ -8,8 +8,10 @@ from typing import Optional
 
 import torch
 from datasets import load_dataset
+import os
 from fire import Fire
 from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
+from kvpress.ada_attn import replace_var_flash_attn
 from loogle.calculate_metrics import calculate_metrics as loogle_scorer
 from ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from tqdm import tqdm
@@ -23,6 +25,8 @@ from kvpress import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
+    AdaSnapKVPress,
+    AdaScorerPress
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +52,7 @@ PRESS_DICT = {
     "random": RandomPress(),
     "snapkv": SnapKVPress(),
     "streaming_llm": StreamingLLMPress(),
+    "ada_snapkv": AdaSnapKVPress()
 }
 
 
@@ -124,10 +129,13 @@ def evaluate(
     # Initialize pipeline with the correct attention implementation
     if isinstance(press, ObservedAttentionPress):
         model_kwargs = {"attn_implementation": "eager"}
+    # Support AdaKV
+    elif isinstance(press, AdaScorerPress):
+        replace_var_flash_attn(model=model)
+        model_kwargs = {"attn_implementation": "flash_attention_2"}
     else:
         try:
             import flash_attn  # noqa: F401
-
             model_kwargs = {"attn_implementation": "flash_attention_2"}
         except ImportError:
             model_kwargs = {}

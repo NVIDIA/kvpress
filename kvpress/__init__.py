@@ -15,11 +15,16 @@ from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
 from kvpress.presses.composed_press import ComposedPress
+from kvpress.presses.tova_press import TOVAPress
+from kvpress.presses.ada_scorer_press import AdaScorerPress
+from kvpress.presses.ada_snapkv_press import AdaSnapKVPress
+
 
 __all__ = [
     "BasePress",
     "ComposedPress",
     "ScorerPress",
+    "AdaScorerPress",
     "ExpectedAttentionPress",
     "KnormPress",
     "ObservedAttentionPress",
@@ -31,6 +36,6 @@ __all__ = [
     "TOVAPress",
     "KVPressTextGenerationPipeline",
     "PerLayerCompressionPress",
+    "AdaSnapKVPress",
 ]
 
-from kvpress.presses.tova_press import TOVAPress
