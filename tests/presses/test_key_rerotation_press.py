@@ -13,8 +13,10 @@ from tests.fixtures import unit_test_model  # noqa: F401
 def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: LlamaForCausalLM):  # noqa: F811
     """
     Compare KeyRerotationPress' rerotation of keys with the reference implementation.
-    In KeyRerotationPress, we are using trigonometric functions to rerotate the keys.
-    In the reference implementation, we are using the
+    In the reference implementation, we are computing
+      1. keys = W_k * hidden_states
+      2. keys_pruned = prune(keys)
+      3. keys = RoPE(keys_pruned)
     """
     original_press = RandomPressWithSeed(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
@@ -25,6 +27,7 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
     keys = get_keys_with_rope(module, hidden_states)
 
     values = torch.randn_like(keys)
+    # Press result
     keys_compressed, _ = key_rerotation_press.compress(
         module, hidden_states, keys, values, attentions=None, kwargs=dict()
     )
@@ -76,16 +79,17 @@ class RandomPressWithSeed(ScorerPress):
 def compute_rerotated_keys_comparison_implementation(module: LlamaAttention, hidden_states, indices):
     """
     Computes the rerotated keys for the given indices.
-    This is a reference implementation for the rerotation of keys.
+      1. keys = W_k * hidden_states
+      2. keys_pruned = prune(keys)
+      3. keys = RoPE(keys_pruned)
     """
+    # 1.
     keys = get_keys_without_pos_embedding(module, hidden_states)
-
+    # 2.
     keys = keys.gather(2, indices).contiguous()
-    # apply position embeddings on the pruned keys
+    # 3.
     cos, sin = get_position_embeddings(keys, module.rotary_emb)
-    cos = cos.unsqueeze(1)
-    sin = sin.unsqueeze(1)
-    keys = (keys * cos) + (rotate_half(keys) * sin)
+    keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
     return keys
 
 

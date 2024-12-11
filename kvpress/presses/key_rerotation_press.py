@@ -54,29 +54,23 @@ class KeyRerotationPress(BasePress):
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        # Apply RoPE to the pruned keys
         cos, sin = get_position_embeddings(module, keys)
-        keys = keys.gather(2, indices).contiguous()
+        # Rerotate as follows
+        #  1. keys = RoPE(W_k * hidden_states)
+        #  2. keys_unrotated = RoPE^-1(keys)
+        #  3. keys_pruned = prune(keys_unrotated)
+        #  4. keys = RoPE(keys_pruned)
 
-        # On RoPE models, we need to recompute the Key rotation as the tokens are shifted
-        rerotation_cos, rerotation_sin = self.get_rerotation_cos_sin(keys, cos, sin)
-        keys = (keys * rerotation_cos.unsqueeze(1)) + (rotate_half(keys) * rerotation_sin.unsqueeze(1))
+        # 2. Inverse of rotation matrix is equivalent to setting sin -> -sin in the equation below
+        keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * (-sin.unsqueeze(1)))
+        # 3. Prune keys
+        keys = keys.gather(2, indices).contiguous()
+        # 4. Apply RoPE
+        cos, sin = get_position_embeddings(module, keys)
+        keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
 
         values = values.gather(2, indices).contiguous()
         return keys, values
-
-    def get_rerotation_cos_sin(self, keys, cos, sin):
-        cos = cos.to(torch.float32)
-        sin = sin.to(torch.float32)
-
-        # Compute the cos and sin required for back- and forward-rotating to one position earlier in the sequence
-        original_cos = cos[:, keys.shape[-2] :]
-        shifted_cos = cos[:, -keys.shape[-2]]
-        original_sin = sin[:, keys.shape[-2] :]
-        shifted_sin = sin[:, -keys.shape[-2]]
-        rerotation_cos = original_cos * shifted_cos + original_sin * shifted_sin
-        rerotation_sin = -original_sin * shifted_cos + original_cos * shifted_sin
-        return rerotation_cos, rerotation_sin
 
 
 def get_position_embeddings(module, x):
