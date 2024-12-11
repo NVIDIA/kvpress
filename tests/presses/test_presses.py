@@ -14,8 +14,8 @@ from kvpress import (
     KnormPress,
     ObservedAttentionPress,
     RandomPress,
-    SnapKVPress,
     SimLayerKVPress,
+    SnapKVPress,
     StreamingLLMPress,
     TOVAPress,
 )
@@ -34,13 +34,25 @@ def test_composed_press(unit_test_model):  # noqa: F811
 
 
 @pytest.mark.parametrize(
-    "cls", [KnormPress, ExpectedAttentionPress, RandomPress, StreamingLLMPress, SnapKVPress, TOVAPress, ThinKPress]
+    "cls",
+    [
+        KnormPress,
+        ExpectedAttentionPress,
+        RandomPress,
+        StreamingLLMPress,
+        SnapKVPress,
+        TOVAPress,
+        ThinKPress,
+        SimLayerKVPress,
+    ],
 )
 @pytest.mark.parametrize("compression_ratio", [0.2, 0.8])
 @pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress])
 def test_presses_run(unit_test_model, cls, compression_ratio, wrapper_press):  # noqa: F811
     if cls == ThinKPress:
         press = cls(key_channel_compression_ratio=compression_ratio, window_size=2)
+    elif cls == SimLayerKVPress:
+        press = cls(lazy_threshold=compression_ratio, n_initial=1, n_recent=1, n_last=1)
     else:
         press = cls(compression_ratio=compression_ratio)
     if cls in [SnapKVPress]:
