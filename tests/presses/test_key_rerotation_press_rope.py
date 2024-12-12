@@ -28,7 +28,7 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
     elif precision == "half" and not torch.cuda.is_available():
         pytest.skip("Half precision test is skipped because CUDA is not available.")
 
-    original_press = RandomPressWithSeed(compression_ratio=0.5)
+    original_press = RandomPressStoreIndices(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
 
     module = unit_test_model.model.layers[0].self_attn
@@ -59,7 +59,7 @@ def get_keys_with_rope(module, hidden_states):
 
 
 @dataclass
-class RandomPressWithSeed(ScorerPress):
+class RandomPressStoreIndices(ScorerPress):
     compression_ratio: float = 0.0
     seed: int = 0
 
