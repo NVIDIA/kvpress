@@ -6,6 +6,7 @@ from kvpress.pipeline import KVPressTextGenerationPipeline
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
+from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
@@ -32,4 +33,5 @@ __all__ = [
     "TOVAPress",
     "KVPressTextGenerationPipeline",
     "PerLayerCompressionPress",
+    "KeyRerotationPress",
 ]
