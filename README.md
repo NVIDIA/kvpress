@@ -19,9 +19,7 @@ pip install flash-attn --no-build-isolation
 
 ## Usage
 
-This repository provides a set of "presses" that compress the KV cache. A press is only applied during the pre-filling phase and is associated with a `compression_ratio` parameter that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline` that is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported. It handles chat templates and tokenization for you:
-
-
+This repository provides a set of "presses" that compress the KV cache. A press is only applied during the pre-filling phase and is associated with a `compression_ratio` attribute that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline` that is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported. It handles chat templates and tokenization for you:
 
 ```python
 from kvpress import ExpectedAttentionPress
@@ -48,27 +46,28 @@ In the snippet above, the compression is only applied on the context tokens so t
 
 ## Contributing with a new press
 
-We welcome contributions! If you want to implement a new press, open an issue or a pull request. Refer to the [FAQ](#faq) for more information on how presses work and how to create new ones or check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
+We welcome contributions! If you want to implement a new press, open an issue or a pull request. Refer to the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide to understand how presses work and what should be done to create a new one.
 
 ## Available presses
 
-All current presses are training free. Several of them inherit from `ScorerPress` and rely on a score used to prune the KV pairs with lowest importance:
+All current presses are training free. Several of them inherit from `ScorerPress` and rely on a score to prune the KV pairs with lowest importance:
 
 - `RandomPress`: random score
 - `KnormPress`: inverse norm of the key ([paper](https://arxiv.org/abs/2406.11430))
-- `SnapKVPress`: average attention weight of the last 64 queries ([paper](https://arxiv.org/abs/2404.14469))
+- `SnapKVPress`: average attention weight of the last queries ([paper](https://arxiv.org/abs/2404.14469))
 - `ExpectedAttentionPress` (ours): expected attention weight during the generation phase  (see [this notebook](notebooks/expected_attention.ipynb))
 - `StreamingLLMPress`: keep only the initial and recent tokens ([paper](https://arxiv.org/abs/2309.17453))
-- `SimLayerKVPress`: identify "lazy" layers, and apply the StreamingLLM approach to them ([paper](https://arxiv.org/abs/2410.13846)). The input of this press is the lazy threshold, not the compression ratio.
 - `TOVAPress`: attention weight of the last query averaged across heads ([paper](https://arxiv.org/abs/2401.06104))
 - `ObservedAttentionPress`: average attention weight observed during in pre-filling phase (similar to [H2O](https://arxiv.org/abs/2306.14048))
 
-We also provide presses relying on a different logic:
-- `ThinKPress`: compress the dimension of the keys based on the channel attention score on the last 64 queries ([paper](https://arxiv.org/pdf/2407.21018))
+Some presses relying on a different logic:
+- `ThinKPress`: compress the dimensions of the keys based on the channel attention score on the last queries ([paper](https://arxiv.org/pdf/2407.21018))
+- `SimLayerKVPress`: identify "lazy" layers, and apply the StreamingLLM approach to them ([paper](https://arxiv.org/abs/2410.13846))
 
-Finally we provide two special presses:
-- `PerLayerCompressionPress`: compress each layer with a different compression ratio (experimental)
-- `ComposedPress`: a press that composes multiple presses together by chaining their forward hooks
+Finally we provide special presses:
+- `PerLayerCompressionPress`: compress each layer with a different compression ratio (experimental). This press can be used with any other press that allows to set a compression_ratio
+- `ComposedPress`: compose multiple presses together by chaining their forward hooks
+- `KeyRerotationPress`: rerotate pruned keys to have continuous RoPE embeddings. This press can be used with any other press that inherits from `ScorerPress`.
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
@@ -129,9 +128,7 @@ Memory usage should be reduced by around `compression_ratio * kv_cache_size`. As
 
 ### How does a press work ? </summary>
 
-A press registers a forward hook to each attention layer during the pre-filling phase:
-1. Immediately after the forward pass, the hook is called, and it computes a score for each key-value pair using the `press.score` method
-2. The key-value pairs with the lowest scores are then removed based on the `compression_ratio` parameter
+A press registers a forward hook (`press.forward_hook` method) to each attention layer during the pre-filling phase. Registration can be applied using the press as a context manager (`press.__call__` method):
 
 ```python
 import torch
@@ -169,30 +166,4 @@ with press(model):
 
 However, the `generate` method does not allow to exclude the question from the compression, which would artificially favors methods such as SnapKV. Ideally, we want a compression method that works whatever comes after the context (_e.g._ for use cases such as chat or document question answering). Finally the `generate` method does not allow to provide generation for multiple questions at once.
 
-</details>
-
-<details><summary> 
-
-### How to create a new press ?
-</summary>
-
-All presses are stored in the `presses` directory. The easiest way to create a new press is to create a class that inherits from `ScorerPress` and implement a `score` method that computes the score for each key-value pair (see `knorm_press.py` for a simple example). Check the notebook [new_press.ipynb](notebooks/new_press.ipynb) for a step-by-step guide.
-
-Before opening a pull request with a new press, make sure to register it in the `__init__.py` file of repository and to add it in [test_presses.py](tests/presses/test_presses.py).
-
-</details>
-
-<details><summary> 
-
-### Can I change the compression ratio from one layer to another ?
-</summary>
-
-We provide an experimental feature, which only works with flash attention:
-```python
-from kvpress import PerLayerCompressionPress
-# compression_ratios should have the same length as the number of layers
-press = PerLayerCompressionPress(press, compression_ratios=[...])
-```
-
-Check the [demo notebook](notebooks/per_layer_compression_demo.ipynb) for more details.
 </details>

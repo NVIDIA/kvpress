@@ -12,7 +12,10 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.composed_press import ComposedPress
+from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +170,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             self.model(
                 input_ids=context_ids,
                 past_key_values=cache,
-                output_attentions=isinstance(press, ObservedAttentionPress),
+                output_attentions=self.output_attentions,
                 num_logits_to_keep=1,
             )
 
@@ -180,12 +183,25 @@ class KVPressTextGenerationPipeline(Pipeline):
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),
                 cache=cache,
-                context_length=context_length,
+                context_length=(cache.get_seq_length() if isinstance(press, KeyRerotationPress) else context_length),
                 max_new_tokens=max_new_tokens,
             )
             answers.append(answer)
 
         return answers
+
+    def output_attentions(self, press: BasePress):
+        if isinstance(press, ObservedAttentionPress):
+            return True
+        if isinstance(press, (KeyRerotationPress, PerLayerCompressionPress)) and isinstance(
+            press.press, ObservedAttentionPress
+        ):
+            return True
+        if isinstance(press, ComposedPress) and any(
+            isinstance(sub_press, ObservedAttentionPress) for sub_press in press.presses
+        ):
+            return True
+        return False
 
     def postprocess(self, model_outputs, single_question):
         if single_question:
