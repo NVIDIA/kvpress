@@ -96,7 +96,9 @@ class BasePress:
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
-        if cache.seen_tokens > q_len:
+        from kvpress.presses.chunk_press import ChunkPress
+
+        if cache.seen_tokens > q_len and not isinstance(self, ChunkPress):
             return output
 
         if isinstance(cache, QuantizedCache):
