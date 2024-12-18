@@ -165,8 +165,8 @@ class KVPressTextGenerationPipeline(Pipeline):
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
         # Handle contexts exceeding the chunk size
-        if context_length > chunk_size:
-            logger.warning("Context exceeds chunk size. Splitting into chunks.")
+        if chunk_size is not None and context_length > chunk_size:
+            logger.info("Context exceeds chunk size. Splitting into chunks.")
             chunks = [context_ids[:, i : i + chunk_size] for i in range(0, context_length, chunk_size)]
             assert isinstance(press, ChunkPress), (
                 f"Chunking is only supported with ChunkPress, but got {press}. "

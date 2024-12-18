@@ -25,13 +25,13 @@ class ChunkPress(BasePress):
     press: ScorerPress
 
     def compress(
-            self,
-            module: nn.Module,
-            hidden_states: torch.Tensor,
-            keys: torch.Tensor,
-            values: torch.Tensor,
-            attentions: torch.Tensor,
-            kwargs: dict,
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.press.compression_ratio == 0:
             return keys, values
