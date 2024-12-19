@@ -12,7 +12,6 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
@@ -195,10 +194,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             return True
         if isinstance(press, (KeyRerotationPress, PerLayerCompressionPress)) and isinstance(
             press.press, ObservedAttentionPress
-        ):
-            return True
-        if isinstance(press, ComposedPress) and any(
-            isinstance(sub_press, ObservedAttentionPress) for sub_press in press.presses
         ):
             return True
         return False
