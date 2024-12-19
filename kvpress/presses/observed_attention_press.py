@@ -27,8 +27,8 @@ class ObservedAttentionPress(ScorerPress):
     def __post_init__(self):
         if not self.output_attentions:
             logger.warning(
-                "Model will not return attentions in its output to save memory. Please use DefaultPruner if"
-                " attentions are needed in the output."
+                "Model will not return attentions in its output to save memory. "
+                "Set output_attentions=True if attentions are needed in the output."
             )
         super().__post_init__()
 
