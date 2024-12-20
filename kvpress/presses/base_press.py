@@ -86,7 +86,10 @@ class BasePress:
             Modified output of the forward pass of the layer.
 
         """
-        attn_output, attentions = output
+        if len(output) == 2:
+            attn_output, attentions = output
+        else:
+            attentions, _, cache = output
 
         cache = kwargs["past_key_value"]
         hidden_states = kwargs["hidden_states"]

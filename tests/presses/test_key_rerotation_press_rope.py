@@ -10,7 +10,7 @@ from torch import nn
 from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, rotate_half
 
 from kvpress import KeyRerotationPress, ScorerPress
-from kvpress.presses.key_rerotation_press import get_rope_embeddings
+from kvpress.presses.expected_attention_press import LlamaRotaryEmbedding
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
@@ -53,7 +53,7 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
 def get_keys_with_rope(module, hidden_states):
     # Compute keys with RoPE
     keys = get_keys_without_pos_embedding(module, hidden_states)
-    cos, sin = get_rope_embeddings(module, keys)
+    cos, sin = LlamaRotaryEmbedding(module.config)(module, keys)
     keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
     return keys
 

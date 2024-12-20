@@ -44,7 +44,9 @@ class SnapKVPress(ScorerPress):
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
 
-        query_states = query_states.view(bsz, window_size, module.config.num_attention_heads, module.head_dim).transpose(1, 2)
+        query_states = query_states.view(
+            bsz, window_size, module.config.num_attention_heads, module.head_dim
+        ).transpose(1, 2)
 
         # Apply RoPE
         position_ids = torch.arange(q_len - window_size, q_len).unsqueeze(0).to(query_states.device)

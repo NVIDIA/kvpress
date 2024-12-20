@@ -43,10 +43,12 @@ class ThinKPress(BasePress):
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
 
-        query_states = query_states.view(bsz, self.window_size, module.config.num_attention_heads, module.head_dim).transpose(1, 2)
+        query_states = query_states.view(
+            bsz, self.window_size, module.config.num_attention_heads, module.head_dim
+        ).transpose(1, 2)
 
         # Apply RoPE
-        cos, sin = cos[:, -self.window_size:], sin[:, -self.window_size:]
+        cos, sin = cos[:, -self.window_size :], sin[:, -self.window_size :]
         query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
         return query_states
