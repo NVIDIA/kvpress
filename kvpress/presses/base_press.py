@@ -86,12 +86,9 @@ class BasePress:
             Modified output of the forward pass of the layer.
 
         """
-        # See e.g. LlamaDecoderLayer.forward for the output structure
-        if len(output) == 3:
-            _, attentions, cache = output
-        else:
-            attentions, cache = None, output[-1]
+        attn_output, attentions = output
 
+        cache = kwargs["past_key_value"]
         hidden_states = kwargs["hidden_states"]
         q_len = hidden_states.shape[1]
 

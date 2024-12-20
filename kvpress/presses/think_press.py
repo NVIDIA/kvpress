@@ -28,7 +28,7 @@ class ThinKPress(BasePress):
     key_channel_compression_ratio: float = 0.0
     window_size: int = 32
 
-    def compute_window_queries(self, module, hidden_states):
+    def compute_window_queries(self, module, hidden_states, cos, sin):
         """
         Re-compute the last window_size query states
         """
@@ -39,15 +39,14 @@ class ThinKPress(BasePress):
             query_states = module.q_proj(hidden_states[:, -self.window_size :])
         elif hasattr(module, "qkv_proj"):
             qkv = module.qkv_proj(hidden_states[:, -self.window_size :])
-            query_states = qkv[..., : module.num_heads * module.head_dim]
+            query_states = qkv[..., : module.config.num_attention_heads * module.head_dim]
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
 
-        query_states = query_states.view(bsz, self.window_size, module.num_heads, module.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, self.window_size, module.config.num_attention_heads, module.head_dim).transpose(1, 2)
 
         # Apply RoPE
-        position_ids = torch.arange(q_len - self.window_size, q_len).unsqueeze(0).to(query_states.device)
-        cos, sin = module.rotary_emb(query_states, position_ids)
+        cos, sin = cos[:, -self.window_size:], sin[:, -self.window_size:]
         query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
         return query_states
@@ -71,7 +70,8 @@ class ThinKPress(BasePress):
 
         # Compute scores per dimension
         bsz, num_key_value_heads, q_len, head_dim = keys.shape
-        queries = self.compute_window_queries(module, kwargs["hidden_states"])
+        cos, sin = kwargs["position_embeddings"]
+        queries = self.compute_window_queries(module, kwargs["hidden_states"], cos, sin)
         queries_norm = torch.pow(queries, 2).mean(dim=2)  # (bsz, num_heads, head_dim)
         queries_norm = queries_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, module.head_dim).mean(2)
         keys_norm = torch.pow(keys, 2).mean(dim=2)
