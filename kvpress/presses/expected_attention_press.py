@@ -11,7 +11,7 @@ import torch
 from flash_attn.layers.rotary import RotaryEmbedding
 from torch import nn
 from torch.nn import functional as F
-from transformers import LlamaConfig
+from transformers import LlamaConfig, ROPE_INIT_FUNCTIONS
 from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
