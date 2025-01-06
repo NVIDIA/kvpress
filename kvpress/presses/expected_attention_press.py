@@ -39,7 +39,7 @@ class ExpectedAttentionPress(ScorerPress):
         """
 
         bsz, q_len, _ = hidden_states.shape
-        n, d = module.num_heads, module.head_dim
+        n, d = module.config.num_attention_heads, module.config.head_dim
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
@@ -117,14 +117,16 @@ class ExpectedAttentionPress(ScorerPress):
 
         # Compute scores
         bsz, num_key_value_heads, q_len, d = keys.shape
-        keys = repeat_kv(keys, module.num_key_value_groups).transpose(2, 3)
+        num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
+
+        keys = repeat_kv(keys, num_key_value_groups).transpose(2, 3)
         scores = torch.matmul(mean_query.unsqueeze(2), keys).squeeze(2) / math.sqrt(d)
         if self.use_covariance:
             scores += torch.einsum("bhin, bhij, bhjn->bhn", keys, cov_query, keys) / d / 2
         scores = F.softmax(scores, dim=-1)
 
         # Average scores across groups
-        scores = scores.view(bsz, num_key_value_heads, module.num_key_value_groups, q_len)
+        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len)
         scores = scores.mean(dim=2)
 
         # Rescale scores by the norm of the values

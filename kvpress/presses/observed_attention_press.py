@@ -54,8 +54,6 @@ class ObservedAttentionPress(ScorerPress):
         # attentions are needed as input for the hook, but unless the user wants to return them in the output,
         # we can remove them to save memory
         if not self.output_attentions:
-            output = list(output)
-            output[-2] = None
-            output = tuple(output)
+            output = (output[0], None)
 
         return output

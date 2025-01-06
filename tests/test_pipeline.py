@@ -114,13 +114,14 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     model = unit_test_model
     questions = ["When was this article written?"]
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-    compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=torch.device("cpu"))
-    input_ids_question = tokenizer(questions[0], return_tensors="pt", add_special_tokens=False)["input_ids"]
+    compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=device)
+    input_ids_question = tokenizer(questions[0], return_tensors="pt", add_special_tokens=False)["input_ids"].to(device)
 
     seq_len = 256
     past_key_values: DynamicCache = model(
-        input_ids=torch.randint(0, 1000, (1, seq_len)), past_key_values=DynamicCache()
+        input_ids=torch.randint(0, 1000, (1, seq_len), device=device), past_key_values=DynamicCache()
     ).past_key_values
     assert past_key_values.get_seq_length() == seq_len
 

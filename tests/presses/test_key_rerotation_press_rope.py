@@ -31,21 +31,22 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
     original_press = RandomPressStoreIndices(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
 
-    module = unit_test_model.model.layers[0].self_attn
-    hidden_states = torch.randn(
-        8, 64, module.config.hidden_size, device=unit_test_model.device, dtype=unit_test_model.dtype
-    )
+    with key_rerotation_press(unit_test_model):
+        module = unit_test_model.model.layers[0].self_attn
+        hidden_states = torch.randn(
+            8, 64, module.config.hidden_size, device=unit_test_model.device, dtype=unit_test_model.dtype
+        )
 
-    keys = get_keys_with_rope(module, hidden_states)
+        keys = get_keys_with_rope(module, hidden_states)
 
-    values = torch.randn_like(keys)
-    # Press result
-    keys_compressed, _ = key_rerotation_press.compress(
-        module, hidden_states, keys, values, attentions=None, kwargs=dict()
-    )
+        values = torch.randn_like(keys)
+        # Press result
+        keys_compressed, _ = key_rerotation_press.compress(
+            module, hidden_states, keys, values, attentions=None, kwargs=dict()
+        )
 
-    indices = original_press.indices
-    keys_compressed_ref = compute_rerotated_keys_comparison_implementation(module, hidden_states, indices)
+        indices = original_press.indices
+        keys_compressed_ref = compute_rerotated_keys_comparison_implementation(module, hidden_states, indices)
 
     assert torch.allclose(keys_compressed, keys_compressed_ref, atol=1e-6 if precision == "full" else 1e-3)
 
@@ -82,7 +83,7 @@ class RandomPressStoreIndices(ScorerPress):
         q_len = hidden_states.shape[1]
         n_kept = int(q_len * (1 - self.compression_ratio))
         indices = scores.topk(n_kept, dim=-1).indices
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
+        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.config.head_dim)
         self.indices = indices
 
         return scores
@@ -108,6 +109,6 @@ def compute_rerotated_keys_comparison_implementation(module: LlamaAttention, hid
 def get_keys_without_pos_embedding(module, hidden_states):
     key_states = module.k_proj(hidden_states)
     key_states = key_states.view(
-        key_states.shape[0], key_states.shape[1], module.num_key_value_heads, module.head_dim
+        key_states.shape[0], key_states.shape[1], module.config.num_key_value_heads, module.config.head_dim
     ).transpose(1, 2)
     return key_states

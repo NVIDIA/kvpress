@@ -4,7 +4,7 @@
 
 ![kvpress](kvpress.jpg)
 
-Deploying long-context LLMs is costly due to the linear growth of the key-value (KV) cache in transformer models. For example, handling 1M tokens with Llama 3.1-70B in float16 requires up to 330GB of memory. This repository implements multiple KV cache pruning methods and benchmarks using [🤗 transformers](https://huggingface.co/docs/transformers/en/index), aiming to simplify the development of new methods for researchers and developers in this field.
+Deploying long-context LLMs is costly due to the linear growth of the key-value (KV) cache in transformer models. For example, handling 1M tokens with Llama 3.1-70B in float16 requires up to 330GB of memory. This repository implements multiple KV cache compression methods and benchmarks using [🤗 transformers](https://huggingface.co/docs/transformers/en/index), aiming to simplify the development of new methods for researchers and developers in this field.
 
 ## Installation
 
@@ -60,7 +60,7 @@ All current presses are training free. Several of them inherit from `ScorerPress
 - `TOVAPress`: attention weight of the last query averaged across heads ([paper](https://arxiv.org/abs/2401.06104))
 - `ObservedAttentionPress`: average attention weight observed during in pre-filling phase (similar to [H2O](https://arxiv.org/abs/2306.14048))
 
-Some presses relying on a different logic:
+Some presses rely on a different logic:
 - `ThinKPress`: compress the dimensions of the keys based on the channel attention score on the last queries ([paper](https://arxiv.org/pdf/2407.21018))
 - `SimLayerKVPress`: identify "lazy" layers, and apply the StreamingLLM approach to them ([paper](https://arxiv.org/abs/2410.13846))
 
@@ -101,7 +101,7 @@ pipe(..., cache=cache)
 By default, the `DynamicCache` is used (no quantization). 
 
 > [!IMPORTANT]  
-> To use the `QuantizedCache`, you need to install additional dependencies (e.g. `pip install optimum-quanto`, see also [this issue](https://github.com/huggingface/transformers/issues/34848)).
+> To use the `QuantizedCache`, you need to install additional dependencies (e.g. `pip install optimum-quanto`).
 
 
 ## FAQ
