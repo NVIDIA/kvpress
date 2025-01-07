@@ -15,9 +15,11 @@ class AdaKVPress(BasePress):
     """
     AdaKV (https://arxiv.org/abs/2407.11550) selects the top-k keys and values among all heads in a layer
     based on the scores, achieving head-specific compression.
+    A safeguard is applied to ensure a minimum fraction of KV pairs per head (alpha_safeguard parameter)
     """
 
     scorer: ScorerPress
+    alpha_safeguard: float = 0.20
 
     @property
     def compression_ratio(self):
@@ -37,7 +39,10 @@ class AdaKVPress(BasePress):
         scores = self.scorer.score(module, hidden_states, keys, values, attentions, kwargs)
         bsz, num_key_value_heads, q_len = scores.shape
 
-        # TODO: understand how floor_alpha works
+        # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
+        n_safe = int(q_len * (1 - self.compression_ratio) * self.alpha_safeguard)
+        top_indices = torch.topk(scores, n_safe, dim=-1).indices
+        scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)
 
         # Compute bottom-k across heads
         n_pruned = int(num_key_value_heads * q_len * self.compression_ratio)
