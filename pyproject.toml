@@ -2,7 +2,7 @@
 name = "kvpress"
 authors = ["Simon Jegou", "Maximilian Jeblick", "Jiwei Liu", "David Austin"]
 description = "Efficiently compress the KV cache of any pretrained transformer"
-version = "0.1.0"
+version = "0.1.1"
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -14,7 +14,7 @@ scipy = "^1.13.1"
 matplotlib = "^3.9.0"
 bs4 = "^0.0.2"
 torch = "^2.3.1"
-transformers = "^4.45.1"
+transformers = ">=4.45.1 <4.48"
 nvitop = "^1.3.2"
 sentencepiece = "^0.2.0"
 protobuf = "^5.27.2"
