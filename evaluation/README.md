@@ -65,7 +65,7 @@ Longdep_qa
 
 Observations: 
 - Metrics are adapted from loogle benchmark, see [here](../evaluation/loogle/calculate_metrics.py). The plot show the average score (mean over all submetrics) for each task.
-- The metrics are not always correlated with the quality of the answer, espcecially for longdep_qa task. LLM-as-a-judge may better suited for a more refined evaluation.
+- The metrics are not always correlated with the quality of the answer, especially for longdep_qa task. LLM-as-a-judge may better suited for a more refined evaluation.
 - Again, snapkv w/ question consistently outperforms other methods.
 - In longdep_qa, the model looses track on counting (e.g. answer to "How many times is person x mentioned?" gets lower with increased compression ratio). This is not necessarily reflected in the metrics.
 - Llama3.1-8b-instruct seems to be more robust to compression.
@@ -76,9 +76,38 @@ Observations:
 
 </details>
 
+<details><summary> 
+
+### Infinitebench
+</summary>
+
+kv_retrieval
+![kv_retrieval](../evaluation/assets/infinitebench_kv_retrieval.png)
+longbook_choice_eng
+![longbook_choice_eng](../evaluation/assets/infinitebench_longbook_choice_eng.png)
+longbook_qa_eng
+![longbook_qa_eng](../evaluation/assets/infinitebench_longbook_qa_eng.png)
+longdialogue_qa_eng
+![longdialogue_qa_eng](../evaluation/assets/infinitebench_longdialogue_qa_eng.png)
+
+
+Observations: 
+- All task where run with max_len=70_000 tokens, except for observed attention which used 10_000 tokens.
+- For kv-retrieval subtask, streaming LLM (keep last N tokens) performs better than other methods. While this may be surprising at first, respecting the format of the task `(Extract the value corresponding to the specified key in the JSON object below. JSON data: {"7de93460-b65f-404e-9a7d-af2da2c8abb5": "2d9ab7c8-394a-4062-9928-310e39201a2f", ...}. Key: "70d1b207-d1e8-4591-95b8-9c85aceb8956"`
+helps to understand this behavior. The information is homogeneously distributed in the context, and any token could potentially be relevant for answering the question. Streaming LLM will have access to all last tokens, while other methods will potentially create "holes".
+- Mistral-nemo-instruct-2407 performs poorly on kv-retrieval subtask compared to other models and is thus excluded from the plots.
+- For longbook-choice-eng, many compression methods are able to obtain good compression ratios. Thus, longbook-choice-eng is an example of a task that can be compressed effectively.
+- For longbook-qa-eng, expected attention and snapkv perform better than other methods (note the performance difference of llama3.1-8b-instruct and phi3.5/mistral-nemo).
+- For longdialogue-qa-eng, there's an interesting crossover between different compression methods. For higher compression, snapkv performs relatively well across models.
+
+</details>
+
+
 ### Conclusions
 
-The methods benchmarked so far are not able to efficiently compress the KV cache while maintaining performance on several long-context datasets and models. Further methods could be explored:
+The methods benchmarked so far are not able to efficiently compress the KV cache while maintaining performance on several long-context datasets and models.
+In particular, exact information retrieval tasks such as kv-retrieval are challenging for the current methods.
+Further methods could be explored:
 - {Layer,Head}-wise pruning: pruning with a different compression ratio for each layer or head as in [DMC](https://arxiv.org/abs/2403.09636), [FastGen](https://arxiv.org/abs/2310.01801) or [DuoAttention](https://arxiv.org/abs/2410.10819)
 - Adaptive pruning: pruning based on a score, and not a uniform fixed ratio
 - Taking into account inter-layer dependencies such as in [PyramidKV](https://arxiv.org/abs/2406.02069)
