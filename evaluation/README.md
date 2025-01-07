@@ -92,7 +92,7 @@ longdialogue_qa_eng
 
 
 Observations: 
-- All task where run with max_len=70_000 tokens.
+- All task where run with max_len=70_000 tokens, except for observed attention which used 10_000 tokens.
 - For kv-retrieval subtask, streaming LLM (keep last N tokens) performs better than other methods. While this may be surprising at first, respecting the format of the task `(Extract the value corresponding to the specified key in the JSON object below. JSON data: {"7de93460-b65f-404e-9a7d-af2da2c8abb5": "2d9ab7c8-394a-4062-9928-310e39201a2f", ...}. Key: "70d1b207-d1e8-4591-95b8-9c85aceb8956"`
 helps to understand this behavior. The information is homogeneously distributed in the context, and any token could potentially be relevant for answering the question. Streaming LLM will have access to all last tokens, while other methods will potentially create "holes".
 - Mistral-nemo-instruct-2407 performs poorly on kv-retrieval subtask compared to other models and is thus excluded from the plots.
@@ -100,6 +100,7 @@ helps to understand this behavior. The information is homogeneously distributed 
 - For longbook-qa-eng, expected attention and snapkv perform better than other methods (note the performance difference of llama3.1-8b-instruct and phi3.5/mistral-nemo).
 - For longdialogue-qa-eng, there's an interesting crossover between different compression methods. For higher compression, snapkv performs relatively well across models.
 
+</details>
 
 
 ### Conclusions
