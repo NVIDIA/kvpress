@@ -19,8 +19,8 @@ def search_hyperplane(X, max_iter=1000):
 
 def attention_patch(func):
     """
-    Decorator to udpate the keys and values before the attention computation at the indices provided in module.indices
-    The keys are updated to a fake key k such that for the input queries q, exp(<q, k>) = 0. The values are set to 0.
+    Decorator to udpate the keys before the attention computation at the indices provided in module.indices
+    The keys are updated to a fake key k such that for the input queries q, exp(<q, k>) = 0
     This is used to fake head-wise compression. A more optimal solution would be to create a new kernel.
     """
 
@@ -31,16 +31,13 @@ def attention_patch(func):
         elif module.indices is not None:
             # Decoding phase
             bsz, num_heads, seq_len, head_dim = query.shape
-            num_key_value_heads = key.shape[1]
-            num_groups = num_heads // num_key_value_heads
 
             # Build a fake key k per key group such that for every query q, exp(<q, k>) = 0
-            q = query.view(bsz, num_groups, num_key_value_heads, seq_len, head_dim)
-            q = q.transpose(1, 2).reshape(bsz * num_key_value_heads, num_groups * seq_len, head_dim)
+            q = query.reshape(bsz * num_heads, seq_len, head_dim)
             k = search_hyperplane(q)
-            k = k.view(bsz, num_key_value_heads, head_dim)
+            k = k.view(bsz, num_heads, head_dim)
 
-            # At indices, update the keys to the fake keys and the values to 0
+            # At indices, update the keys to the fake keys
             key[*module.indices] = k[*module.indices[:2]]
 
         return func(module, query, key, value, attention_mask, dropout, scaling, is_causal, **kwargs)
