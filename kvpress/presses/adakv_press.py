@@ -52,4 +52,5 @@ class AdaKVPress(BasePress):
         module.indices = (torch.arange(bsz).repeat_interleave(n_pruned), indices // q_len, indices % q_len)
 
         # Return keys and values without compression (achieved with the attention patch)
+        values[*module.indices] = 0
         return keys, values
