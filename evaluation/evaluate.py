@@ -24,6 +24,8 @@ from kvpress import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
+    ThinKPress,
+    TOVAPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,13 +45,16 @@ SCORER_DICT = {
 }
 
 PRESS_DICT = {
+    "adasnapkv": AdaKVPress(SnapKVPress()),
+    "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
     "expected_attention": ExpectedAttentionPress(),
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "random": RandomPress(),
     "snapkv": SnapKVPress(),
-    "adasnapkv": AdaKVPress(SnapKVPress()),
     "streaming_llm": StreamingLLMPress(),
+    "think": ThinKPress(),
+    "tova": TOVAPress(),
 }
 
 
