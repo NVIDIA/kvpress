@@ -4,8 +4,8 @@ from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 def search_hyperplane(X, max_iter: int = 1000):
     """
-    Search for an hyperplane Y such that for every Xi, <Xi, Y> <= 0
-    Returns - 1e5 * Y / ||Y|| ** 2 to ensure exp(<X, Y>) = 0
+    Given a tensor X of shape (bsz, seq_len, head_dim), search for an hyperplane Y (bsz, head_dim)
+    such that for every i, <X[:, i], Y> <= 0. Returns - 1e5 * Y / ||Y|| ** 2 to ensure exp(<X, Y>) = 0
     Raises a ValueError if no such hyperplane is found
     """
     Y = X.mean(1)  # this initialization is enough for most cases
