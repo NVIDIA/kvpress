@@ -1,18 +1,16 @@
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
-LARGE_NEGATIVE_FLOAT = -1e5
 
-
-def search_hyperplane(X, max_iter=1000):
+def search_hyperplane(X, max_iter: int = 1000, epsilon: float = 1e-5):
     """
-    Search for an hyperplane Y such that for every Xi, <Xi, Y> <= 1 (simple perceptron)
-    Returns LARGE_NEGATIVE_FLOAT * Y to ensure exp(<X, Y>) = 0
+    Search for an hyperplane Y such that for every Xi, <Xi, Y> <= epsilon (simple perceptron)
+    Returns - Y / espilon ** 2 to ensure exp(<X, Y>) = 0
     """
     Y = X.mean(1)
     for _ in range(max_iter):
-        mask = (X * Y.unsqueeze(1)).sum(dim=2, keepdim=True) <= 1
+        mask = (X * Y.unsqueeze(1)).sum(dim=2, keepdim=True) <= epsilon
         if not mask.any():
-            return LARGE_NEGATIVE_FLOAT * Y
+            return -Y / epsilon**2
         Y += (X * mask).sum(1) / mask.sum(1).clamp(min=1)
     raise ValueError("Could not find fake keys such that for every query q, exp(<q, k>) = 0")
 
@@ -26,18 +24,21 @@ def attention_patch(func):
 
     def wrapper(module, query, key, value, attention_mask, dropout, scaling=None, is_causal=None, **kwargs):
         if query.shape[2] == key.shape[2]:
-            # Prefilling phase
+            # Prefilling
             module.indices = None
         elif module.indices is not None:
-            # Decoding phase
+            # Decoding: build fake keys k s.t. exp(<q, k>) = 0
             bsz, num_heads, seq_len, head_dim = query.shape
+            num_key_value_heads = key.shape[1]
+            num_groups = num_heads // num_key_value_heads
 
             # Build a fake key k per key group such that for every query q, exp(<q, k>) = 0
-            q = query.reshape(bsz * num_heads, seq_len, head_dim)
+            q = query.view(bsz, num_key_value_heads, num_groups, seq_len, head_dim)
+            q = q.reshape(bsz * num_key_value_heads, num_groups * seq_len, head_dim)
             k = search_hyperplane(q)
-            k = k.view(bsz, num_heads, head_dim)
+            k = k.view(bsz, num_key_value_heads, head_dim)
 
-            # At indices, update the keys to the fake keys
+            # At indices, update the keys to the fake keys and the values to 0
             key[*module.indices] = k[*module.indices[:2]]
 
         return func(module, query, key, value, attention_mask, dropout, scaling, is_causal, **kwargs)
@@ -47,7 +48,7 @@ def attention_patch(func):
 
 def patch_attention_functions():
     """
-    Add the update_keys_before_attention decorator to all attention functions in ALL_ATTENTION_FUNCTIONS
+    Add the attention_patch decorator to functions in ALL_ATTENTION_FUNCTIONS
     """
 
     for name, func in ALL_ATTENTION_FUNCTIONS.items():
