@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import inspect
 import math
 from dataclasses import dataclass
 
@@ -66,13 +65,9 @@ class ExpectedAttentionPress(ScorerPress):
             cov = cov.permute(0, 3, 1, 2)
 
         # RoPE rotation matrix on next n_future_positions
-        if "position_ids" in inspect.signature(module.rotary_emb.forward).parameters:
-            position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
-            cos, sin = module.rotary_emb(mu, position_ids)
-            cos, sin = cos[0], sin[0]
-        else:
-            cos, sin = module.rotary_emb(mu, q_len + self.n_future_positions)
-            cos, sin = cos[q_len:], sin[q_len:]
+        position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
+        cos, sin = self.rotary_emb(mu, position_ids)
+        cos, sin = cos[0], sin[0]
 
         Id = torch.eye(d, device=cos.device, dtype=cos.dtype)
         P = torch.zeros((d, d), device=cos.device, dtype=cos.dtype)
@@ -137,3 +132,7 @@ class ExpectedAttentionPress(ScorerPress):
         scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item())
 
         return scores
+
+    def __call__(self, model):
+        self.rotary_emb = model.model.rotary_emb
+        return super().__call__(model)

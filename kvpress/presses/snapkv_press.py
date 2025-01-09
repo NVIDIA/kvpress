@@ -26,9 +26,7 @@ class SnapKVPress(ScorerPress):
     kernel_size: int = 5
 
     @staticmethod
-    def compute_window_attention(
-        module: nn.Module, hidden_states: torch.Tensor, keys: torch.Tensor, window_size: int
-    ) -> torch.Tensor:
+    def compute_window_attention(module, hidden_states, keys, window_size, position_embeddings):
         """
         Compute the last window_size queries and associated attention weights for the first q_len - window_size keys.
         """
@@ -50,8 +48,8 @@ class SnapKVPress(ScorerPress):
         query_states = query_states.view(bsz, window_size, num_heads, head_dim).transpose(1, 2)
 
         # Apply RoPE
-        position_ids = torch.arange(q_len - window_size, q_len).unsqueeze(0).to(query_states.device)
-        cos, sin = module.rotary_emb(query_states, position_ids)
+        cos, sin = position_embeddings
+        cos, sin = cos[:, -window_size:], sin[:, -window_size:]
         query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
         # Compute attention for first q_len - window_size tokens
@@ -83,7 +81,9 @@ class SnapKVPress(ScorerPress):
         if attentions is not None:
             attn_weights = attentions[..., -self.window_size :, : -self.window_size]
         else:
-            attn_weights = self.compute_window_attention(module, hidden_states, keys, self.window_size)
+            attn_weights = self.compute_window_attention(
+                module, hidden_states, keys, self.window_size, kwargs["position_embeddings"]
+            )
 
         scores = attn_weights.mean(dim=-2)
         scores = F.avg_pool1d(scores, kernel_size=self.kernel_size, padding=self.kernel_size // 2, stride=1)

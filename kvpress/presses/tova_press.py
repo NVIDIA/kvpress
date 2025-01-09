@@ -37,7 +37,9 @@ class TOVAPress(ScorerPress):
         if attentions is not None:
             attn_weights = attentions[..., -1:, :-1]
         else:
-            attn_weights = SnapKVPress.compute_window_attention(module, hidden_states, keys, 1)
+            attn_weights = SnapKVPress.compute_window_attention(
+                module, hidden_states, keys, 1, kwargs["position_embeddings"]
+            )
 
         # Average across heads and repeat num_key_value_head times
         scores = attn_weights.mean(1)
