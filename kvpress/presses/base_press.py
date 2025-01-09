@@ -134,9 +134,6 @@ class BasePress:
         hooks = []
         try:
             for layer in model.model.layers:
-                if hasattr(model.model, "rotary_emb"):
-                    # Make rotary embeddings available to the forward hook
-                    layer.self_attn.rotary_emb = model.model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
 
             yield

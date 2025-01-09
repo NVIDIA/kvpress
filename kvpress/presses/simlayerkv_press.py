@@ -43,13 +43,16 @@ class SimLayerKVPress(BasePress):
         module: nn.Module,
         hidden_states: torch.Tensor,
         keys: torch.Tensor,
+        position_embeddings: torch.Tensor,
     ) -> bool:
         """
         Compute the attention weights of the last tokens over the initial and recent tokens.
         The layer is considered lazy if the sum of these attention weights is above the lazy_threshold.
         """
 
-        attn_weights = SnapKVPress.compute_window_attention(module, hidden_states, keys, self.n_last)
+        attn_weights = SnapKVPress.compute_window_attention(
+            module, hidden_states, keys, self.n_last, position_embeddings
+        )
         attn_weights = attn_weights.mean((0, 1, 2))  # mean over bsz, heads and window size
         score = attn_weights[: self.n_initial].sum() + attn_weights[-self.n_recent :].sum()
         return score.item() > self.lazy_threshold
@@ -91,7 +94,7 @@ class SimLayerKVPress(BasePress):
             return keys, values
 
         # Compression
-        if self.is_lazy(module, hidden_states, keys):
+        if self.is_lazy(module, hidden_states, keys, kwargs["position_embeddings"]):
             # If layer is lazy, only keep the initial and recent KV pairs
             keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2)
             values = torch.cat([values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2)
