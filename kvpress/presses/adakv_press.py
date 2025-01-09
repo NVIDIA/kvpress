@@ -51,5 +51,5 @@ class AdaKVPress(BasePress):
         indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
 
         # Save indices for attention patching in the module
-        module.indices = (torch.arange(bsz).repeat_interleave(n_pruned), indices // q_len, indices % q_len)
+        module.masked_key_indices = (torch.arange(bsz).repeat_interleave(n_pruned), indices // q_len, indices % q_len)
         return keys, values

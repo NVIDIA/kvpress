@@ -4,10 +4,11 @@ from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 def search_hyperplane(X, max_iter: int = 1000):
     """
-    Search for an hyperplane Y such that for every Xi, <Xi, Y> <= 0 (simple perceptron)
+    Search for an hyperplane Y such that for every Xi, <Xi, Y> <= 0
     Returns - 1e5 * Y / ||Y|| ** 2 to ensure exp(<X, Y>) = 0
+    Raises a ValueError if no such hyperplane is found
     """
-    Y = X.mean(1)
+    Y = X.mean(1)  # this initialization is enough for most cases
     for _ in range(max_iter):
         mask = torch.bmm(X, Y.unsqueeze(-1)) <= 0
         if not mask.any():
@@ -18,16 +19,16 @@ def search_hyperplane(X, max_iter: int = 1000):
 
 def attention_patch(func):
     """
-    Decorator to udpate the keys before the attention computation at the indices provided in module.indices
-    The keys are updated to a fake key k such that for the input queries q, exp(<q, k>) = 0
-    This is used to fake head-wise compression. A more optimal solution would be to create a new kernel.
+    Decorator to udpate the keys before the attention computation at the indices provided in module.masked_key_indices
+    The keys are updated with a fake key k such that exp(<q, k>) = 0 to fake head-wise compression
+    This solution is not optimal as it does not reduce peak memory and slightly increase runtime
     """
 
     def wrapper(module, query, key, value, attention_mask, dropout, scaling=None, is_causal=None, **kwargs):
         if query.shape[2] == key.shape[2]:
             # Prefilling
-            module.indices = None
-        elif module.indices is not None:
+            module.masked_key_indices = None
+        elif module.masked_key_indices is not None:
             # Decoding: build fake keys k s.t. exp(<q, k>) = 0
             bsz, num_heads, seq_len, head_dim = query.shape
             num_key_value_heads = key.shape[1]
@@ -40,7 +41,7 @@ def attention_patch(func):
             k = k.view(bsz, num_key_value_heads, head_dim)
 
             # At indices, update the keys to the fake keys and the values to 0
-            key[*module.indices] = k[*module.indices[:2]]
+            key[*module.masked_key_indices] = k[*module.masked_key_indices[:2]]
 
         return func(module, query, key, value, attention_mask, dropout, scaling, is_causal, **kwargs)
 
