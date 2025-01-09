@@ -34,6 +34,7 @@ class AdaKVPress(BasePress):
             return keys, values
 
         assert module.config._attn_implementation != "eager", "eager mode not supported"
+        assert isinstance(self.scorer, ScorerPress), "AdaKVPress requires a ScorerPress as input"
 
         # Compute scores
         scores = self.scorer.score(module, hidden_states, keys, values, attentions, kwargs)
@@ -47,7 +48,7 @@ class AdaKVPress(BasePress):
 
         # Compute bottom-k across heads
         n_pruned = num_key_value_heads * (q_len - n_kept)
-        indices = torch.topk(-scores.view(bsz, -1), n_pruned, dim=1).indices.flatten()
+        indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
 
         # Save indices for attention patching in the module
         module.indices = (torch.arange(bsz).repeat_interleave(n_pruned), indices // q_len, indices % q_len)

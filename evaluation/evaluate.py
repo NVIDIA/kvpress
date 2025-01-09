@@ -17,6 +17,7 @@ from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
 from kvpress import (
+    AdaKVPress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -47,6 +48,7 @@ PRESS_DICT = {
     "observed_attention": ObservedAttentionPress(),
     "random": RandomPress(),
     "snapkv": SnapKVPress(),
+    "adasnapkv": AdaKVPress(SnapKVPress()),
     "streaming_llm": StreamingLLMPress(),
 }
 
@@ -110,6 +112,7 @@ def evaluate(
     df = load_dataset(DATASET_DICT[dataset], data_dir=data_dir, split="test").to_pandas()
     if fraction < 1.0:
         df = df.sample(frac=fraction, random_state=42)
+        save_filename = save_filename.with_name(save_filename.stem + f"__fraction{fraction:.2f}" + save_filename.suffix)
 
     if compress_questions:
         df["context"] = df["context"] + df["question"]
@@ -122,24 +125,21 @@ def evaluate(
     press.compression_ratio = compression_ratio
 
     # Initialize pipeline with the correct attention implementation
+    model_kwargs = {"torch_dtype": "auto"}
     if isinstance(press, ObservedAttentionPress):
-        model_kwargs = {"attn_implementation": "eager"}
+        model_kwargs["attn_implementation"] = "eager"
     else:
         try:
             import flash_attn  # noqa: F401
 
-            model_kwargs = {"attn_implementation": "flash_attention_2"}
+            model_kwargs["attn_implementation"] = "flash_attention_2"
         except ImportError:
-            model_kwargs = {}
+            pass
 
     if device == "auto":
-        pipe = pipeline(
-            "kv-press-text-generation", model=model, device_map="auto", torch_dtype="auto", model_kwargs=model_kwargs
-        )
+        pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
     else:
-        pipe = pipeline(
-            "kv-press-text-generation", model=model, device=device, torch_dtype="auto", model_kwargs=model_kwargs
-        )
+        pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
     # Run pipeline on each context
     df["predicted_answer"] = None
