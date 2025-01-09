@@ -40,12 +40,13 @@ class AdaKVPress(BasePress):
         bsz, num_key_value_heads, q_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
-        n_safe = int(q_len * (1 - self.compression_ratio) * self.alpha_safeguard)
+        n_kept = int(q_len * (1 - self.compression_ratio))  # ScorerPress definition
+        n_safe = int(n_kept * self.alpha_safeguard)
         top_indices = torch.topk(scores, n_safe, dim=-1).indices
         scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)
 
         # Compute bottom-k across heads
-        n_pruned = int(num_key_value_heads * q_len * self.compression_ratio)
+        n_pruned = num_key_value_heads * (q_len - n_kept)
         indices = torch.topk(-scores.view(bsz, -1), n_pruned, dim=1).indices.flatten()
 
         # Save indices for attention patching in the module

@@ -1,3 +1,4 @@
+import torch
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 
@@ -8,7 +9,7 @@ def search_hyperplane(X, max_iter: int = 1000, epsilon: float = 1e-5):
     """
     Y = X.mean(1)
     for _ in range(max_iter):
-        mask = (X * Y.unsqueeze(1)).sum(dim=2, keepdim=True) <= epsilon
+        mask = torch.bmm(X, Y.unsqueeze(-1)) <= epsilon
         if not mask.any():
             return -Y / epsilon**2
         Y += (X * mask).sum(1) / mask.sum(1).clamp(min=1)
