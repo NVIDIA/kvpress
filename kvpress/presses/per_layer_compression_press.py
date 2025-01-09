@@ -32,6 +32,7 @@ class PerLayerCompressionPress(BasePress):
                 self.press.__init__  # type:ignore[misc]
             ).parameters
         ), f"compression_ratio can't be set in the provided press: {self.press.__class__}"
+        assert isinstance(self.press, ScorerPress), "PerLayerCompressionPress requires a ScorerPress as input"
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         original_compression_ratio = self.press.compression_ratio  # type:ignore[attr-defined]
