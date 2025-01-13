@@ -3,6 +3,7 @@
 
 
 from kvpress.pipeline import KVPressTextGenerationPipeline
+from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
@@ -18,8 +19,12 @@ from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
 from kvpress.presses.tova_press import TOVAPress
 
+from kvpress.attention_patch import patch_attention_functions
+# Patch the attention functions to support head-wise compression
+patch_attention_functions()
 
 __all__ = [
+    "AdaKVPress",
     "BasePress",
     "ComposedPress",
     "ScorerPress",

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.presses.adakv_press import AdaKVPress
 
 
 @dataclass
@@ -15,8 +16,8 @@ class ComposedPress(BasePress):
     def __post_init__(self):
         self.compression_ratio = None
         assert not any(
-            isinstance(press, (ObservedAttentionPress)) for press in self.presses
-        ), "ComposedPress cannot contains ObservedAttentionPress"
+            isinstance(press, (ObservedAttentionPress, AdaKVPress)) for press in self.presses
+        ), "ComposedPress cannot contains ObservedAttentionPress or AdaKVPress"
 
     def forward_hook(self, module, input, kwargs, output):
         self.compression_ratio = 1.0
