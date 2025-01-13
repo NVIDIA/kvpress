@@ -40,7 +40,7 @@ def attention_patch(func):
             k = search_hyperplane(q)
             k = k.view(bsz, num_key_value_heads, head_dim)
 
-            # At indices, update the keys to the fake keys and the values to 0
+            # At indices, update the keys to the fake keys
             key[*module.masked_key_indices] = k[*module.masked_key_indices[:2]]
 
         return func(module, query, key, value, attention_mask, dropout, **kwargs)
