@@ -116,6 +116,11 @@ def evaluate(
         df = df.sample(frac=fraction, random_state=42)
         save_filename = save_filename.with_name(save_filename.stem + f"__fraction{fraction:.2f}" + save_filename.suffix)
 
+    if max_context_length is not None:
+        save_filename = save_filename.with_name(
+            save_filename.stem + f"__max_context{max_context_length}" + save_filename.suffix
+        )
+
     if compress_questions:
         df["context"] = df["context"] + df["question"]
         df["question"] = ""
