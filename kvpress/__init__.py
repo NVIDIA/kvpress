@@ -20,6 +20,7 @@ from kvpress.presses.think_press import ThinKPress
 from kvpress.presses.tova_press import TOVAPress
 
 from kvpress.attention_patch import patch_attention_functions
+# Patch the attention functions to support head-wise compression
 patch_attention_functions()
 
 __all__ = [
