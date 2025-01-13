@@ -86,17 +86,13 @@ class BasePress:
             Modified output of the forward pass of the layer.
 
         """
-        # See e.g. LlamaDecoderLayer.forward for the output structure
-        if len(output) == 3:
-            _, attentions, cache = output
-        else:
-            attentions, cache = None, output[-1]
 
         hidden_states = kwargs["hidden_states"]
+        cache = kwargs["past_key_value"]
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
-        if cache.seen_tokens > q_len:
+        if kwargs["cache_position"][-1] > q_len:
             return output
 
         if isinstance(cache, QuantizedCache):
@@ -106,7 +102,7 @@ class BasePress:
             keys = cache.key_cache[module.layer_idx]
             values = cache.value_cache[module.layer_idx]
 
-        keys, values = self.compress(module, hidden_states, keys, values, attentions, kwargs)
+        keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
             cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
@@ -138,8 +134,8 @@ class BasePress:
         hooks = []
         try:
             for layer in model.model.layers:
+                layer.self_attn.rotary_emb = model.model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
-
             yield
         finally:
             for forward_hook in hooks:

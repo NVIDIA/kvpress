@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import inspect
 from dataclasses import dataclass
 
 import pytest
@@ -10,7 +11,6 @@ from torch import nn
 from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, rotate_half
 
 from kvpress import KeyRerotationPress, ScorerPress
-from kvpress.presses.key_rerotation_press import get_rope_embeddings
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
@@ -31,21 +31,27 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
     original_press = RandomPressStoreIndices(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
 
-    module = unit_test_model.model.layers[0].self_attn
-    hidden_states = torch.randn(
-        8, 64, module.config.hidden_size, device=unit_test_model.device, dtype=unit_test_model.dtype
-    )
+    with key_rerotation_press(unit_test_model):
+        module = unit_test_model.model.layers[0].self_attn
+        hidden_states = torch.randn(
+            8, 64, module.config.hidden_size, device=unit_test_model.device, dtype=unit_test_model.dtype
+        )
 
-    keys = get_keys_with_rope(module, hidden_states)
+        keys = get_keys_with_rope(module, hidden_states)
 
-    values = torch.randn_like(keys)
-    # Press result
-    keys_compressed, _ = key_rerotation_press.compress(
-        module, hidden_states, keys, values, attentions=None, kwargs=dict()
-    )
+        values = torch.randn_like(keys)
+        # Press result
+        keys_compressed, _ = key_rerotation_press.compress(
+            module,
+            hidden_states,
+            keys,
+            values,
+            attentions=None,
+            kwargs={"position_embeddings": get_rope_embeddings(module, keys)},
+        )
 
-    indices = original_press.indices
-    keys_compressed_ref = compute_rerotated_keys_comparison_implementation(module, hidden_states, indices)
+        indices = original_press.indices
+        keys_compressed_ref = compute_rerotated_keys_comparison_implementation(module, hidden_states, indices)
 
     assert torch.allclose(keys_compressed, keys_compressed_ref, atol=1e-6 if precision == "full" else 1e-3)
 
@@ -108,6 +114,17 @@ def compute_rerotated_keys_comparison_implementation(module: LlamaAttention, hid
 def get_keys_without_pos_embedding(module, hidden_states):
     key_states = module.k_proj(hidden_states)
     key_states = key_states.view(
-        key_states.shape[0], key_states.shape[1], module.num_key_value_heads, module.head_dim
+        key_states.shape[0], key_states.shape[1], module.config.num_key_value_heads, module.head_dim
     ).transpose(1, 2)
     return key_states
+
+
+def get_rope_embeddings(module, x):
+    length = x.shape[2]
+    # rotary_emb function only needs .device and .dtype, so we can plug in any tensor regardless of shape
+    if "position_ids" in inspect.signature(module.rotary_emb.forward).parameters:
+        position_ids = torch.arange(length).unsqueeze(0).to(x.device)
+        cos, sin = module.rotary_emb(x, position_ids)
+    else:
+        cos, sin = module.rotary_emb(x, length)
+    return cos, sin

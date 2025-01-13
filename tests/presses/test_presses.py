@@ -7,9 +7,14 @@ import torch
 from torch import nn
 from transformers import DynamicCache
 
-from kvpress import ComposedPress, KeyRerotationPress, KnormPress, ObservedAttentionPress
-from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.think_press import ThinKPress
+from kvpress import (
+    ComposedPress,
+    KeyRerotationPress,
+    KnormPress,
+    ObservedAttentionPress,
+    ThinKPress,
+    ScorerPress,
+)
 from tests.default_presses import default_presses
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 

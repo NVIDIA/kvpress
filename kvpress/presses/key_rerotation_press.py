@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import inspect
 from dataclasses import dataclass
 
 import torch
@@ -28,6 +27,9 @@ class KeyRerotationPress(BasePress):
 
     press: ScorerPress
 
+    def __post_init__(self):
+        assert isinstance(self.press, ScorerPress)
+
     def compress(
         self,
         module: nn.Module,
@@ -49,7 +51,7 @@ class KeyRerotationPress(BasePress):
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        cos, sin = get_rope_embeddings(module, keys)
+        cos, sin = kwargs["position_embeddings"]
         # Rerotate as follows
         #  1. keys = RoPE(W_k * hidden_states)
         #  2. keys_unrotated = RoPE^-1(keys)
@@ -61,19 +63,8 @@ class KeyRerotationPress(BasePress):
         # 3. Prune keys
         keys = keys.gather(2, indices).contiguous()
         # 4. Apply RoPE
-        cos, sin = get_rope_embeddings(module, keys)
+        cos, sin = cos[:, :n_kept], sin[:, :n_kept]
         keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
 
         values = values.gather(2, indices).contiguous()
         return keys, values
-
-
-def get_rope_embeddings(module, x):
-    length = x.shape[2]
-    # rotary_emb function only needs .device and .dtype, so we can plug in any tensor regardless of shape
-    if "position_ids" in inspect.signature(module.rotary_emb.forward).parameters:
-        position_ids = torch.arange(length).unsqueeze(0).to(x.device)
-        cos, sin = module.rotary_emb(x, position_ids)
-    else:
-        cos, sin = module.rotary_emb(x, length)
-    return cos, sin

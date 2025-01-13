@@ -15,8 +15,8 @@ class ComposedPress(BasePress):
     def __post_init__(self):
         self.compression_ratio = None
         assert not any(
-            isinstance(press, ObservedAttentionPress) for press in self.presses
-        ), "ComposedPress cannot contains ObservedAttentionPress because attentions pruning is not handled"
+            isinstance(press, (ObservedAttentionPress)) for press in self.presses
+        ), "ComposedPress cannot contains ObservedAttentionPress"
 
     def forward_hook(self, module, input, kwargs, output):
         self.compression_ratio = 1.0
