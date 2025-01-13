@@ -27,6 +27,9 @@ class KeyRerotationPress(BasePress):
 
     press: ScorerPress
 
+    def __post_init__(self):
+        assert isinstance(self.press, ScorerPress)
+
     def compress(
         self,
         module: nn.Module,
