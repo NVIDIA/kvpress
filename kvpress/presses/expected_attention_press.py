@@ -38,7 +38,7 @@ class ExpectedAttentionPress(ScorerPress):
         """
 
         bsz, q_len, _ = hidden_states.shape
-        n, d = module.config.num_attention_heads, module.config.head_dim
+        n, d = module.config.num_attention_heads, module.head_dim
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]

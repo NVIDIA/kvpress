@@ -34,7 +34,7 @@ class ThinKPress(BasePress):
         """
         bsz, q_len, _ = hidden_states.shape
         num_heads = module.config.num_attention_heads
-        head_dim = module.config.head_dim
+        head_dim = module.head_dim
 
         # Get last window_size queries
         if hasattr(module, "q_proj"):
@@ -77,7 +77,7 @@ class ThinKPress(BasePress):
 
         queries = self.compute_window_queries(module, kwargs["hidden_states"], kwargs["position_embeddings"])
         queries_norm = torch.pow(queries, 2).mean(dim=2)  # (bsz, num_heads, head_dim)
-        queries_norm = queries_norm.view(bsz, num_key_value_heads, num_key_value_groups, module.config.head_dim).mean(2)
+        queries_norm = queries_norm.view(bsz, num_key_value_heads, num_key_value_groups, module.head_dim).mean(2)
         keys_norm = torch.pow(keys, 2).mean(dim=2)
         key_scores = queries_norm * keys_norm  # (bsz, num_key_value_heads, head_dim)
 

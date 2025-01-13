@@ -33,7 +33,7 @@ class SnapKVPress(ScorerPress):
 
         bsz, q_len, _ = hidden_states.shape
         num_heads = module.config.num_attention_heads
-        head_dim = module.config.head_dim
+        head_dim = module.head_dim
         num_key_value_groups = num_heads // module.config.num_key_value_heads
 
         # Get last window_size queries
