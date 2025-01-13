@@ -41,7 +41,8 @@ def attention_patch(func):
             k = k.view(bsz, num_key_value_heads, head_dim)
 
             # At indices, update the keys to the fake keys
-            key[*module.masked_key_indices] = k[*module.masked_key_indices[:2]]
+            batch_indices, head_indices, seq_indices = module.masked_key_indices
+            key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
 
         return func(module, query, key, value, attention_mask, dropout, **kwargs)
 
