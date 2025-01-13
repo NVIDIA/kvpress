@@ -66,7 +66,7 @@ class ExpectedAttentionPress(ScorerPress):
 
         # RoPE rotation matrix on next n_future_positions
         position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
-        cos, sin = self.rotary_emb(mu, position_ids)
+        cos, sin = module.rotary_emb(mu, position_ids)
         cos, sin = cos[0], sin[0]
 
         Id = torch.eye(d, device=cos.device, dtype=cos.dtype)
@@ -132,7 +132,3 @@ class ExpectedAttentionPress(ScorerPress):
         scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item())
 
         return scores
-
-    def __call__(self, model):
-        self.rotary_emb = model.model.rotary_emb
-        return super().__call__(model)
