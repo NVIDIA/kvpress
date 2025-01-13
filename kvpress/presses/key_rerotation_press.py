@@ -27,6 +27,9 @@ class KeyRerotationPress(BasePress):
 
     press: ScorerPress
 
+    def __post_init__(self):
+        assert isinstance(self.press, ScorerPress)
+
     def compress(
         self,
         module: nn.Module,
@@ -38,8 +41,6 @@ class KeyRerotationPress(BasePress):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.press.compression_ratio == 0:
             return keys, values
-
-        assert isinstance(self.press, ScorerPress)
 
         # Compute scores from base press
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
