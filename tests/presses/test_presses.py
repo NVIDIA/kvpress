@@ -12,7 +12,6 @@ from kvpress import (
     KeyRerotationPress,
     KnormPress,
     ObservedAttentionPress,
-    AdaKVPress,
     ThinKPress,
     ScorerPress,
 )
@@ -30,7 +29,7 @@ def test_composed_press(unit_test_model):  # noqa: F811
 
 
 @pytest.mark.parametrize("press_dict", default_presses)
-@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress, AdaKVPress])
+@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress])
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
@@ -39,11 +38,6 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             press = ComposedPress(presses=[press])
         if isinstance(wrapper_press, KeyRerotationPress):
             press = KeyRerotationPress(press=press)
-        if isinstance(wrapper_press, AdaKVPress):
-            if not isinstance(press, ScorerPress):
-                return
-            else:
-                press = AdaKVPress(press=press)
 
         with press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]
