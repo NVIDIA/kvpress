@@ -24,7 +24,7 @@ def attention_patch(func):
     This solution is not optimal as it does not reduce peak memory and slightly increase runtime
     """
 
-    def wrapper(module, query, key, value, attention_mask, dropout, scaling=None, is_causal=None, **kwargs):
+    def wrapper(module, query, key, value, attention_mask, dropout, **kwargs):
         if query.shape[2] == key.shape[2]:
             # Prefilling
             module.masked_key_indices = None
@@ -43,7 +43,7 @@ def attention_patch(func):
             # At indices, update the keys to the fake keys and the values to 0
             key[*module.masked_key_indices] = k[*module.masked_key_indices[:2]]
 
-        return func(module, query, key, value, attention_mask, dropout, scaling, is_causal, **kwargs)
+        return func(module, query, key, value, attention_mask, dropout, **kwargs)
 
     return wrapper
 
