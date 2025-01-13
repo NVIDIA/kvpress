@@ -42,8 +42,6 @@ class KeyRerotationPress(BasePress):
         if self.press.compression_ratio == 0:
             return keys, values
 
-        assert isinstance(self.press, ScorerPress)
-
         # Compute scores from base press
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
 
