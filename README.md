@@ -23,15 +23,15 @@ pip install flash-attn --no-build-isolation
 
 ## Usage
 
-This repository provides a set of presses that compress the KV cache. A press is only applied during the pre-filling phase and is associated with a `compression_ratio` attribute that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline`. This pipeline is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported and handles chat templates and tokenization for you:
+kvpress provides a set of "presses" that compress the KV cache during the prefilling-phase. Each press is associated with a `compression_ratio` attribute that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline`. It is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported and handles chat templates and tokenization for you:
 
 ```python
-from kvpress import ExpectedAttentionPress
 from transformers import pipeline
+from kvpress import ExpectedAttentionPress
 
 device = "cuda:0"
 model= "meta-llama/Llama-3.1-8B-Instruct"
-pipe = pipeline("kv-press-text-generation", model=model, device=device, torch_dtype="auto", model_kwargs={"attn_implementation":"flash_attention_2"})
+pipe = pipeline("kv-press-text-generation", model=model, device=device)
 
 context = "A very long text you want to compress once and for all"
 question = "\nA question about the compressed context" # optional
@@ -46,7 +46,7 @@ In the snippet above, the compression is only applied on the context tokens so t
 > We focus on compression during the pre-filling phase as the KV cache becomes a bottleneck for long-context sequence (100k - 1M tokens) which are essentially long context prompts. This would typically apply to improving prompt caching systems.
 
 > [!NOTE]  
-> To use the `ObservedAttentionPress`, use `model_kwargs={"attn_implementation":"eager"}` in order to materialize the attention weights (this method is not compatible with flash attention).
+> Use `model_kwargs={"attn_implementation":"flash_attention_2"}` to enable flash attention. To use the press `ObservedAttentionPress`, you need to specify `model_kwargs={"attn_implementation":"eager"}` as this press requires to materialize the attention weights
 
 ## Contributing with a new press
 
@@ -69,7 +69,7 @@ Some presses rely on a different logic:
 - `SimLayerKVPress`: identify "lazy" layers, and apply the StreamingLLM approach to them ([paper](https://arxiv.org/abs/2410.13846))
 
 Finally we provide special presses:
-- `AdaKVPress`: prune bottom scores of any `ScorerPress` but across all heads, achieving head-wise compressions (see [paper](https://arxiv.org/abs/2407.11550))
+- `AdaKVPress`: prune bottom scores of any `ScorerPress` but across all heads, achieving head-wise compressions ([paper](https://arxiv.org/abs/2407.11550))
 - `PerLayerCompressionPress`: compress each layer with a different compression ratio (experimental). This press can be used with any other press that allows to set a compression_ratio
 - `ComposedPress`: compose multiple presses together by chaining their forward hooks
 - `KeyRerotationPress`: rerotate pruned keys to have continuous RoPE embeddings. This press can be used with any other press that inherits from `ScorerPress`.
@@ -80,18 +80,15 @@ For a detailed list of existing KV cache compression methods, check [Awesome-KV-
 
 See the [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook on how to measure peak memory usage and total time gain.
 
-<img src="evaluation/assets/peak_memory_consumption_xkcd.png" alt="drawing" width="450"/>
+![memory](evaluation/assets/peak_memory_consumption_xkcd.png)
 
-
-We provide a simple CLI to evaluate the performance of the different presses on several long-context datasets. 
-
-_Average performance on the RULER dataset with 4k context length for different presses_
+We provide a simple CLI to evaluate the performance of the different presses on several long-context datasets. Below we report the average performance on the RULER dataset with 4k context length for different presses.
 
 ![RULER](evaluation/assets/ruler_llama_xkcd.png)
 
 Please refer to the [evaluation](evaluation/README.md) directory for more details and results.
 
-## KV cache quantization
+## Quantization
 
 We support KV cache quantization through the transformers `QuantizedCache` class (see [HF blog post](https://huggingface.co/blog/kv-cache-quantization#how-to-use-quantized-kv-cache-in-%F0%9F%A4%97-transformers)). To use it, simply pass a cache object to your pipeline:
 
@@ -107,7 +104,7 @@ pipe(..., cache=cache)
 By default, the `DynamicCache` is used (no quantization). 
 
 > [!IMPORTANT]  
-> To use the `QuantizedCache`, you need to install additional dependencies (e.g. `pip install optimum-quanto`).
+> To use the `QuantizedCache`, you need to install additional dependencies (_e.g._ `pip install optimum-quanto`).
 
 
 ## FAQ
@@ -117,7 +114,7 @@ By default, the `DynamicCache` is used (no quantization).
 ### Which models are supported ? 
 </summary>
 
-Some presses depend on the model architecture (_e.g._ `ExpectedAttentionPress` and `SnapKVPress`) hence they might not work with all models. We tested support for `LlamaForCausalLM`, `MistralForCausalLM`, `Phi3ForCausalLM` and `Qwen2ForCausalLM` but many other models might be supported out of the box because their implementation is often similar in transformers.
+Some presses depend on the model architecture (_e.g._ `ExpectedAttentionPress` or `SnapKVPress`) hence they might not work with all models. We tested support for `LlamaForCausalLM`, `MistralForCausalLM`, `Phi3ForCausalLM` and `Qwen2ForCausalLM` but many other models might be supported out of the box because their implementation is often similar in transformers.
 </details>
 
 
