@@ -49,7 +49,7 @@ class ThinKPress(BasePress):
 
         # Apply RoPE
         cos, sin = position_embeddings
-        cos, sin = cos[:, -self.window_size:], sin[:, -self.window_size:]
+        cos, sin = cos[:, -self.window_size :], sin[:, -self.window_size :]
         query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
         return query_states
