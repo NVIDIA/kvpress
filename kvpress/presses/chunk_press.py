@@ -39,7 +39,6 @@ class ChunkPress(BasePress):
 
         assert attentions is None, "ChunkPress does not support attentions."
 
-        q_len = hidden_states.shape[1]
         kv_len = keys.shape[2]
 
         compressed_keys = []
