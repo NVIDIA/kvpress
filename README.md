@@ -1,10 +1,14 @@
 [![PyPI version](https://badge.fury.io/py/kvpress.svg)](https://badge.fury.io/py/kvpress)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Colab example notebook](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1JNvaTKuuAHrl49dYB9-mdEH_y52Ib-NP?usp=drive_link)
+[![Hugging Face Space](https://img.shields.io/badge/🤗%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/YOUR_SPACE_NAME)
+[![Blog Post](https://img.shields.io/badge/Blog-Post-red)](https://YOUR_BLOG_POST)
+
+
 
 ![kvpress](kvpress.jpg)
 
-Deploying long-context LLMs is costly due to the linear growth of the key-value (KV) cache in transformer models. For example, handling 1M tokens with Llama 3.1-70B in float16 requires up to 330GB of memory. This repository implements multiple KV cache compression methods and benchmarks using [🤗 transformers](https://huggingface.co/docs/transformers/en/index), aiming to simplify the development of new methods for researchers and developers in this field.
+Deploying long-context LLMs is costly due to the linear growth of the key-value (KV) cache in transformer models. For example, handling 1M tokens with Llama 3.1-70B in float16 requires up to 330GB of memory. This repository implements multiple KV cache compression methods and benchmarks using 🤗 transformers, aiming to simplify the development of new methods for researchers and developers in this field.
 
 ## Installation
 
@@ -12,27 +16,27 @@ Deploying long-context LLMs is costly due to the linear growth of the key-value 
 pip install kvpress
 ```
 
-We recommend using [flash attention](https://github.com/Dao-AILab/flash-attention/) if possible:
+If you want to use flash attention:
 ```bash
 pip install flash-attn --no-build-isolation
 ```
 
 ## Usage
 
-This repository provides a set of "presses" that compress the KV cache. A press is only applied during the pre-filling phase and is associated with a `compression_ratio` attribute that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline` that is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported. It handles chat templates and tokenization for you:
+This repository provides a set of presses that compress the KV cache. A press is only applied during the pre-filling phase and is associated with a `compression_ratio` attribute that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline`. This pipeline is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported and handles chat templates and tokenization for you:
 
 ```python
 from kvpress import ExpectedAttentionPress
 from transformers import pipeline
 
 device = "cuda:0"
-model= "microsoft/Phi-3.5-mini-instruct"
+model= "meta-llama/Llama-3.1-8B-Instruct"
 pipe = pipeline("kv-press-text-generation", model=model, device=device, torch_dtype="auto", model_kwargs={"attn_implementation":"flash_attention_2"})
 
 context = "A very long text you want to compress once and for all"
 question = "\nA question about the compressed context" # optional
     
-press = ExpectedAttentionPress(compression_ratio=0.4)
+press = ExpectedAttentionPress(compression_ratio=0.5)
 answer = pipe(context, question=question, press=press)["answer"]
 ```
 
@@ -75,14 +79,15 @@ For a detailed list of existing KV cache compression methods, check [Awesome-KV-
 ## Evaluation
 
 See the [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook on how to measure peak memory usage and total time gain.
-<img src="evaluation/assets/peak_memory_consumption.png" alt="drawing" width="450"/>
+
+<img src="evaluation/assets/peak_memory_consumption_xkcd.png" alt="drawing" width="450"/>
 
 
 We provide a simple CLI to evaluate the performance of the different presses on several long-context datasets. 
 
-_Average performance on the RULER dataset with 4k context length and Loogle Short Dependency QA task for 3 models and 7 presses_
-![RULER](evaluation/assets/ruler_4096_average%20score.png)
-![Loogle](evaluation/assets/loogle_shortdep_qa.png)
+_Average performance on the RULER dataset with 4k context length for different presses_
+
+![RULER](evaluation/assets/ruler_llama_xkcd.png)
 
 Please refer to the [evaluation](evaluation/README.md) directory for more details and results.
 
