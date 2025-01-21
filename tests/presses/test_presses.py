@@ -8,13 +8,14 @@ from torch import nn
 from transformers import DynamicCache
 
 from kvpress import (
+    AdaKVPress,
+    ChunkPress,
     ComposedPress,
     KeyRerotationPress,
     KnormPress,
     ObservedAttentionPress,
-    AdaKVPress,
-    ThinKPress,
     ScorerPress,
+    ThinKPress,
 )
 from tests.default_presses import default_presses
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
@@ -29,8 +30,19 @@ def test_composed_press(unit_test_model):  # noqa: F811
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
+def test_chunk_press(unit_test_model):  # noqa: F811
+    press = KnormPress(compression_ratio=0.5)
+    for chunk_length in [2, 4, 8, 128]:
+        composed_press = ChunkPress(press=press, chunk_length=chunk_length)
+        with composed_press(unit_test_model):
+            input_ids = torch.randint(0, 1024, (1, 256))
+            cache = DynamicCache()
+            unit_test_model(input_ids, past_key_values=cache).past_key_values
+            assert cache.get_seq_length() == 128
+
+
 @pytest.mark.parametrize("press_dict", default_presses)
-@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress, AdaKVPress])
+@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress])
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
@@ -44,6 +56,8 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
                 return
             else:
                 press = AdaKVPress(press=press)
+        if isinstance(wrapper_press, ChunkPress):
+            press = ChunkPress(press=press, chunk_length=2)
 
         with press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]

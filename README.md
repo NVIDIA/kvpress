@@ -73,6 +73,7 @@ Finally we provide special presses:
 - `PerLayerCompressionPress`: compress each layer with a different compression ratio (experimental). This press can be used with any other press that allows to set a compression_ratio
 - `ComposedPress`: compose multiple presses together by chaining their forward hooks
 - `KeyRerotationPress`: rerotate pruned keys to have continuous RoPE embeddings. This press can be used with any other press that inherits from `ScorerPress`.
+- `ChunkPress`: compress the KV cache on each sequence chunk separately. This can yield to more uniform compression across long sequences. The press can be used with any other press that inherits from `ScorerPress`. The method was introduced [here](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 

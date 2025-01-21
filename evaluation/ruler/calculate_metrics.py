@@ -27,17 +27,7 @@ def string_match_all(preds, refs):
     return round(score, 2)
 
 
-METRICS_DICT = {
-    "niah": string_match_all,
-    "vt": string_match_all,
-    "cwe": string_match_all,
-    "fwe": string_match_all,
-    "qa": string_match_part,
-}
-
-
 def calculate_metrics(df: pd.DataFrame) -> dict:
-
     scores = {}
 
     np_pattern = re.compile(r"[\x00-\x1f]")
