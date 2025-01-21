@@ -5,12 +5,9 @@ import logging
 from dataclasses import dataclass
 
 import torch
-from torch import nn
-
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
-
-logger = logging.getLogger(__name__)
+from torch import nn
 
 
 @dataclass
