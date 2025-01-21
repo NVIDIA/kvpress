@@ -19,20 +19,20 @@ class AdaKVPress(BasePress):
     This press has been reviewed by Yuan Feng, first author of AdaKV.
     """
 
-    scorer: ScorerPress
+    press: ScorerPress
     alpha_safeguard: float = 0.20
 
     def __post_init__(self):
-        assert isinstance(self.scorer, ScorerPress), "AdaKVPress requires a ScorerPress as input"
+        assert isinstance(self.press, ScorerPress), "AdaKVPress requires a ScorerPress as input"
         assert 0 <= self.alpha_safeguard <= 1, "alpha_safeguard should be in [0, 1]"
 
     @property
     def compression_ratio(self):
-        return self.scorer.compression_ratio
+        return self.press.compression_ratio
 
     @compression_ratio.setter
     def compression_ratio(self, value):
-        self.scorer.compression_ratio = value
+        self.press.compression_ratio = value
 
     def compress(self, module, hidden_states, keys, values, attentions, kwargs):
         if self.compression_ratio == 0:
@@ -41,7 +41,7 @@ class AdaKVPress(BasePress):
         assert module.config._attn_implementation != "eager", "eager mode not supported"
 
         # Compute scores
-        scores = self.scorer.score(module, hidden_states, keys, values, attentions, kwargs)
+        scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
         bsz, num_key_value_heads, q_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
