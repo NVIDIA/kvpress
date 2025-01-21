@@ -15,7 +15,7 @@ Deploying long-context LLMs is costly due to the linear growth of the key-value 
 pip install kvpress
 ```
 
-If you want to use flash attention:
+If possible, install flash attention:
 ```bash
 pip install flash-attn --no-build-isolation
 ```
@@ -29,12 +29,13 @@ from transformers import pipeline
 from kvpress import ExpectedAttentionPress
 
 device = "cuda:0"
-model= "meta-llama/Llama-3.1-8B-Instruct"
-pipe = pipeline("kv-press-text-generation", model=model, device=device)
+model = "meta-llama/Llama-3.1-8B-Instruct"
+model_kwargs = {"attn_implementation": "flash_attention_2"}
+pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
 context = "A very long text you want to compress once and for all"
-question = "\nA question about the compressed context" # optional
-    
+question = "\nA question about the compressed context"  # optional
+
 press = ExpectedAttentionPress(compression_ratio=0.5)
 answer = pipe(context, question=question, press=press)["answer"]
 ```
