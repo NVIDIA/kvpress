@@ -19,10 +19,23 @@ class ChunkPress(BasePress):
     Wrapper class for any ScorerPress.
     Chunks keys and values into chunks of size chunk_length and compresses each chunk separately.
     This ensures that the context is compressed uniformly across the entire context.
+    This method was proposed in FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
+    https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280
     """
 
     press: ScorerPress
     chunk_length: int = 1024
+
+    def __post_init__(self):
+        assert isinstance(self.press, ScorerPress), "ChunkPress requires a ScorerPress as input"
+
+    @property
+    def compression_ratio(self):
+        return self.press.compression_ratio
+
+    @compression_ratio.setter
+    def compression_ratio(self, value):
+        self.press.compression_ratio = value
 
     def compress(
         self,
@@ -41,27 +54,25 @@ class ChunkPress(BasePress):
 
         kv_len = keys.shape[2]
 
-        compressed_keys = []
-        compressed_values = []
-
+        indices = []
         for i in range(0, kv_len, self.chunk_length):
-            keys_to_prune = keys[:, :, i : i + self.chunk_length]
-            values_to_prune = values[:, :, i : i + self.chunk_length]
-            hidden_states_chunk = hidden_states[:, i : i + self.chunk_length]
-            scores = self.press.score(module, hidden_states_chunk, keys_to_prune, values_to_prune, attentions, kwargs)
+            chunk_scores = self.press.score(
+                module,
+                hidden_states[:, i : i + self.chunk_length],
+                keys[:, :, i : i + self.chunk_length],
+                values[:, :, i : i + self.chunk_length],
+                attentions,
+                kwargs,
+            )
+            chunk_length = keys[:, :, i : i + self.chunk_length].shape[2]
+            n_kept = max(1, int(chunk_length * (1 - self.press.compression_ratio)))
+            chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices
+            indices.append(chunk_indices)
 
-            n_kept = max(1, int(keys_to_prune.shape[2] * (1 - self.press.compression_ratio)))
-            indices = scores.topk(n_kept, dim=-1).indices
-            indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
+        indices = torch.cat(indices, dim=-1)
+        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-            # Update cache
-            keys_chunk = keys_to_prune.gather(2, indices).contiguous()
-            values_chunk = values_to_prune.gather(2, indices).contiguous()
-
-            compressed_keys.append(keys_chunk)
-            compressed_values.append(values_chunk)
-
-        keys = torch.cat(compressed_keys, dim=-2)
-        values = torch.cat(compressed_values, dim=-2)
+        keys = keys.gather(2, indices).contiguous()
+        values = values.gather(2, indices).contiguous()
 
         return keys, values
