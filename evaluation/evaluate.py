@@ -26,6 +26,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    ProtectChatTemplatePress,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ SCORER_DICT = {
 PRESS_DICT = {
     "adasnapkv": AdaKVPress(SnapKVPress()),
     "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
+    "protected_expected_attention": ProtectChatTemplatePress(ExpectedAttentionPress()),
     "expected_attention": ExpectedAttentionPress(),
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
