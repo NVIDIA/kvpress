@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class CriticalScorerPress(BasePress):
+class CriticalScorerPress64(BasePress):
     """
     Default press method for using a score method.
     Any ScorerPress subclass must implement the `score` method that computes a tensor of scores for each key-value pair
@@ -68,8 +68,8 @@ class CriticalScorerPress(BasePress):
             w.shape = (head_num, head_dim, dim)
             vw_norm.shape = (bs, head_num, seq_len, 1)
             '''
-            v = torch.abs(v)
-            w = torch.abs(w)
+            v = torch.abs(v).to(torch.float64)
+            w = torch.abs(w).to(torch.float64)
             return torch.einsum("abcd,bde->abc", [v, w])
 
         projected_norm = vwl1norm(values_states, head_o_proj)
