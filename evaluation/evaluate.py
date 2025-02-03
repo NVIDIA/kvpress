@@ -26,6 +26,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    HeadScorerPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ PRESS_DICT = {
     "streaming_llm": StreamingLLMPress(),
     "think": ThinKPress(),
     "tova": TOVAPress(),
+    "head_expected_attention": HeadScorerPress(ExpectedAttentionPress(n_sink=0)),
 }
 
 
@@ -132,7 +134,10 @@ def evaluate(
     # Load press
     assert press_name in PRESS_DICT
     press = PRESS_DICT[press_name]
-    press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
+    if isinstance(press, HeadScorerPress):
+        press.score_loss = compression_ratio
+    else:
+        press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
 
     # Initialize pipeline with the correct attention implementation
     model_kwargs = {"torch_dtype": "auto"}
@@ -169,10 +174,11 @@ def evaluate(
             max_context_length=max_context_length,
         )
         df.loc[df_.index, "predicted_answer"] = output["answers"]
+        df.loc[df_.index, "compression_ratio"] = press.compression_ratio
         torch.cuda.empty_cache()
 
     # Save answers
-    df["predicted_answer"].to_csv(str(save_filename), index=False)
+    df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)
 
     # Calculate metrics
     scorer = SCORER_DICT[dataset]
