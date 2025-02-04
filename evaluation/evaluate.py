@@ -17,6 +17,9 @@ from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
 from kvpress import (
+    CriticalScorerPress,
+    CriticalAdaKVPress,
+
     AdaKVPress,
     ExpectedAttentionPress,
     KnormPress,
@@ -45,6 +48,12 @@ SCORER_DICT = {
 }
 
 PRESS_DICT = {
+    "criti_adasnapkv": CriticalAdaKVPress(SnapKVPress()),
+    "criti_ada_expected_attention": CriticalAdaKVPress(ExpectedAttentionPress()),
+
+    "criti_snapkv": CriticalScorerPress(SnapKVPress()),
+    "criti_expected_attention": CriticalScorerPress(ExpectedAttentionPress()),
+
     "adasnapkv": AdaKVPress(SnapKVPress()),
     "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
     "expected_attention": ExpectedAttentionPress(),

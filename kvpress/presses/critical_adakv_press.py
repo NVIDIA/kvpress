@@ -16,13 +16,21 @@ class CriticalAdaKVPress(BasePress):
     This press has been reviewed by Yuan Feng, first author of AdaKV.
     """
 
-    press: ScorerPress
-    alpha_safeguard: float = 0.20
-    epsilon: float = 1e-4
-    first_stage_ratio: float = 0.5
+    # press: ScorerPress
+    # alpha_safeguard: float = 0.20
+    # epsilon: float = 1e-4
+    # first_stage_ratio: float = 0.5
+
+    def __init__(self, press: ScorerPress, alpha_safeguard: float = 0.20, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
+        self.press = press
+        self.alpha_safeguard = alpha_safeguard
+        self.epsilon = epsilon
+        self.first_stage_ratio = first_stage_ratio
 
     def __post_init__(self):
         assert 0 <= self.alpha_safeguard <= 1, "alpha_safeguard should be in [0, 1]"
+        if hasattr(self.press, "use_vnorm"):
+            self.press.use_vnorm = False
 
     @property
     def compression_ratio(self):
@@ -67,22 +75,25 @@ class CriticalAdaKVPress(BasePress):
             phase1_budget = head_selection_budget_1st[head_idx]
             scores[:, head_idx ,:].scatter_(-1, top_k_index[ :,head_idx, :phase1_budget], torch.finfo(scores.dtype).max)
 
-        def vwl1norm(v, w):
-            '''
-            v.shape = (bs, head_num, seq_len, head_dim)
-            w.shape = (head_num, head_dim, dim)
-            vw_norm.shape = (bs, head_num, seq_len, 1)
-            '''
-            v = torch.abs(v)
-            w = torch.abs(w)
-            return torch.einsum("abcd,bde->abc", [v, w])
+
+        def vwl1norm(values, module):
+            bsz, num_key_value_heads, q_len, _ = values.shape
+            output_w = module.o_proj.weight.transpose(0, 1)
+            w = output_w.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
+            v = repeat_kv(values, module.num_key_value_groups)
+            head_vw_norm_weight_list = []
+            for head in range(v.size(1)):
+                head_o_proj_value_states = v[:,head, :,...].matmul(w[head,...].unsqueeze(0))
+
+                head_vw_norm_weight = torch.norm(head_o_proj_value_states, p=1, dim=-1)
+                head_vw_norm_weight_list.append(head_vw_norm_weight)
+            # b_size, num_heads, q_len , k_len
+            norm = torch.stack(head_vw_norm_weight_list, dim=1)
+            norm = norm.view(bsz, num_key_value_heads,module.num_key_value_groups, q_len).mean(dim=2)
+            return norm.to(v.dtype)
 
         # calculating projected value norm for critical cache selection
-        output_w = module.o_proj.weight.transpose(0, 1)
-        head_o_proj = output_w.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
-        values_states = repeat_kv(values, module.num_key_value_groups)
-        projected_norm = vwl1norm(values_states, head_o_proj)
-        projected_norm = projected_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, q_len).mean(dim=2)
+        projected_norm = vwl1norm(values, module)
 
         # stage 2 selection
         scores =  (scores + self.epsilon) * projected_norm

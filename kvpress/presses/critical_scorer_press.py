@@ -15,8 +15,8 @@ from kvpress.presses.snapkv_press import SnapKVPress
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class CriticalScorerPress64(BasePress):
+# @dataclass
+class CriticalScorerPress(ScorerPress):
     """
     Default press method for using a score method.
     Any ScorerPress subclass must implement the `score` method that computes a tensor of scores for each key-value pair
@@ -24,10 +24,18 @@ class CriticalScorerPress64(BasePress):
     The cache is uniformly pruned across all heads and layers using the compression_ratio parameter.
     """
 
-    press: ScorerPress
-    epsilon: float = 1e-4
-    first_stage_ratio: float = 0.5
-    
+    def __init__(self, press: ScorerPress, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
+        self.press = press
+        self.epsilon = epsilon
+        self.first_stage_ratio = first_stage_ratio
+
+    def __post_init__(self):
+        assert isinstance(self.press, ScorerPress), "CriticalScorerPress requires a ScorerPress as input"
+        assert 0 <= self.first_stage_ratio <= 1, "first_stage_ratio should be in [0, 1]"
+        if hasattr(self.press, "use_vnorm"):
+            self.press.use_vnorm = False
+            print("use_vnorm is set to False")
+
     @property
     def compression_ratio(self):
         return self.press.compression_ratio
@@ -35,12 +43,6 @@ class CriticalScorerPress64(BasePress):
     @compression_ratio.setter
     def compression_ratio(self, value):
         self.press.compression_ratio = value
-
-
-
-    def __post_init__(self):
-        assert isinstance(self.press, ScorerPress), "AdaKVPress requires a ScorerPress as input"
-        assert 0 <= self.first_stage_ratio <= 1, "first_stage_ratio should be in [0, 1]"
 
     def score(
         self,
@@ -58,24 +60,24 @@ class CriticalScorerPress64(BasePress):
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # calculating projected value norm for critical cache selection
-        output_w = module.o_proj.weight.transpose(0, 1)
-        head_o_proj = output_w.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
-        values_states = repeat_kv(values, module.num_key_value_groups)
+        def vwl1norm(values, module):
+            bsz, num_key_value_heads, q_len, _ = values.shape
+            output_w = module.o_proj.weight.transpose(0, 1)
+            w = output_w.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
+            v = repeat_kv(values, module.num_key_value_groups)
+            head_vw_norm_weight_list = []
+            for head in range(v.size(1)):
+                head_o_proj_value_states = v[:,head, :,...].matmul(w[head,...].unsqueeze(0))
 
-        def vwl1norm(v, w):
-            '''
-            v.shape = (bs, head_num, seq_len, head_dim)
-            w.shape = (head_num, head_dim, dim)
-            vw_norm.shape = (bs, head_num, seq_len, 1)
-            '''
-            v = torch.abs(v).to(torch.float64)
-            w = torch.abs(w).to(torch.float64)
-            return torch.einsum("abcd,bde->abc", [v, w])
+                head_vw_norm_weight = torch.norm(head_o_proj_value_states, p=1, dim=-1)
+                head_vw_norm_weight_list.append(head_vw_norm_weight)
+            # b_size, num_heads, q_len , k_len
+            norm = torch.stack(head_vw_norm_weight_list, dim=1)
+            norm = norm.view(bsz, num_key_value_heads,module.num_key_value_groups, q_len).mean(dim=2)
+            return norm.to(v.dtype)
 
-        projected_norm = vwl1norm(values_states, head_o_proj)
-
-        projected_norm = projected_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, q_len).mean(dim=2)
-
+        # calculating projected value norm for critical cache selection
+        projected_norm = vwl1norm(values, module)
 
         # calculate the budget for thresholding
         selection_budget = int((1 - self.compression_ratio) * q_len * self.first_stage_ratio)
@@ -94,31 +96,3 @@ class CriticalScorerPress64(BasePress):
         """
         return scores
 
-    # [todo] this method is the same to the one in ScorerPress. Maybe tring to inherit from ScorerPress is a better idea
-    def compress(
-        self,
-        module: nn.Module,
-        hidden_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-        attentions: torch.Tensor,
-        kwargs: dict,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-
-        if self.compression_ratio == 0:
-            return keys, values
-
-        # Compute scores
-        scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
-
-        # Get indices of KV pairs with the lowest scores
-        q_len = hidden_states.shape[1]
-        n_kept = int(q_len * (1 - self.compression_ratio))
-        indices = scores.topk(n_kept, dim=-1).indices
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
-
-        # Prune keys and values
-        keys = keys.gather(2, indices).contiguous()
-        values = values.gather(2, indices).contiguous()
-
-        return keys, values
