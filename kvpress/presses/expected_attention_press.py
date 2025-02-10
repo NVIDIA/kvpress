@@ -22,7 +22,7 @@ class ExpectedAttentionPress(ScorerPress):
         3. Apply R to the mean and covariance matrice of the queries.
         4. As attention A = exp(Q @ K / sqrt(d)), we compute the expected attention
         E(A) = exp(K @ mean.T / sqrt(d) + 1/2 K @ cov @ K.T / d)
-        5. Rescale the scores by the norm of the values
+        5. Rescale the scores by the norm of Wo @ values
     The first n_sink tokens are removed from calculations (sink attention phenomenon).
     """
 
@@ -120,13 +120,17 @@ class ExpectedAttentionPress(ScorerPress):
             scores += torch.einsum("bhin, bhij, bhjn->bhn", keys, cov_query, keys) / d / 2
         scores = F.softmax(scores, dim=-1)
 
+        # Rescale scores by the norm of the Wo @ values
+        if self.use_vnorm:
+            Wo = module.o_proj.weight.transpose(0, 1)
+            Wo = Wo.view(module.config.num_attention_heads, d, module.config.hidden_size)
+            values = repeat_kv(values, num_key_value_groups)
+            norm = torch.matmul(values, Wo).norm(p=2, dim=-1)
+            scores = scores * norm
+
         # Average scores across groups
         scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len)
         scores = scores.mean(dim=2)
-
-        # Rescale scores by the norm of the values
-        if self.use_vnorm:
-            scores = scores * values.norm(dim=-1)
 
         # Add back the sink tokens. Use max score to make sure they are not pruned.
         scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item())

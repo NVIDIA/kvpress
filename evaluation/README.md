@@ -30,7 +30,7 @@ python evaluate.py --dataset loogle --data_dir shortdep_qa --model meta-llama/Me
 
 ## Benchmarks
 
-We provide benchmark results from 7 presses and 3 models. We include a variant of SnapKV where we include the question in the compression process as in the original paper (snapkv w/ question). All performance curves can be found in the [assets](assets) directory, and predictions are available [here](https://drive.google.com/drive/folders/14BilGw07v8tOUUct-5nDhQlN3zIX9BUf?usp=drive_link).
+We provide benchmark results from 7 presses and 3 models. We include a variant of SnapKV where we include the question in the compression process as in the original paper (snapkv w/ question). All performance curves can be found in the [assets](assets) directory, and predictions are available [here](https://drive.google.com/drive/folders/14BilGw07v8tOUUct-5nDhQlN3zIX9BUf?usp=drive_link). Note that all results for `ExpectedAttentionPress` below use an older version of the code (no use of Wo when `use_vnorm=True`).
 
 <details><summary> 
 
