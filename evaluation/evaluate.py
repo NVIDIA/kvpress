@@ -17,9 +17,8 @@ from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
 from kvpress import (
-    CriticalScorerPress,
+    CriticalKVPress,
     CriticalAdaKVPress,
-
     AdaKVPress,
     ExpectedAttentionPress,
     KnormPress,
@@ -51,8 +50,8 @@ PRESS_DICT = {
     "criti_adasnapkv": CriticalAdaKVPress(SnapKVPress()),
     "criti_ada_expected_attention": CriticalAdaKVPress(ExpectedAttentionPress()),
 
-    "criti_snapkv": CriticalScorerPress(SnapKVPress()),
-    "criti_expected_attention": CriticalScorerPress(ExpectedAttentionPress()),
+    "criti_snapkv": CriticalKVPress(SnapKVPress()),
+    "criti_expected_attention": CriticalKVPress(ExpectedAttentionPress()),
 
     "adasnapkv": AdaKVPress(SnapKVPress()),
     "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
@@ -142,6 +141,11 @@ def evaluate(
     assert press_name in PRESS_DICT
     press = PRESS_DICT[press_name]
     press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
+
+    # It is recommended to disable `use_vnorm` in `ExpectedAttentionPress` when using `CriticalKVPress` and `CriticalAdaKVPress`.
+    if isinstance(press, CriticalKVPress) or isinstance(press, CriticalAdaKVPress):
+        if isinstance(press.press, ExpectedAttentionPress) and press.press.use_vnorm:
+            press.press.use_vnorm = False
 
     # Initialize pipeline with the correct attention implementation
     model_kwargs = {"torch_dtype": "auto"}
