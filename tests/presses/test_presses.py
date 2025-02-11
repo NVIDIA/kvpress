@@ -54,23 +54,13 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             press = ComposedPress(presses=[press])
         if isinstance(wrapper_press, KeyRerotationPress):
             press = KeyRerotationPress(press=press)
-        if isinstance(wrapper_press, AdaKVPress):
-            if not isinstance(press, ScorerPress):
-                return
+        if isinstance(wrapper_press, AdaKVPress, CriticalKVPress, CriticalAdaKVPress):
+            if isinstance(press, ScorerPress):
+                press = wrapper_press(press=press)
             else:
-                press = AdaKVPress(press=press)
+                return
         if isinstance(wrapper_press, ChunkPress):
             press = ChunkPress(press=press, chunk_length=2)
-        if isinstance(wrapper_press, CriticalKVPress):
-            if not isinstance(press, ScorerPress):
-                return
-            else:
-                press = CriticalKVPress(press=press)
-        if isinstance(wrapper_press, CriticalAdaKVPress):
-            if not isinstance(press, ScorerPress):
-                return
-            else:
-                press = CriticalAdaKVPress(press=press)
         with press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
