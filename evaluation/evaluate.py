@@ -49,10 +49,8 @@ SCORER_DICT = {
 PRESS_DICT = {
     "criti_adasnapkv": CriticalAdaKVPress(SnapKVPress()),
     "criti_ada_expected_attention": CriticalAdaKVPress(ExpectedAttentionPress()),
-
     "criti_snapkv": CriticalKVPress(SnapKVPress()),
     "criti_expected_attention": CriticalKVPress(ExpectedAttentionPress()),
-
     "adasnapkv": AdaKVPress(SnapKVPress()),
     "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
     "expected_attention": ExpectedAttentionPress(),
