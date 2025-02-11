@@ -22,7 +22,7 @@ class ExpectedAttentionPress(ScorerPress):
         3. Apply R to the mean and covariance matrice of the queries.
         4. As attention A = exp(Q @ K / sqrt(d)), we compute the expected attention
         E(A) = exp(K @ mean.T / sqrt(d) + 1/2 K @ cov @ K.T / d)
-        5. Rescale the scores by the norm of the values
+        5. Rescale the scores using (scores + epsilon) * ||V||_2
     The first n_sink tokens are removed from calculations (sink attention phenomenon).
     """
 
@@ -31,6 +31,7 @@ class ExpectedAttentionPress(ScorerPress):
     n_sink: int = 4
     use_covariance: bool = True
     use_vnorm: bool = True
+    epsilon: float = 0.0
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
@@ -126,7 +127,7 @@ class ExpectedAttentionPress(ScorerPress):
 
         # Rescale scores by the norm of the values
         if self.use_vnorm:
-            scores = scores * values.norm(dim=-1)
+            scores = (scores + self.epsilon) * values.norm(dim=-1)
 
         # Add back the sink tokens. Use max score to make sure they are not pruned.
         scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item())
