@@ -54,7 +54,7 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             press = ComposedPress(presses=[press])
         if isinstance(wrapper_press, KeyRerotationPress):
             press = KeyRerotationPress(press=press)
-        if isinstance(wrapper_press, AdaKVPress, CriticalKVPress, CriticalAdaKVPress):
+        if isinstance(wrapper_press, (AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
             if isinstance(press, ScorerPress):
                 press = wrapper_press(press=press)
             else:
