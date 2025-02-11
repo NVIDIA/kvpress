@@ -44,24 +44,21 @@ class CriticalKVPress(ScorerPress):
         Wo = module.o_proj.weight.transpose(0, 1)
         Wo = Wo.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
         V = repeat_kv(values, num_key_value_groups)
-        
-        # We use head-wise computation instead of direct matrix multiplication to reduce the memory usage of the intermediate variable WoV. 
-        # Future optimizations, such as kernel fusion, could further improve performance.
+
+        # We use head-wise computation instead of direct matmul to reduce the memory usage of WoV.
+        # Future kernel fusion optimization could eliminate this intermediate variables to enhance performance.
         head_WoV_norm_list = []
         for head in range(V.size(1)):
-            head_WoV = V[:,head, :,...].matmul(Wo[head,...].unsqueeze(0))
+            head_WoV = V[: , head, : , ...].matmul(Wo[head, ...].unsqueeze(0))
             head_WoV_norm = torch.norm(head_WoV, p=1, dim=-1)
             head_WoV_norm_list.append(head_WoV_norm)
-        
+
         # b_size, num_heads, q_len , k_len
         WoV_norm = torch.stack(head_WoV_norm_list, dim=1)
-        WoV_norm = WoV_norm.view(bsz, num_key_value_heads,module.num_key_value_groups, q_len).mean(dim=2)
+        WoV_norm = WoV_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, q_len).mean(dim=2)
         return WoV_norm
 
-  
-
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
-
         # Stage 1
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
         q_len = keys.shape[2]
@@ -76,6 +73,7 @@ class CriticalKVPress(ScorerPress):
         scores.scatter_(-1, top_k_index, torch.finfo(scores.dtype).max)
 
         return scores
+
 
 @dataclass
 class CriticalAdaKVPress(BasePress):
