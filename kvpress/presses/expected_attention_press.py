@@ -30,13 +30,16 @@ class ExpectedAttentionPress(ScorerPress):
     n_future_positions: int = 512
     n_sink: int = 4
     use_covariance: bool = True
-    use_vnorm: bool = True
+    use_wvnorm: bool = False
+    use_vnorm: bool = False
+    norm: float = 2.0
+    epsilon: float = 1e-4
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
         Compute the mean and covariance matrix of the queries
         """
-
+        assert not(self.use_vnorm and self.use_wvnorm)
         bsz, q_len, _ = hidden_states.shape
         n, d = module.config.num_attention_heads, module.head_dim
 
@@ -121,16 +124,20 @@ class ExpectedAttentionPress(ScorerPress):
         scores = F.softmax(scores, dim=-1)
 
         # Rescale scores by the norm of the Wo @ values
-        if self.use_vnorm:
+        if self.use_wvnorm:
             Wo = module.o_proj.weight.transpose(0, 1)
             Wo = Wo.view(module.config.num_attention_heads, d, module.config.hidden_size)
             values = repeat_kv(values, num_key_value_groups)
-            norm = torch.matmul(values, Wo).norm(p=2, dim=-1)
-            scores = scores * norm
+            norm = torch.matmul(values, Wo).norm(p=self.norm, dim=-1)
+            scores = (self.epsilon + scores) * norm
 
         # Average scores across groups
         scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len)
         scores = scores.mean(dim=2)
+
+        if self.use_vnorm:
+            norm = values.norm(p=self.norm, dim=-1)
+            scores = (self.epsilon + scores) * norm
 
         # Add back the sink tokens. Use max score to make sure they are not pruned.
         scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item())
