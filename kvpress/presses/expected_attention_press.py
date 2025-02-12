@@ -46,7 +46,7 @@ class ExpectedAttentionPress(ScorerPress):
         if hasattr(module, "q_proj"):
             Wq = module.q_proj.weight
         elif hasattr(module, "qkv_proj"):
-            Wq = module.qkv_proj.weight[: n * d]
+            Wq = module.qkv_proj.weight[: n * d]  # type: ignore[index]
         else:
             raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
 
