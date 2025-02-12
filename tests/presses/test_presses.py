@@ -8,6 +8,8 @@ from torch import nn
 from transformers import DynamicCache
 
 from kvpress import (
+    CriticalKVPress,
+    CriticalAdaKVPress,
     AdaKVPress,
     ChunkPress,
     ComposedPress,
@@ -42,7 +44,8 @@ def test_chunk_press(unit_test_model):  # noqa: F811
 
 
 @pytest.mark.parametrize("press_dict", default_presses)
-@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress])
+@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress,
+                                           CriticalKVPress, CriticalAdaKVPress])
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
@@ -51,14 +54,13 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             press = ComposedPress(presses=[press])
         if isinstance(wrapper_press, KeyRerotationPress):
             press = KeyRerotationPress(press=press)
-        if isinstance(wrapper_press, AdaKVPress):
-            if not isinstance(press, ScorerPress):
-                return
+        if isinstance(wrapper_press, (AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
+            if isinstance(press, ScorerPress):
+                press = wrapper_press(press=press)
             else:
-                press = AdaKVPress(press=press)
+                return
         if isinstance(wrapper_press, ChunkPress):
             press = ChunkPress(press=press, chunk_length=2)
-
         with press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
