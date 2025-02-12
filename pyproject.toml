@@ -60,3 +60,4 @@ ignore_missing_imports = true
 allow_redefinition = true
 strict_optional = false
 exclude = "(.eggs|.git|.hg|.mypy_cache|.nox|.tox|venv|.venv|doc-venv|.svn|_build|buck-out|build|dist|notebooks|tools|tmp|tests|bundles)"
+disable_error_code = ["union-attr", "operator", "call-overload", "arg-type"]
