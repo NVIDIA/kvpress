@@ -35,8 +35,8 @@ class PerLayerCompressionPress(BasePress):
         assert isinstance(self.press, ScorerPress), "PerLayerCompressionPress requires a ScorerPress as input"
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        original_compression_ratio = self.press.compression_ratio  # type:ignore[attr-defined]
-        self.press.compression_ratio = self.compression_ratios[module.layer_idx]  # type:ignore[attr-defined]
+        original_compression_ratio = self.press.compression_ratio  # type:ignore[index]
+        self.press.compression_ratio = self.compression_ratios[module.layer_idx]  # type:ignore[index]
         output = self.press.forward_hook(module, input, kwargs, output)
         self.press.compression_ratio = original_compression_ratio  # type:ignore[attr-defined]
         return output
