@@ -127,7 +127,6 @@ $dataset
 ├── create_huggingface_dataset.py
 ```
 
-
 Where:
 - `create_huggingface_dataset.py` is a script that generates the Hugging Face dataset from the original dataset. Each dataset is associated with a set of parquet files with the following structure:
   - `context`: ... 
