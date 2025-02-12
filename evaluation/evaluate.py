@@ -54,6 +54,7 @@ PRESS_DICT = {
     "adasnapkv": AdaKVPress(SnapKVPress()),
     "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
     "expected_attention": ExpectedAttentionPress(),
+    "ada_expected_attention_e2": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "random": RandomPress(),
