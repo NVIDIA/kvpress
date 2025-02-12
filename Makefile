@@ -23,7 +23,7 @@ style: reports
 	@echo -n > reports/mypy.log
 	@echo
 
-	-$(POETRY) run flake8 | tee -a reports/flake8_errors.log
+	-$(POETRY) run flake8 --verbose | tee -a reports/flake8_errors.log
 	@if [ -s reports/flake8_errors.log ]; then exit 1; fi
 
 	-$(POETRY) run mypy . --check-untyped-defs | tee -a reports/mypy.log
