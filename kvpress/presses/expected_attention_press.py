@@ -76,7 +76,7 @@ class ExpectedAttentionPress(ScorerPress):
         R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
 
         # Apply average rotation to the mean and covariance
-        R = R.mean(dim=0)
+        R = R.mean(dim=0).to(mu.device)
         mu = torch.matmul(mu, R.T)
         if self.use_covariance:
             cov = torch.matmul(R, torch.matmul(cov, R.T))
