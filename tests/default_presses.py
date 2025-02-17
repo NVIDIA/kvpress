@@ -11,11 +11,13 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    DuoAttentionPress,
 )
 
 # contains all presses to be tested
 # kwargs should be ordered easy to hard compression
 default_presses = [
+    {"cls": DuoAttentionPress, "kwargs": [{"head_compression_ratio": 0.2}, {"head_compression_ratio": 0.8}]},
     {"cls": KnormPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": ExpectedAttentionPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": RandomPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
