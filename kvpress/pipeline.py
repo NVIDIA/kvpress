@@ -259,14 +259,21 @@ class KVPressTextGenerationPipeline(Pipeline):
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
         # Remove the generated tokens from the cache
-        cache.key_cache = [
-            cache.key_cache[layer_idx][:, :, :sequence_length]
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-        ]
-        cache.value_cache = [
-            cache.value_cache[layer_idx][:, :, :sequence_length]
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-        ]
+        if hasattr(cache, "retrieval_cache"):
+            caches = [cache.retrieval_cache, cache.streaming_cache]
+        else:
+            caches = [cache]
+
+        for c in caches:
+            c.key_cache = [
+                c.key_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
+            c.value_cache = [
+                c.value_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
+
         if hasattr(cache, "_quantized_key_cache"):
             cache._quantized_key_cache = [
                 cache._quantized_key_cache[layer_idx][:, :, :sequence_length]
