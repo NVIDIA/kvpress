@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import numpy as np
 
 from kvpress import (
     ExpectedAttentionPress,
@@ -11,11 +12,21 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    DuoAttentionPress,
 )
+
+
+class TestDuoAttentionPress(DuoAttentionPress):
+    @staticmethod
+    def load_attention_pattern(model):
+        n_layers, n_heads = model.config.num_hidden_layers, model.config.num_key_value_heads
+        return 2, 2, np.random.rand(n_layers, n_heads)
+
 
 # contains all presses to be tested
 # kwargs should be ordered easy to hard compression
 default_presses = [
+    {"cls": TestDuoAttentionPress, "kwargs": [{"head_compression_ratio": 0.2}, {"head_compression_ratio": 0.8}]},
     {"cls": KnormPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": ExpectedAttentionPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": RandomPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
