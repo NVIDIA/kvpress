@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from io import StringIO
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from contextlib import contextmanager
 
 import torch
@@ -36,11 +36,29 @@ class DuoAttentionPress(BasePress):
     """
 
     head_compression_ratio: float = 0.0
+    compression_ratio_: float = field(init=False, default=None)
+    recent_size: int = field(init=False, default=None)
+    sink_size: int = field(init=False, default=None)
+    streaming_mask: torch.Tensor = field(init=False, default=None)
+
+    def __post_init_from_model__(self, model):
+        """
+        Initialize sink_size, recent_size, and streaming_mask from a model
+        """
+        # Load attention pattern from the DuoAttention repo
+        self.sink_size, self.recent_size, head_scores = self.load_attention_pattern(model)
+
+        # Define retrieval and streaming heads through a binary mask
+        n_pruned = round(head_scores.size * self.head_compression_ratio)
+        self.streaming_mask = torch.zeros(head_scores.shape, dtype=bool, device=model.device)
+        if n_pruned > 0:
+            indices = np.argsort(head_scores, axis=None)[:n_pruned]
+            self.streaming_mask[np.unravel_index(indices, head_scores.shape)] = True
 
     @property
     def compression_ratio(self) -> float:
-        assert hasattr(self, "compression_ratio_"), "Forward pass must be run to compute the compression ratio"
-        return self.compression_ratio_  # type: ignore[has-type]
+        assert self.compression_ratio_ is not None, "Forward pass must be run to compute the compression ratio"
+        return self.compression_ratio_
 
     @compression_ratio.setter
     def compression_ratio(self, value):
@@ -88,17 +106,6 @@ class DuoAttentionPress(BasePress):
 
     @contextmanager
     def __call__(self, model):
-
-        # Load attention pattern from the DuoAttention repo
-        self.sink_size, self.recent_size, head_scores = self.load_attention_pattern(model)
-
-        # Define retrieval and streaming heads through a binary mask
-        n_pruned = round(head_scores.size * self.head_compression_ratio)
-        self.streaming_mask = torch.zeros(head_scores.shape, dtype=bool, device=model.device)
-        if n_pruned > 0:
-            indices = np.argsort(head_scores, axis=None)[:n_pruned]
-            self.streaming_mask[np.unravel_index(indices, head_scores.shape)] = True
-
-        # Register hooks
+        self.__post_init_from_model__(model)
         with super().__call__(model):
             yield
