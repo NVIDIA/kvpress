@@ -6,13 +6,16 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 
 import torch
-import requests
+import requests  # type: ignore[import-untyped]
 import numpy as np
 
 from kvpress.presses.base_press import BasePress
 
 
 PATTERNS_DICT = {
+    "togethercomputer/Llama-2-7B-32K-Instruct": "Llama-2-7B-32K-Instruct/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
+    "gradientai//Llama-3-8B-Instruct-Gradient-1048k": "Llama-3-8B-Instruct-Gradient-1048k/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
+    "gradientai//Llama-3-8B-Instruct-Gradient-4194k": "Llama-3-8B-Instruct-Gradient-4194k/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
     "meta-llama/Meta-Llama-3.1-8B-Instruct": "Meta-Llama-3.1-8B-Instruct/lr=0.02-reg=0.05-ctx=1000_128000-multi_passkey10",  # noqa: E501
     "mistralai/Mistral-7B-Instruct-v0.2": "Mistral-7B-Instruct-v0.2/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
     "mistralai/Mistral-7B-Instruct-v0.3": "Mistral-7B-Instruct-v0.3/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
@@ -35,9 +38,9 @@ class DuoAttentionPress(BasePress):
     head_compression_ratio: float = 0.0
 
     @property
-    def compression_ratio(self):
+    def compression_ratio(self) -> float:
         assert hasattr(self, "compression_ratio_"), "Forward pass must be run to compute the compression ratio"
-        return self.compression_ratio_
+        return self.compression_ratio_  # type: ignore[has-type]
 
     @compression_ratio.setter
     def compression_ratio(self, value):
@@ -55,10 +58,9 @@ class DuoAttentionPress(BasePress):
             masked_keys[:, self.streaming_mask[module.layer_idx], self.sink_size : -self.recent_size] = True
             module.masked_key_indices = torch.nonzero(masked_keys, as_tuple=True)
 
-        # Compute the compression ratio (slightly different from head_compression_ratio)
-        if module.layer_idx == 0:
-            ratio = self.streaming_mask.float().mean().item()
-            self.compression_ratio_ = (self.sink_size + self.recent_size) / q_len * (1 - ratio) + ratio
+        # Compute the compression ratio
+        self.compression_ratio_ = self.streaming_mask.float().mean().item()
+        self.compression_ratio_ *= 1 - (self.sink_size + self.recent_size) / q_len
 
         return keys, values
 
@@ -71,12 +73,13 @@ class DuoAttentionPress(BasePress):
         assert (
             model.config.name_or_path in PATTERNS_DICT
         ), f"Checkpoint {model.config.name_or_path} not in {list(PATTERNS_DICT.keys())}"
-        url = f"https://raw.githubusercontent.com/mit-han-lab/duo-attention/refs/heads/main/attn_patterns/{PATTERNS_DICT[model.config.name_or_path]}/"  # noqa: E501
+        base_url = "https://raw.githubusercontent.com/mit-han-lab/duo-attention/refs/heads/main/attn_patterns"
+        url = f"{base_url}/{PATTERNS_DICT[model.config.name_or_path]}/"
 
         # Load config
         config = requests.get(url + "config.json").json()
 
-        # Load head scores and clip (as in duo_attn.utils.load_attn_pattern)
+        # Load head scores and clip as in duo_attn.utils.load_attn_pattern
         text = requests.get(url + "full_attention_heads.tsv").text
         head_scores = np.loadtxt(StringIO(text), dtype=float, delimiter="\t")
         head_scores = np.clip(head_scores, 0, 1)
@@ -91,11 +94,10 @@ class DuoAttentionPress(BasePress):
 
         # Define retrieval and streaming heads through a binary mask
         n_pruned = round(head_scores.size * self.head_compression_ratio)
-        self.streaming_mask = np.zeros_like(head_scores, dtype=bool)
+        self.streaming_mask = torch.zeros(head_scores.shape, dtype=bool, device=model.device)
         if n_pruned > 0:
             indices = np.argsort(head_scores, axis=None)[:n_pruned]
             self.streaming_mask[np.unravel_index(indices, head_scores.shape)] = True
-        self.streaming_mask = torch.from_numpy(self.streaming_mask).to(device=model.device)
 
         # Register hooks
         with super().__call__(model):
