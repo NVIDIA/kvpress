@@ -29,6 +29,7 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
     DuoAttentionPress,
+    ChunkPress
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ PRESS_DICT = {
     "think": ThinKPress(),
     "tova": TOVAPress(),
     "duo_attention": DuoAttentionPress(),
+    "chunkkv": ChunkPress(press=SnapKVPress(), global_scoring=True, chunk_length=20),
 }
 
 
