@@ -9,7 +9,7 @@ import torch
 from transformers import AutoTokenizer, DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
 from transformers.utils import is_optimum_quanto_available
 
-from kvpress import ExpectedAttentionPress
+from kvpress import ExpectedAttentionPress,ChunkPress,SnapKVPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from tests.fixtures import danube_500m_model  # noqa: F401
 from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
@@ -21,7 +21,7 @@ def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
-        press = ExpectedAttentionPress(compression_ratio=0.4)
+        press = ChunkPress(press=SnapKVPress(compression_ratio=0.4, window_size=3), chunk_length=5, global_scoring=True)
         answers = kv_press_unit_test_pipeline(context, questions=questions, press=press)["answers"]
 
     assert len(answers) == 1
@@ -35,7 +35,7 @@ def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
 def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?"]
-    press = ExpectedAttentionPress(compression_ratio=0.4)
+    press = ChunkPress(press=SnapKVPress(compression_ratio=0.4, window_size=3), chunk_length=5, global_scoring=True)
     cache = DynamicCache()
     answers = kv_press_unit_test_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
@@ -47,7 +47,7 @@ def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
 def test_pipeline_single_or_no_question(kv_press_unit_test_pipeline, question, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
-        press = ExpectedAttentionPress(compression_ratio=0.4)
+        press = ChunkPress(press=SnapKVPress(compression_ratio=0.4, window_size=3), chunk_length=5, global_scoring=True)
         answer = kv_press_unit_test_pipeline(context, question=question, press=press)["answer"]
 
     assert isinstance(answer, str)
@@ -81,7 +81,7 @@ def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noq
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
-        press = ExpectedAttentionPress(compression_ratio=0.4)
+        press = ChunkPress(press=SnapKVPress(compression_ratio=0.4, window_size=3), chunk_length=5, global_scoring=True)
         config = QuantizedCacheConfig(nbits=4)
         cache = QuantoQuantizedCache(config)
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
@@ -138,7 +138,7 @@ def generate_answer(model):
     model.to(device)
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?", "When was this article written?"]
-    press = ExpectedAttentionPress(compression_ratio=0.4)
+    press = ChunkPress(press=SnapKVPress(compression_ratio=0.4, window_size=3), chunk_length=5, global_scoring=True)
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
     answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)(
         context, questions=questions, press=press
