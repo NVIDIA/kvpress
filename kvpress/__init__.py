@@ -7,6 +7,7 @@ from kvpress.pipeline import KVPressTextGenerationPipeline
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.chunk_press import ChunkPress
+from kvpress.presses.chunkkv_press import ChunkKVPress
 from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
@@ -47,4 +48,5 @@ __all__ = [
     "KeyRerotationPress",
     "ChunkPress",
     "DuoAttentionPress",
+    "ChunkKVPress",
 ]

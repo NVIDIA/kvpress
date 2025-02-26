@@ -11,12 +11,14 @@ from kvpress import (
     CriticalKVPress,
     CriticalAdaKVPress,
     AdaKVPress,
+    ChunkKVPress,
     ChunkPress,
     ComposedPress,
     KeyRerotationPress,
     KnormPress,
     ObservedAttentionPress,
     ScorerPress,
+    SnapKVPress,
     ThinKPress,
 )
 from tests.default_presses import default_presses
@@ -36,6 +38,17 @@ def test_chunk_press(unit_test_model):  # noqa: F811
     press = KnormPress(compression_ratio=0.5)
     for chunk_length in [2, 4, 8, 128]:
         composed_press = ChunkPress(press=press, chunk_length=chunk_length)
+        with composed_press(unit_test_model):
+            input_ids = torch.randint(0, 1024, (1, 256))
+            cache = DynamicCache()
+            unit_test_model(input_ids, past_key_values=cache).past_key_values
+            assert cache.get_seq_length() == 128
+
+
+def test_chunkkv_press(unit_test_model):  # noqa: F811
+    press = SnapKVPress(compression_ratio=0.5)
+    for chunk_length in [2, 4, 8, 128]:
+        composed_press = ChunkKVPress(press=press, chunk_length=chunk_length)
         with composed_press(unit_test_model):
             input_ids = torch.randint(0, 1024, (1, 256))
             cache = DynamicCache()
