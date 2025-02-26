@@ -160,4 +160,20 @@ with torch.no_grad(), press(model):
     print(model(inputs).past_key_values[0][0].shape)
     # torch.Size([3, 8, 3, 128])
 ```
-</
+</details>
+
+<details><summary> 
+
+### Why not using model.generate ? 
+</summary>
+
+In fact you can use `model.generate` with a press by using the press as a context manager:
+
+```python
+with press(model):
+    outputs = model.generate(inputs)
+```
+
+However, the `generate` method does not allow to exclude the question from the compression, which would artificially favors methods such as SnapKV. Ideally, we want a compression method that works whatever comes after the context (_e.g._ for use cases such as chat or document question answering). Finally the `generate` method does not allow to provide generation for multiple questions at once.
+
+</details>
