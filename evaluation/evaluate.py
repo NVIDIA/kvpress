@@ -17,9 +17,11 @@ from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
 from kvpress import (
-    CriticalKVPress,
-    CriticalAdaKVPress,
     AdaKVPress,
+    ChunkKVPress,
+    CriticalAdaKVPress,
+    CriticalKVPress,
+    DuoAttentionPress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -28,8 +30,6 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
-    DuoAttentionPress,
-    ChunkKVPress
 )
 
 logger = logging.getLogger(__name__)

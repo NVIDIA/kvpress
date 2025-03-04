@@ -51,7 +51,7 @@ class ChunkKVPress(BasePress):
         assert attentions is None, "ChunkPress does not support attentions."
 
         kv_len = keys.shape[2]
-        
+
         # 1. Calculate global scores first
         global_scores = self.press.score(
             module,

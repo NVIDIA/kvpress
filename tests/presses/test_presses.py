@@ -8,12 +8,12 @@ from torch import nn
 from transformers import DynamicCache
 
 from kvpress import (
-    CriticalKVPress,
-    CriticalAdaKVPress,
     AdaKVPress,
     ChunkKVPress,
     ChunkPress,
     ComposedPress,
+    CriticalAdaKVPress,
+    CriticalKVPress,
     KeyRerotationPress,
     KnormPress,
     ObservedAttentionPress,
@@ -57,8 +57,10 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
 
 
 @pytest.mark.parametrize("press_dict", default_presses)
-@pytest.mark.parametrize("wrapper_press", [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress,
-                                           CriticalKVPress, CriticalAdaKVPress])
+@pytest.mark.parametrize(
+    "wrapper_press",
+    [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress, CriticalKVPress, CriticalAdaKVPress],
+)
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
