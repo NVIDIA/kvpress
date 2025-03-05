@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
@@ -15,16 +16,23 @@ from kvpress.presses.base_press import BasePress
 =======
 from io import StringIO
 from dataclasses import dataclass, field
+=======
+>>>>>>> 2d01af7 (add ChunkKV)
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from io import StringIO
 
-import torch
-import requests  # type: ignore[import-untyped]
 import numpy as np
+import requests  # type: ignore[import-untyped]
+import torch
 
 from kvpress.presses.base_press import BasePress
 
+<<<<<<< HEAD
 
 >>>>>>> dbe7b42 (Add DuoAttentionPress (#50))
+=======
+>>>>>>> 2d01af7 (add ChunkKV)
 PATTERNS_DICT = {
     "togethercomputer/Llama-2-7B-32K-Instruct": "Llama-2-7B-32K-Instruct/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
     "gradientai//Llama-3-8B-Instruct-Gradient-1048k": "Llama-3-8B-Instruct-Gradient-1048k/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
