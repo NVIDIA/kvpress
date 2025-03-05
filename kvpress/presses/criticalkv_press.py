@@ -8,8 +8,8 @@ import torch
 from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
+from kvpress.presses.scorer_press import ScorerPress
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class CriticalKVPress(ScorerPress):
         # Future kernel fusion optimization could eliminate this intermediate variables to enhance performance.
         head_WoV_norm_list = []
         for head in range(V.size(1)):
-            head_WoV = V[: , head, : , ...].matmul(Wo[head, ...].unsqueeze(0))
+            head_WoV = V[:, head, :, ...].matmul(Wo[head, ...].unsqueeze(0))
             head_WoV_norm = torch.norm(head_WoV, p=1, dim=-1)
             head_WoV_norm_list.append(head_WoV_norm)
 

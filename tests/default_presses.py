@@ -4,6 +4,7 @@
 import numpy as np
 
 from kvpress import (
+    DuoAttentionPress,
     ExpectedAttentionPress,
     KnormPress,
     RandomPress,

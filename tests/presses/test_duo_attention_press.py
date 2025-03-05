@@ -1,4 +1,4 @@
-from kvpress.presses.duo_attention_press import DuoAttentionPress, PATTERNS_DICT
+from kvpress.presses.duo_attention_press import PATTERNS_DICT, DuoAttentionPress
 
 
 def test_load_attention_pattern():
