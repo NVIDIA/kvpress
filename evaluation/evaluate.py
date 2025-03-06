@@ -17,9 +17,11 @@ from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
 from kvpress import (
-    CriticalKVPress,
-    CriticalAdaKVPress,
     AdaKVPress,
+    ChunkKVPress,
+    CriticalAdaKVPress,
+    CriticalKVPress,
+    DuoAttentionPress,
     ExpectedAttentionPress,
     KnormPress,
     ObservedAttentionPress,
@@ -62,6 +64,8 @@ PRESS_DICT = {
     "streaming_llm": StreamingLLMPress(),
     "think": ThinKPress(),
     "tova": TOVAPress(),
+    "duo_attention": DuoAttentionPress(),
+    "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
 }
 
 
@@ -139,7 +143,11 @@ def evaluate(
     # Load press
     assert press_name in PRESS_DICT
     press = PRESS_DICT[press_name]
-    press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
+
+    if isinstance(press, (DuoAttentionPress)):
+        press.head_compression_ratio = compression_ratio
+    else:
+        press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
 
     # Initialize pipeline with the correct attention implementation
     model_kwargs = {"torch_dtype": "auto"}
@@ -176,16 +184,18 @@ def evaluate(
             max_context_length=max_context_length,
         )
         df.loc[df_.index, "predicted_answer"] = output["answers"]
+        df.loc[df_.index, "compression_ratio"] = press.compression_ratio  # type:ignore[attr-defined]
         torch.cuda.empty_cache()
 
     # Save answers
-    df["predicted_answer"].to_csv(str(save_filename), index=False)
+    df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)
 
     # Calculate metrics
     scorer = SCORER_DICT[dataset]
     metrics = scorer(df)
     with open(str(save_filename).replace(".csv", ".json"), "w") as f:
         json.dump(metrics, f)
+    print(f"Average compression ratio: {df['compression_ratio'].mean():.2f}")
     print(metrics)
 
 

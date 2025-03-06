@@ -50,7 +50,6 @@ class ChunkPress(BasePress):
         assert attentions is None, "ChunkPress does not support attentions."
 
         kv_len = keys.shape[2]
-
         indices = []
         for i in range(0, kv_len, self.chunk_length):
             chunk_scores = self.press.score(

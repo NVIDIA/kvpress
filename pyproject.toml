@@ -2,7 +2,7 @@
 name = "kvpress"
 authors = ["Simon Jegou", "Maximilian Jeblick", "Jiwei Liu", "David Austin"]
 description = "Efficiently compress the KV cache of any pretrained transformer"
-version = "0.2.2"
+version = "0.2.3"
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -25,6 +25,7 @@ pandas = "^2.2.2"
 rouge = "^1.0.1"
 bert-score = "^0.3.13"
 accelerate = "^1.0.0"
+requests = "^2.32.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
