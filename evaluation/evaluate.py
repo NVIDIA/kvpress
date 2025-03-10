@@ -65,14 +65,7 @@ PRESS_DICT = {
     "think": ThinKPress(),
     "tova": TOVAPress(),
     "duo_attention": DuoAttentionPress(),
-<<<<<<< HEAD
-<<<<<<< HEAD
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
-=======
->>>>>>> dbe7b42 (Add DuoAttentionPress (#50))
-=======
-    "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
->>>>>>> 2d01af7 (add ChunkKV)
 }
 
 
