@@ -13,20 +13,11 @@ from huggingface_hub import PyTorchModelHubMixin, get_collection
 
 from typing import Generator
 
-<<<<<<< HEAD
-=======
-import torch
-from torch import nn
->>>>>>> e2ec3bd (qfilters_press)
 from transformers import (
     LlamaForCausalLM,
     MistralForCausalLM,
     Phi3ForCausalLM,
     PreTrainedModel,
-<<<<<<< HEAD
-=======
-    QuantizedCache,
->>>>>>> e2ec3bd (qfilters_press)
     Qwen2ForCausalLM,
 )
 
@@ -35,19 +26,13 @@ logger = logging.getLogger(__name__)
 
 QFILTERS_COLLECTION = "nthngdy/q-filters-67a4994dcb302a3d37f3d119"
 
-<<<<<<< HEAD
 
-=======
->>>>>>> e2ec3bd (qfilters_press)
 def get_model_name(model_id: str) -> str:
     """Extract model name from model_id."""
     model_name = model_id.split("/")[-1].replace("_qfilt", "")
     return model_name
 
-<<<<<<< HEAD
 
-=======
->>>>>>> e2ec3bd (qfilters_press)
 def check_q_filters_available(model_name: str) -> bool:
     """Check if pre-trained QFilters are available for download for a specific model."""
     collection = get_collection(QFILTERS_COLLECTION)
@@ -56,39 +41,23 @@ def check_q_filters_available(model_name: str) -> bool:
 
 
 class QFilters(torch.nn.Module, PyTorchModelHubMixin):
-<<<<<<< HEAD
     """Learnable Q-filters for KV cache pruning. (https://arxiv.org/abs/2503.02812)"""
     def __init__(
         self,
         num_layers: int,
         num_kv_heads: int,
-=======
-    """Learnable Q-filters for KV cache pruning."""
-    def __init__(
-        self,
-        num_layers: int,
-        num_kv_heads: int, 
->>>>>>> e2ec3bd (qfilters_press)
         kv_head_dim: int,
         model_name: str = None
     ):
         super().__init__()
         self.q_filters = torch.nn.Parameter(torch.randn(num_layers, num_kv_heads, kv_head_dim))
         self.model_name = get_model_name(model_name) if model_name else None
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> e2ec3bd (qfilters_press)
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
         # we always keep a copy of the model name in the filters
         filters = super().from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
-<<<<<<< HEAD
         filters.model_name = get_model_name(pretrained_model_name_or_path)
-=======
-        filters.model_name = get_model_name(pretrained_model_name_or_path) 
->>>>>>> e2ec3bd (qfilters_press)
         return filters
 
     # representation of this object
@@ -96,22 +65,12 @@ class QFilters(torch.nn.Module, PyTorchModelHubMixin):
         return f"QFilters(model_name={self.model_name})"
 
 
-<<<<<<< HEAD
 @dataclass
 class QFilterPress(ScorerPress):
     """Prune KV pairs with Q-filters"""
     _q_filters: QFilters = None
     model_id: str = None
 
-=======
-
-@dataclass
-class QFilterPress(ScorerPress):
-    """Prune KV pairs with Q-filters"""
-    _q_filters: QFilters = None  
-    model_id: str = None
-    
->>>>>>> e2ec3bd (qfilters_press)
     def __post_init__(self):
         if self._q_filters is None and self.model_id is not None:
             model_name = get_model_name(self.model_id)
@@ -131,18 +90,10 @@ class QFilterPress(ScorerPress):
                 "2. Download QFilterPress and set them with press.qfilters = your_filters\n"
             )
         return self._q_filters
-<<<<<<< HEAD
-=======
-    
->>>>>>> e2ec3bd (qfilters_press)
 
     @q_filters.setter
     def q_filters(self, value: QFilters):
         self._q_filters = value
-<<<<<<< HEAD
-=======
-    
->>>>>>> e2ec3bd (qfilters_press)
 
     def _load_filters_for_model(self, model_name: str) -> None:
         """Load filters for a specific model from the hub."""
@@ -151,7 +102,6 @@ class QFilterPress(ScorerPress):
             self._q_filters = QFilters.from_pretrained(f"nthngdy/{model_name}_qfilt")
         except Exception as e:
             if not check_q_filters_available(model_name):
-<<<<<<< HEAD
                 logger.error(
                     f"QFilters not available for {model_name}. To use QFilters from another\
                          model, set q_filters manually."
@@ -159,13 +109,6 @@ class QFilterPress(ScorerPress):
             else:
                 logger.error(f"Unable to load QFilters for {model_name}: {e}")
 
-=======
-                logger.error(f"QFilters not available for {model_name}. To use QFilters from another model, set q_filters manually.")
-            else:
-                logger.error(f"Unable to load QFilters for {model_name}: {e}")
-
-        
->>>>>>> e2ec3bd (qfilters_press)
     def score(
         self,
         module: nn.Module,
@@ -184,20 +127,11 @@ class QFilterPress(ScorerPress):
             device=keys.device,
             dtype=keys.dtype
         )
-<<<<<<< HEAD
 
         # Compute score by projecting keys onto the filter
         scores = -(layer_filter[None, :, None] * keys).sum(dim=-1)
         return scores
 
-=======
-        
-        # Compute score by projecting keys onto the filter
-        scores = -(layer_filter[None,:,None] * keys).sum(dim=-1)
-        return scores
-    
-    
->>>>>>> e2ec3bd (qfilters_press)
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:
         """
@@ -217,22 +151,14 @@ class QFilterPress(ScorerPress):
 
         if not isinstance(model, (LlamaForCausalLM, MistralForCausalLM, Phi3ForCausalLM, Qwen2ForCausalLM)):
             logger.warning(f"Model {type(model)} not tested")
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> e2ec3bd (qfilters_press)
         if self._q_filters is None:
             try:
                 model_name = get_model_name(model.config.name_or_path)
                 self._load_filters_for_model(model_name)
             except AttributeError:
                 raise ValueError("Unable to infer model type. Please provide path to download Qfilters.")
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> e2ec3bd (qfilters_press)
         model_name = get_model_name(model.config.name_or_path)
         if self.q_filters.model_name != model_name:
             logger.warning(f"Using QFilters from {self.q_filters.model_name} for {model_name}.")
@@ -267,11 +193,7 @@ with press:
     # run inference with the model
     ...
 
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> e2ec3bd (qfilters_press)
 # Option 3: use pre-loaded QFilters
 q_filters = QFilters.from_pretrained("nthngdy/llama-3.2-1b_qfilt")
 press = QFilterPress()
