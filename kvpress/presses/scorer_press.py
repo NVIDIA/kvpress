@@ -23,7 +23,6 @@ class ScorerPress(BasePress):
     """
 
     compression_ratio: float = 0.0
-    max_capacity_prompt = None
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
@@ -53,7 +52,7 @@ class ScorerPress(BasePress):
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        if self.compression_ratio == 0 and self.max_capacity_prompt is None:
+        if self.compression_ratio == 0:
             return keys, values
 
         # Compute scores
@@ -61,7 +60,7 @@ class ScorerPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         q_len = hidden_states.shape[1]
-        n_kept = int(q_len * (1 - self.compression_ratio)) if self.max_capacity_prompt is None else min(int(self.max_capacity_prompt), q_len)
+        n_kept = int(q_len * (1 - self.compression_ratio))
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 

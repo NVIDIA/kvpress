@@ -5,6 +5,7 @@ This directory contains a set of scripts to evaluate the performance of differen
 - [RULER](ruler/README.md) ([hf link](https://huggingface.co/datasets/simonjegou/ruler))
 - [Zero Scrolls](zero_scrolls/README.md) ([hf link](https://huggingface.co/datasets/simonjegou/zero_scrolls))
 - [Infinitebench](infinite_bench/README.md) ([hf link](https://huggingface.co/datasets/MaxJeblick/InfiniteBench))
+- [longbench](longbench/README.md)([hf link](https://huggingface.co/datasets/THUDM/LongBench))
 
 
 Please refer to the README of each dataset for more information on how the Hugging Face dataset was generated.

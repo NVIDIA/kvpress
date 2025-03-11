@@ -24,7 +24,6 @@ class StreamingLLMPress(ScorerPress):
 
     compression_ratio: float = 0.0
     n_sink: int = 4
-    max_capacity_prompt = None
 
     def score(
         self,
@@ -38,7 +37,7 @@ class StreamingLLMPress(ScorerPress):
 
         q_len = hidden_states.shape[1]
         assert q_len > self.n_sink, f"Input should contain more tokens than n_sink={self.n_sink}"
-        n_pruned = q_len - int(q_len * (1 - self.compression_ratio)) if self.max_capacity_prompt is None else q_len - min(int(self.max_capacity_prompt), q_len)
+        n_pruned = q_len - int(q_len * (1 - self.compression_ratio))
         scores = torch.ones_like(keys[..., 0])
         scores[:, :, self.n_sink : self.n_sink + n_pruned] = 0
 

@@ -27,7 +27,6 @@ class ThinKPress(BasePress):
 
     key_channel_compression_ratio: float = 0.0
     window_size: int = 32
-    max_capacity_prompt = None
 
     def compute_window_queries(self, module, hidden_states, position_embeddings):
         """

@@ -35,14 +35,6 @@ class ChunkKVPress(BasePress):
     def compression_ratio(self, value):
         self.press.compression_ratio = value
 
-    @property
-    def max_capacity_prompt(self):
-        return self.press.max_capacity_prompt
-
-    @max_capacity_prompt.setter
-    def max_capacity_prompt(self, value):
-        self.press.max_capacity_prompt = value
-    
     def compress(
         self,
         module: nn.Module,
@@ -53,7 +45,7 @@ class ChunkKVPress(BasePress):
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        if self.press.compression_ratio == 0 and self.max_capacity_prompt is None:
+        if self.press.compression_ratio == 0:
             return keys, values
 
         assert attentions is None, "ChunkPress does not support attentions."
@@ -95,7 +87,7 @@ class ChunkKVPress(BasePress):
             chunk_scores = main_chunk_scores
 
         # 3. Calculate number of chunks to keep
-        n_chunks_kept = max(1, int((num_complete_chunks + (remaining_tokens > 0)) * (1 - self.press.compression_ratio))) if self.max_capacity_prompt is None else max(1, int(min(self.max_capacity_prompt, kv_len) / self.chunk_length))
+        n_chunks_kept = max(1, int((num_complete_chunks + (remaining_tokens > 0)) * (1 - self.press.compression_ratio)))
         top_chunks = chunk_scores.topk(n_chunks_kept, dim=-1)
 
         # 4. Create indices for selected chunks

@@ -23,7 +23,6 @@ class ObservedAttentionPress(ScorerPress):
 
     compression_ratio: float = 0.0
     output_attentions: bool = False
-    max_capacity_prompt = None
 
     def __post_init__(self):
         if not self.output_attentions:

@@ -89,7 +89,6 @@ def evaluate(
     max_new_tokens: Optional[int] = None,
     max_context_length: Optional[int] = None,
     compress_questions: bool = False,
-    max_capacity_prompt: Optional[int] = None,
     key_channel_compression_ratio: float = 0.5,
 ):
     """
@@ -166,16 +165,13 @@ def evaluate(
                 )
             else:
                 ps.compression_ratio = compression_ratio
-            ps.max_capacity_prompt = max_capacity_prompt
     elif isinstance(press, (ThinKPress)):
         press.key_channel_compression_ratio = key_channel_compression_ratio
         save_filename = save_filename.with_name(
             save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
         )
-        press.max_capacity_prompt = max_capacity_prompt
     else:
         press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
-        press.max_capacity_prompt = max_capacity_prompt
 
     # Initialize pipeline with the correct attention implementation
     model_kwargs = {"torch_dtype": "auto"}
