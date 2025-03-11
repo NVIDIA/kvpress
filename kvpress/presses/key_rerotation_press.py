@@ -39,7 +39,7 @@ class KeyRerotationPress(BasePress):
         attentions: torch.Tensor,
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        if self.press.compression_ratio == 0:
+        if self.press.compression_ratio == 0 and self.press.max_capacity_prompt is None:
             return keys, values
 
         # Compute scores from base press
@@ -47,7 +47,7 @@ class KeyRerotationPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         q_len = hidden_states.shape[1]
-        n_kept = int(q_len * (1 - self.press.compression_ratio))
+        n_kept = int(q_len * (1 - self.press.compression_ratio)) if self.press.max_capacity_prompt is None else min(int(self.press.max_capacity_prompt), q_len)
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
