@@ -62,7 +62,7 @@ class DuoAttentionPress(BasePress):
     @compression_ratio.setter
     def compression_ratio(self, value):
         raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")
-
+    
     def compress(self, module, hidden_states, keys, values, attentions, kwargs):
 
         assert module.config._attn_implementation != "eager", "eager mode not supported"

@@ -17,6 +17,7 @@ class RandomPress(ScorerPress):
 
     compression_ratio: float = 0.0
     seed: Optional[int] = None
+    max_capacity_prompt = None
 
     def score(
         self,

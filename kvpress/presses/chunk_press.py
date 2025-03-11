@@ -8,7 +8,7 @@ from torch import nn
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
-
+import math
 
 @dataclass
 class ChunkPress(BasePress):
@@ -34,6 +34,14 @@ class ChunkPress(BasePress):
     def compression_ratio(self, value):
         self.press.compression_ratio = value
 
+    @property
+    def max_capacity_prompt(self):
+        return self.press.max_capacity_prompt
+
+    @max_capacity_prompt.setter
+    def max_capacity_prompt(self, value):
+        self.press.max_capacity_prompt = value
+    
     def compress(
         self,
         module: nn.Module,
@@ -44,13 +52,16 @@ class ChunkPress(BasePress):
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        if self.press.compression_ratio == 0:
+        if self.press.compression_ratio == 0 and self.max_capacity_prompt is None:
             return keys, values
 
         assert attentions is None, "ChunkPress does not support attentions."
 
         kv_len = keys.shape[2]
         indices = []
+        max_capacity_prompt = None
+        if self.max_capacity_prompt is not None:
+            max_capacity_prompt = int(self.max_capacity_prompt / math.ceil(kv_len / self.chunk_length))
         for i in range(0, kv_len, self.chunk_length):
             chunk_scores = self.press.score(
                 module,
@@ -61,7 +72,7 @@ class ChunkPress(BasePress):
                 kwargs,
             )
             chunk_length = keys[:, :, i : i + self.chunk_length].shape[2]
-            n_kept = max(1, int(chunk_length * (1 - self.press.compression_ratio)))
+            n_kept = max(1, int(chunk_length * (1 - self.press.compression_ratio))) if self.max_capacity_prompt is None else max(1, min(int(max_capacity_prompt), chunk_length))
             chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices
             indices.append(chunk_indices)
 

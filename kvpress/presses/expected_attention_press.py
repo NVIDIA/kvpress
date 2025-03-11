@@ -32,6 +32,7 @@ class ExpectedAttentionPress(ScorerPress):
     use_covariance: bool = True
     use_vnorm: bool = True
     epsilon: float = 0.0
+    max_capacity_prompt = None
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
