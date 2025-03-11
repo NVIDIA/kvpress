@@ -34,8 +34,16 @@ class AdaKVPress(BasePress):
     def compression_ratio(self, value):
         self.press.compression_ratio = value
 
+    @property
+    def max_capacity_prompt(self):
+        return self.press.max_capacity_prompt
+
+    @max_capacity_prompt.setter
+    def max_capacity_prompt(self, value):
+        self.press.max_capacity_prompt = value
+
     def compress(self, module, hidden_states, keys, values, attentions, kwargs):
-        if self.compression_ratio == 0:
+        if self.compression_ratio == 0 and self.max_capacity_prompt is None:
             return keys, values
 
         assert module.config._attn_implementation != "eager", "eager mode not supported"
@@ -45,7 +53,7 @@ class AdaKVPress(BasePress):
         bsz, num_key_value_heads, q_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
-        n_kept = int(q_len * (1 - self.compression_ratio))  # ScorerPress definition
+        n_kept = int(q_len * (1 - self.compression_ratio)) if self.max_capacity_prompt is None else min(int(self.max_capacity_prompt), q_len)  # ScorerPress definition
         n_safe = int(n_kept * self.alpha_safeguard)
         top_indices = torch.topk(scores, n_safe, dim=-1).indices
         scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)
