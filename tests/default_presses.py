@@ -14,7 +14,6 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
     QFilterPress,
-    DuoAttentionPress,
 )
 
 

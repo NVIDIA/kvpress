@@ -11,18 +11,6 @@ import torch
 
 from kvpress.presses.base_press import BasePress
 
-from io import StringIO
-from dataclasses import dataclass, field
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-from io import StringIO
-
-import numpy as np
-import requests  # type: ignore[import-untyped]
-import torch
-
-from kvpress.presses.base_press import BasePress
-
 
 PATTERNS_DICT = {
     "togethercomputer/Llama-2-7B-32K-Instruct": "Llama-2-7B-32K-Instruct/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
