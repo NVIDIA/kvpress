@@ -5,6 +5,9 @@ authors:
   given-names: "Simon"
 - family-names: "Jeblick"
   given-names: "Maximilian"
+- family-names: "Austin"
+  given-names: "David"
 title: "kvpress"
-date-released: 2024-13-11
+date-released: 2024-11-13
+year: 2024
 url: "https://github.com/NVIDIA/kvpress"
