@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use kvpress, please cite it as below."
+authors:
+- family-names: "Jegou"
+  given-names: "Simon"
+- family-names: "Jeblick"
+  given-names: "Maximilian"
+title: "kvpress"
+date-released: 2024-13-11
+url: "https://github.com/NVIDIA/kvpress"
