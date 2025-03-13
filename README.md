@@ -113,7 +113,6 @@ By default, the `DynamicCache` is used (no quantization).
 > [!IMPORTANT]  
 > To use the `QuantizedCache`, you need to install additional dependencies (_e.g._ `pip install optimum-quanto`).
 
-
 ## FAQ
 
 <details><summary> 
@@ -122,6 +121,19 @@ By default, the `DynamicCache` is used (no quantization).
 </summary>
 
 Some presses depend on the model architecture (_e.g._ `ExpectedAttentionPress` or `SnapKVPress`) hence they might not work with all models. We tested support for `LlamaForCausalLM`, `MistralForCausalLM`, `Phi3ForCausalLM` and `Qwen2ForCausalLM` but many other models might be supported out of the box because their implementation is often similar in transformers.
+</details>
+
+<details><summary> 
+
+### How to run inference on multiple GPUs ? 
+</summary>
+
+kvpress supports multi-GPU inference through [accelerate](https://huggingface.co/docs/accelerate/en/index):
+
+```python
+pipe = pipeline("kv-press-text-generation", model=model, device_map="auto")
+```
+
 </details>
 
 
