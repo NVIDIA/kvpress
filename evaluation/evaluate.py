@@ -15,6 +15,8 @@ from ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from tqdm import tqdm
 from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
+from longbench.calculate_metrics import calculate_metrics as longbench_scorer
+from longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
 
 from kvpress import (
     AdaKVPress,
@@ -30,6 +32,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    ComposedPress
 )
 
 logger = logging.getLogger(__name__)
@@ -39,6 +42,8 @@ DATASET_DICT = {
     "ruler": "simonjegou/ruler",
     "zero_scrolls": "simonjegou/zero_scrolls",
     "infinitebench": "MaxJeblick/InfiniteBench",
+    "longbench": "Xnhyacinth/LongBench",
+    "longbench-e": "Xnhyacinth/LongBench-e"
 }
 
 SCORER_DICT = {
@@ -46,6 +51,8 @@ SCORER_DICT = {
     "ruler": ruler_scorer,
     "zero_scrolls": zero_scrolls_scorer,
     "infinitebench": infinite_bench_scorer,
+    "longbench": longbench_scorer,
+    "longbench-e": longbench_scorer_e
 }
 
 PRESS_DICT = {
@@ -66,6 +73,8 @@ PRESS_DICT = {
     "tova": TOVAPress(),
     "duo_attention": DuoAttentionPress(),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
+    "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
+    "full_kv": ExpectedAttentionPress(0.0),
 }
 
 
@@ -80,6 +89,7 @@ def evaluate(
     max_new_tokens: Optional[int] = None,
     max_context_length: Optional[int] = None,
     compress_questions: bool = False,
+    key_channel_compression_ratio: float = 0.5,
 ):
     """
     Evaluate a model on a dataset using a press and save the results
@@ -146,6 +156,20 @@ def evaluate(
 
     if isinstance(press, (DuoAttentionPress)):
         press.head_compression_ratio = compression_ratio
+    elif isinstance(press, (ComposedPress)):
+        for ps in press.presses:
+            if isinstance(ps, (ThinKPress)):
+                ps.key_channel_compression_ratio = key_channel_compression_ratio
+                save_filename = save_filename.with_name(
+                    save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
+                )
+            else:
+                ps.compression_ratio = compression_ratio
+    elif isinstance(press, (ThinKPress)):
+        press.key_channel_compression_ratio = key_channel_compression_ratio
+        save_filename = save_filename.with_name(
+            save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
+        )
     else:
         press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
 
@@ -166,6 +190,12 @@ def evaluate(
     else:
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
+    if data_dir in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]:
+        pipe.tokenizer.chat_template = None
+        pipe.tokenizer.bos_token = ""
+        if data_dir in ["samsum"]:
+            pipe.model.generation_config.eos_token_id = [pipe.tokenizer.eos_token_id, pipe.tokenizer.encode("\n", add_special_tokens=False)[-1]]
+    
     # Run pipeline on each context
     df["predicted_answer"] = None
     df_context = df.groupby("context")
