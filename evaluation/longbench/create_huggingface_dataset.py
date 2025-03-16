@@ -104,7 +104,7 @@ DATA_NAME_TO_MAX_NEW_TOKENS = {
 for task in ["narrativeqa", "qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "musique", \
             "gov_report", "qmsum", "multi_news", "trec", "triviaqa", "samsum", \
             "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]:
-    dataset = load_dataset("THUDM/LongBench", task, split="test", cache_dir="longbench/data")
+    dataset = load_dataset("THUDM/LongBench", task, split="test")
     dataset = dataset.map(
         lambda x: {"context": context_prefix[task].format(**x)}
     )
@@ -142,7 +142,7 @@ for task in ["narrativeqa", "qasper", "multifieldqa_en", "hotpotqa", "2wikimqa",
 # Longbench-e
 for task in ["qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "gov_report", "multi_news", \
             "trec", "triviaqa", "samsum", "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]:
-    dataset = load_dataset("THUDM/LongBench", f"{task}_e", split="test", cache_dir="/home/shizhu/liaohuanxuan/kvpress/evaluation/longbench/data")
+    dataset = load_dataset("THUDM/LongBench", f"{task}_e", split="test")
     dataset = dataset.map(
         lambda x: {"context": context_prefix[task].format(**x)}
     )

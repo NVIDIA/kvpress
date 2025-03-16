@@ -34,7 +34,7 @@ DATA_NAME_TO_MAX_NEW_TOKENS = {
 
 # Longbench-v2
 for task in ['0shot', 'cot']:
-    dataset = load_dataset('THUDM/LongBench-v2', split='train', cache_dir="/home/shizhu/liaohuanxuan/kvpress/evaluation/longbench/data")
+    dataset = load_dataset('THUDM/LongBench-v2', split='train')
     dataset = dataset.map(
         lambda x: {"context": context_prefix[task].format(context=x["context"].strip())}
     )
