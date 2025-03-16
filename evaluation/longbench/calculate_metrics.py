@@ -1,37 +1,42 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 import re
 import string
 
-import jieba
-from fuzzywuzzy import fuzz
-import difflib
-
-from typing import List
 from collections import Counter
 from rouge import Rouge
-
-
-import os
-import json
-import argparse
 import numpy as np
-import logging
-from tqdm import tqdm
 
+try:
+    import jieba
+    from fuzzywuzzy import fuzz
+except ImportError as e:
+    missing_module = str(e).split()[-1].strip("'")  # Extract missing module name
+    print(f"Module '{missing_module}' not found. Installing...")
+    
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, "-m", "pip", "install", missing_module])
+
+    # Retry import after installation
+    import jieba
+    from fuzzywuzzy import fuzz
 
 def calculate_metrics(df):
-    preds = df["predicted_answer"].tolist()
-    labels = df["answer"].tolist()
-    task = df["task"].tolist()[0]
+    predictions = df["predicted_answer"].tolist()
+    answers = df["answers"].tolist()
+    dataset = df["task"].tolist()[0]
     all_classes = df["all_classes"].tolist()[0]
-    return scorer(task, preds, labels, all_classes)
+    return scorer(dataset, predictions, answers, all_classes)
 
 def calculate_metrics_e(df):
-    preds = df["predicted_answer"].tolist()
-    labels = df["answer"].tolist()
-    task = df["task"].tolist()[0]
+    predictions = df["predicted_answer"].tolist()
+    answers = df["answers"].tolist()
+    dataset = df["task"].tolist()[0].removesuffix("-e")
     all_classes = df["all_classes"].tolist()[0]
     lengths = df["length"].tolist()
-    return scorer(task, preds, labels, lengths, all_classes)
+    return scorer_e(dataset, predictions, answers, lengths, all_classes)
 
 def scorer_e(dataset, predictions, answers, lengths, all_classes):
     scores = {"0-4k": [], "4-8k": [], "8k+": []}

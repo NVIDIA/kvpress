@@ -1,23 +1,11 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 
-import re
-from tqdm import tqdm
-from datasets import Dataset, Features, Sequence, Value, load_dataset
+from datasets import Dataset, load_dataset
 
 
-ft = Features(
-    {
-        "id": Value("int64"),
-        "context": Value("string"),
-        "input": Value("string"),
-        "answer": Sequence(Value("string")),
-        "options": Sequence(Value("string")),
-    }
-)
-
-# yarn_mistral_templates from: https://github.com/OpenBMB/InfiniteBench/blob/main/src/prompt.pyz
+# yarn_mistral_templates from: https://github.com/THUDM/LongBench/blob/main/LongBench/pred.py
 context_prefix = {
     "narrativeqa": "You are given a story, which can be either a novel or a movie script, and a question. Answer the question asconcisely as you can, using a single phrase if possible. Do not provide any explanation.\n\nStory: {context}\n\nNow, answer the question based on the story asconcisely as you can, using a single phrase if possible. Do not provide any explanation.\n\n",
     "qasper": "You are given a scientific article and a question. Answer the question as concisely as you can, using a single phrase or sentence if possible. If the question cannot be answered based on the information in the article, write \"unanswerable\". If the question is a yes/no question, answer \"yes\", \"no\", or \"unanswerable\". Do not provide any explanation.\n\nArticle: {context}\n\n Answer the question based on the above article as concisely as you can, using a single phrase or sentence if possible. If the question cannot be answered based on the information in the article, write \"unanswerable\". If the question is a yes/no question, answer \"yes\", \"no\", or \"unanswerable\". Do not provide any explanation.\n\n",
@@ -112,31 +100,49 @@ DATA_NAME_TO_MAX_NEW_TOKENS = {
     "repobench-p": 64
 }
 
-for task in [
-    "narrativeqa",
-    "qasper",
-    "multifieldqa_en",
-    "multifieldqa_zh",
-    "hotpotqa",
-    "2wikimqa",
-    "musique",
-    "dureader",
-    "gov_report",
-    "qmsum",
-    "multi_news",
-    "vcsum",
-    "trec",
-    "triviaqa",
-    "samsum",
-    "lsht",
-    "passage_count",
-    "passage_retrieval_en",
-    "passage_retrieval_zh",
-    "lcc",
-    "repobench-p"
-]:
-    dataset = load_dataset("THUDM/LongBench", task, split="test", cache_dir="longbench/data")
-    # for idx, json_obj in tqdm(enumerate(dataset), desc="Generating Context..."):
+# Longbench
+# for task in ["narrativeqa", "qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "musique", \
+#             "gov_report", "qmsum", "multi_news", "trec", "triviaqa", "samsum", \
+#             "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]:
+#     dataset = load_dataset("THUDM/LongBench", task, split="test", cache_dir="longbench/data")
+#     dataset = dataset.map(
+#         lambda x: {"context": context_prefix[task].format(**x)}
+#     )
+    
+#     if task == 'trec':
+#         dataset = dataset.map(
+#             lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Type:"))}
+#         )
+#     elif task == 'triviaqa':
+#         dataset = dataset.map(
+#             lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Answer:"))}
+#         )
+#     elif task == 'samsum':
+#         dataset = dataset.map(
+#             lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Summary:"))}
+#         )
+#     else:
+#         dataset = dataset.map(
+#             lambda x: {"input": question_template[task].format(**x)}
+#         )
+
+#     df = dataset.to_pandas()
+#     df = df.rename(columns={"input": "question"})
+#     df["answer_prefix"] = answer_prefix.get(task, "")
+#     # df = df[["context", "question", "answer_prefix", "answers", "all_classes"]]
+#     df["task"] = task
+
+#     # be a bit more generous with token generation to avoid any cut-offs
+#     df["max_new_tokens"] = DATA_NAME_TO_MAX_NEW_TOKENS[task] + 20
+
+#     # Push to hub
+#     dataset = Dataset.from_pandas(df)
+#     dataset.push_to_hub("Xnhyacinth/LongBench", config_name=task, split="test")
+
+# Longbench-e
+for task in ["qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "gov_report", "multi_news", \
+            "trec", "triviaqa", "samsum", "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]:
+    dataset = load_dataset("THUDM/LongBench", f"{task}_e", split="test", cache_dir="/home/shizhu/liaohuanxuan/kvpress/evaluation/longbench/data")
     dataset = dataset.map(
         lambda x: {"context": context_prefix[task].format(**x)}
     )
@@ -157,11 +163,8 @@ for task in [
         dataset = dataset.map(
             lambda x: {"input": question_template[task].format(**x)}
         )
-        # breakpoint()
 
     df = dataset.to_pandas()
-    # assert (df.columns == ["id", "context", "input", "answer", "options"]).all()
-
     df = df.rename(columns={"input": "question"})
     df["answer_prefix"] = answer_prefix.get(task, "")
     # df = df[["context", "question", "answer_prefix", "answers", "all_classes"]]
@@ -172,6 +175,4 @@ for task in [
 
     # Push to hub
     dataset = Dataset.from_pandas(df)
-    # dataset.save_to_disk("/modelopsnas/modelops/468440/kv/data/longbench")
-    # breakpoint()
-    dataset.push_to_hub("Xnhyacinth/LongBench", config_name=task, split="test")
+    dataset.push_to_hub("Xnhyacinth/LongBench", config_name=f"{task}_e", split="test")

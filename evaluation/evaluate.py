@@ -17,6 +17,7 @@ from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 from longbench.calculate_metrics import calculate_metrics as longbench_scorer
 from longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
+from longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
 
 from kvpress import (
     AdaKVPress,
@@ -43,7 +44,8 @@ DATASET_DICT = {
     "zero_scrolls": "simonjegou/zero_scrolls",
     "infinitebench": "MaxJeblick/InfiniteBench",
     "longbench": "Xnhyacinth/LongBench",
-    "longbench-e": "Xnhyacinth/LongBench-e"
+    "longbench-e": "Xnhyacinth/LongBench",
+    "longbench-v2": "Xnhyacinth/LongBench-v2"
 }
 
 SCORER_DICT = {
@@ -52,7 +54,8 @@ SCORER_DICT = {
     "zero_scrolls": zero_scrolls_scorer,
     "infinitebench": infinite_bench_scorer,
     "longbench": longbench_scorer,
-    "longbench-e": longbench_scorer_e
+    "longbench-e": longbench_scorer_e,
+    "longbench-v2": longbenchv2_scorer
 }
 
 PRESS_DICT = {
@@ -116,6 +119,8 @@ def evaluate(
         Maximum number of tokens to use in the context. By default will use the maximum length supported by the model.
     compress_questions : bool, optional
         Whether to compress the questions as well, by default False
+    key_channel_compression_ratio : float, optional
+        key Channel Compression ratio for the channel press, by default 0.5
     """
 
     assert dataset in DATASET_DICT, f"No dataset found for {dataset}"
@@ -190,6 +195,8 @@ def evaluate(
     else:
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
+    # Following setting at https://github.com/THUDM/LongBench/blob/main/LongBench/pred.py: chat models are better off without build prompts on these tasks
+    # Also, You can skip this setting
     if data_dir in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]:
         pipe.tokenizer.chat_template = None
         pipe.tokenizer.bos_token = ""
