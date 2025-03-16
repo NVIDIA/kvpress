@@ -101,43 +101,43 @@ DATA_NAME_TO_MAX_NEW_TOKENS = {
 }
 
 # Longbench
-# for task in ["narrativeqa", "qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "musique", \
-#             "gov_report", "qmsum", "multi_news", "trec", "triviaqa", "samsum", \
-#             "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]:
-#     dataset = load_dataset("THUDM/LongBench", task, split="test", cache_dir="longbench/data")
-#     dataset = dataset.map(
-#         lambda x: {"context": context_prefix[task].format(**x)}
-#     )
+for task in ["narrativeqa", "qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "musique", \
+            "gov_report", "qmsum", "multi_news", "trec", "triviaqa", "samsum", \
+            "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]:
+    dataset = load_dataset("THUDM/LongBench", task, split="test", cache_dir="longbench/data")
+    dataset = dataset.map(
+        lambda x: {"context": context_prefix[task].format(**x)}
+    )
     
-#     if task == 'trec':
-#         dataset = dataset.map(
-#             lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Type:"))}
-#         )
-#     elif task == 'triviaqa':
-#         dataset = dataset.map(
-#             lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Answer:"))}
-#         )
-#     elif task == 'samsum':
-#         dataset = dataset.map(
-#             lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Summary:"))}
-#         )
-#     else:
-#         dataset = dataset.map(
-#             lambda x: {"input": question_template[task].format(**x)}
-#         )
+    if task == 'trec':
+        dataset = dataset.map(
+            lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Type:"))}
+        )
+    elif task == 'triviaqa':
+        dataset = dataset.map(
+            lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Answer:"))}
+        )
+    elif task == 'samsum':
+        dataset = dataset.map(
+            lambda x: {"input": question_template[task].format(input=x["input"].removesuffix("Summary:"))}
+        )
+    else:
+        dataset = dataset.map(
+            lambda x: {"input": question_template[task].format(**x)}
+        )
 
-#     df = dataset.to_pandas()
-#     df = df.rename(columns={"input": "question"})
-#     df["answer_prefix"] = answer_prefix.get(task, "")
-#     # df = df[["context", "question", "answer_prefix", "answers", "all_classes"]]
-#     df["task"] = task
+    df = dataset.to_pandas()
+    df = df.rename(columns={"input": "question"})
+    df["answer_prefix"] = answer_prefix.get(task, "")
+    # df = df[["context", "question", "answer_prefix", "answers", "all_classes"]]
+    df["task"] = task
 
-#     # be a bit more generous with token generation to avoid any cut-offs
-#     df["max_new_tokens"] = DATA_NAME_TO_MAX_NEW_TOKENS[task] + 20
+    # be a bit more generous with token generation to avoid any cut-offs
+    df["max_new_tokens"] = DATA_NAME_TO_MAX_NEW_TOKENS[task] + 20
 
-#     # Push to hub
-#     dataset = Dataset.from_pandas(df)
-#     dataset.push_to_hub("Xnhyacinth/LongBench", config_name=task, split="test")
+    # Push to hub
+    dataset = Dataset.from_pandas(df)
+    dataset.push_to_hub("Xnhyacinth/LongBench", config_name=task, split="test")
 
 # Longbench-e
 for task in ["qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "gov_report", "multi_news", \
