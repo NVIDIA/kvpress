@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from contextlib import contextmanager
@@ -29,7 +29,7 @@ class QFilterPress(ScorerPress):
     def __post_init_from_model__(self, model):
         model_name = model.config.name_or_path.split("/")[-1]
         self.q_filters = self.load_q_filters(model_name)
-        self.q_filters.to(model.device, model.dtype)
+        self.q_filters = self.q_filters.to(model.dtype)
 
     @staticmethod
     def load_q_filters(model_name):
@@ -47,6 +47,7 @@ class QFilterPress(ScorerPress):
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         q_filter = self.q_filters[module.layer_idx][None, :, None]
+        q_filter = q_filter.to(keys.device)
         scores = -(q_filter * keys).sum(dim=-1)
         return scores
 

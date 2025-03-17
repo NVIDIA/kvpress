@@ -66,7 +66,7 @@ Several presses inherit from `ScorerPress` ([source](kvpress/presses/scorer_pres
 - `StreamingLLMPress` ([source](kvpress/presses/streaming_llm_press.py), [paper](https://arxiv.org/abs/2309.17453)): keep only the initial and recent tokens 
 - `TOVAPress` ([source](kvpress/presses/tova_press.py), [paper](https://arxiv.org/abs/2401.06104)): attention weight of the last query averaged across heads 
 - `ObservedAttentionPress` ([source](kvpress/presses/observed_attention_press.py), [paper](https://arxiv.org/abs/2306.14048)): average attention weight observed during in pre-filling phase
-- `QFilterPress`: project the Key representations on the main SVD component of the Query vectors to approximate the attention scores. ([source](kvpress/presses/qfilter_press.py), [paper](https://arxiv.org/abs/2503.02812))
+- `QFilterPress` ([source](kvpress/presses/qfilter_press.py), [paper](https://arxiv.org/abs/2503.02812)): project the Key representations on the main SVD component of the Query vectors to approximate the attention scores.
 
 Some presses rely on a different logic:
 - `ThinKPress` ([source](kvpress/presses/think_press.py), [paper](https://arxiv.org/pdf/2407.21018)): compress the dimensions of the keys based on the channel attention score on the last queries 
