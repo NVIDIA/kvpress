@@ -3,18 +3,20 @@
 
 import re
 
+
 def extract_answer(response):
-    response = response.replace('*', '')
-    match = re.search(r'The correct answer is \(([A-D])\)', response)
+    response = response.replace("*", "")
+    match = re.search(r"The correct answer is \(([A-D])\)", response)
     if match:
         return match.group(1)
     else:
-        match = re.search(r'The correct answer is ([A-D])', response)
+        match = re.search(r"The correct answer is ([A-D])", response)
         if match:
             return match.group(1)
         else:
             return None
-        
+
+
 def calculate_metrics(df):
     predictions = df["predicted_answer"].tolist()
     answers = df["answer"].tolist()
@@ -22,13 +24,14 @@ def calculate_metrics(df):
     difficulties = df["difficulty"].tolist()
     return scorer(predictions, answers, lengths, difficulties)
 
+
 def scorer(predictions, answers, lengths, difficulties):
     compensated = False
     easy, hard, short, medium, long = 0, 0, 0, 0, 0
     easy_acc, hard_acc, short_acc, medium_acc, long_acc = 0, 0, 0, 0, 0
     for pred, answer, length, difficulty in zip(predictions, answers, lengths, difficulties):
         acc = int(extract_answer(pred) == answer)
-        if compensated and pred["pred"] == None:
+        if compensated and pred["pred"] is None:
             acc = 0.25
         if difficulty == "easy":
             easy += 1
@@ -46,6 +49,18 @@ def scorer(predictions, answers, lengths, difficulties):
         else:
             long += 1
             long_acc += acc
-    scores = ["Overall\tEasy\tHard\tShort\tMedium\tLong"] 
-    scores.append(str(round(100*(easy_acc+hard_acc)/len(predictions), 1))+'\t'+str(round(100*easy_acc/easy, 1))+'\t'+str(round(100*hard_acc/hard, 1))+'\t'+str(round(100*short_acc/short, 1))+'\t'+str(round(100*medium_acc/medium, 1))+'\t'+str(round(100*long_acc/long, 1)))
+    scores = ["Overall\tEasy\tHard\tShort\tMedium\tLong"]
+    scores.append(
+        str(round(100 * (easy_acc + hard_acc) / len(predictions), 1))
+        + "\t"
+        + str(round(100 * easy_acc / easy, 1))
+        + "\t"
+        + str(round(100 * hard_acc / hard, 1))
+        + "\t"
+        + str(round(100 * short_acc / short, 1))
+        + "\t"
+        + str(round(100 * medium_acc / medium, 1))
+        + "\t"
+        + str(round(100 * long_acc / long, 1))
+    )
     return scores

@@ -94,7 +94,6 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
 
 @dataclass
 class StoreKnormPress(ScorerPress):
-
     def __post_init__(self):
         self.scores = []
 

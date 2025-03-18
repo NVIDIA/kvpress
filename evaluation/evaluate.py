@@ -10,18 +10,19 @@ import torch
 from datasets import load_dataset
 from fire import Fire
 from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
+from longbench.calculate_metrics import calculate_metrics as longbench_scorer
+from longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
+from longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
 from loogle.calculate_metrics import calculate_metrics as loogle_scorer
 from ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from tqdm import tqdm
 from transformers import pipeline
 from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
-from longbench.calculate_metrics import calculate_metrics as longbench_scorer
-from longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
-from longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
 
 from kvpress import (
     AdaKVPress,
     ChunkKVPress,
+    ComposedPress,
     CriticalAdaKVPress,
     CriticalKVPress,
     DuoAttentionPress,
@@ -33,7 +34,6 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
-    ComposedPress
 )
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ DATASET_DICT = {
     "infinitebench": "MaxJeblick/InfiniteBench",
     "longbench": "Xnhyacinth/LongBench",
     "longbench-e": "Xnhyacinth/LongBench",
-    "longbench-v2": "Xnhyacinth/LongBench-v2"
+    "longbench-v2": "Xnhyacinth/LongBench-v2",
 }
 
 SCORER_DICT = {
@@ -55,7 +55,7 @@ SCORER_DICT = {
     "infinitebench": infinite_bench_scorer,
     "longbench": longbench_scorer,
     "longbench-e": longbench_scorer_e,
-    "longbench-v2": longbenchv2_scorer
+    "longbench-v2": longbenchv2_scorer,
 }
 
 PRESS_DICT = {
@@ -194,7 +194,6 @@ def evaluate(
         pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
     else:
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
-    
     # Run pipeline on each context
     df["predicted_answer"] = None
     df_context = df.groupby("context")
