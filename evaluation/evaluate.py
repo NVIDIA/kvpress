@@ -194,14 +194,6 @@ def evaluate(
         pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
     else:
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
-
-    # Following setting at https://github.com/THUDM/LongBench/blob/main/LongBench/pred.py: chat models are better off without build prompts on these tasks
-    # Also, You can skip this setting
-    if data_dir in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]:
-        pipe.tokenizer.chat_template = None
-        pipe.tokenizer.bos_token = ""
-        if data_dir in ["samsum"]:
-            pipe.model.generation_config.eos_token_id = [pipe.tokenizer.eos_token_id, pipe.tokenizer.encode("\n", add_special_tokens=False)[-1]]
     
     # Run pipeline on each context
     df["predicted_answer"] = None

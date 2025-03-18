@@ -13,15 +13,7 @@ try:
     from fuzzywuzzy import fuzz
 except ImportError as e:
     missing_module = str(e).split()[-1].strip("'")  # Extract missing module name
-    print(f"Module '{missing_module}' not found. Installing...")
-    
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, "-m", "pip", "install", missing_module])
-
-    # Retry import after installation
-    import jieba
-    from fuzzywuzzy import fuzz
+    print(f"Module '{missing_module}' not found. If test Longbench, please install it using 'pip install {missing_module}'")
 
 def calculate_metrics(df):
     predictions = df["predicted_answer"].tolist()
