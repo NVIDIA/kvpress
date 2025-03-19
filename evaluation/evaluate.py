@@ -169,7 +169,7 @@ def evaluate(
                     save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
                 )
             else:
-                ps.compression_ratio = compression_ratio
+                ps.compression_ratio = compression_ratio  # type:ignore[attr-defined]
     elif isinstance(press, (ThinKPress)):
         press.key_channel_compression_ratio = key_channel_compression_ratio
         save_filename = save_filename.with_name(

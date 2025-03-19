@@ -1,6 +1,6 @@
 # longbench dataset
 
-[longbench](https://github.com/THUDM/LongBench). 
+[longbench-v2](https://github.com/THUDM/LongBench). 
 
 ## Create Hugging Face dataset
 
