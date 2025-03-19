@@ -5,7 +5,6 @@ from cachetools import cached, LRUCache  # type: ignore[import-untyped]
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
-from time import time
 
 import numpy as np
 import requests  # type: ignore[import-untyped]
@@ -134,8 +133,6 @@ def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
     These scores could also be saved to avoid recomputing them but this method is still experimental
     """
 
-    start = time()
-    print(f"Starting computation of DuoAttention scores based on {num_samples} samples")
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
     num_heads = model.config.num_attention_heads
     num_key_value_heads = model.config.num_key_value_heads
@@ -183,10 +180,9 @@ def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
                 attn_weights = attn_weights.softmax(dim=-1, dtype=torch.float32).squeeze()
 
                 # Compute score: area under the cumulated attention curve
-                s = torch.cumsum(attn_weights, dim=1).mean(1).cpu()
+                s = torch.cumsum(attn_weights, dim=1).mean(1)
                 s = s.view(-1, num_key_value_groups).mean(1)
 
                 # Store the scores
-                scores[layer_idx] += s / num_samples
-    print(f"Finished computation of DuoAttention scores in {time() - start:.2f}s")
+                scores[layer_idx] += s.cpu() / num_samples
     return scores.numpy()

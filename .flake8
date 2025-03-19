@@ -3,5 +3,7 @@ max-line-length = 120
 per-file-ignores =
     __init__.py:F401
     evaluation/infinite_bench/create_huggingface_dataset.py:E501
+    evaluation/longbench/create_huggingface_dataset.py:E501
+    evaluation/longbenchv2/create_huggingface_dataset.py:E501
 # E203, W503 - black-compatible config
 extend-ignore = E203, W503
