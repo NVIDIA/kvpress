@@ -4,7 +4,6 @@
 import re
 import string
 from collections import Counter
-from typing import List
 import numpy as np
 from rouge import Rouge
 
