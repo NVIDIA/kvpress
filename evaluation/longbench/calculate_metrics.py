@@ -4,7 +4,7 @@
 import re
 import string
 from collections import Counter
-
+from typing import List
 import numpy as np
 from rouge import Rouge
 
@@ -37,7 +37,7 @@ def calculate_metrics_e(df):
 
 
 def scorer_e(dataset, predictions, answers, lengths, all_classes):
-    scores = {"0-4k": [], "4-8k": [], "8k+": []}
+    scores = {"0-4k": [], "4-8k": [], "8k+": []}  # type:ignore[var-annotated]
     for (prediction, ground_truths, length) in zip(predictions, answers, lengths):
         score = 0.0
         if dataset in ["trec", "triviaqa", "samsum", "lsht"]:

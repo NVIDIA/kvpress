@@ -32,7 +32,7 @@ def scorer(predictions, answers, lengths, difficulties):
     for pred, answer, length, difficulty in zip(predictions, answers, lengths, difficulties):
         acc = int(extract_answer(pred) == answer)
         if compensated and pred["pred"] is None:
-            acc = 0.25
+            acc = 0.25  # type:ignore[assignment]
         if difficulty == "easy":
             easy += 1
             easy_acc += acc
