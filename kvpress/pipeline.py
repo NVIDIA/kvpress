@@ -12,6 +12,7 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
@@ -182,7 +183,9 @@ class KVPressTextGenerationPipeline(Pipeline):
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),
                 cache=cache,
-                context_length=(cache.get_seq_length() if isinstance(press, KeyRerotationPress) else context_length),
+                context_length=(
+                    cache.get_seq_length() if isinstance(press, (KeyRerotationPress, FinchPress)) else context_length
+                ),
                 max_new_tokens=max_new_tokens,
             )
             answers.append(answer)
