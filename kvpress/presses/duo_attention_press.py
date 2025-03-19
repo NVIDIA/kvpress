@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from cachetools import cached, LRUCache
+from cachetools import cached, LRUCache  # type: ignore[import-untyped]
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
