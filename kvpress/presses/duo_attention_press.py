@@ -38,7 +38,7 @@ class DuoAttentionPress(BasePress):
 
     Head classification is based on scores.
     - If on_the_fly_scoring=False, scores are loaded from https://github.com/mit-han-lab/duo-attention/
-    - (experimental) If on_the_fly_scoring=True, scores are computed using duo_attention_on_the_fly 
+    - (experimental) If on_the_fly_scoring=True, scores are computed using duo_attention_on_the_fly
     """
 
     head_compression_ratio: float = 0.0
