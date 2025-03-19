@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+from functools import cache
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -32,6 +33,7 @@ class QFilterPress(ScorerPress):
         self.q_filters = self.q_filters.to(model.dtype)
 
     @staticmethod
+    @cache
     def load_q_filters(model_name):
         try:
             return QFilters.from_pretrained(f"nthngdy/{model_name}_qfilt").q_filters
