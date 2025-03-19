@@ -26,6 +26,7 @@ rouge = "^1.0.1"
 bert-score = "^0.3.13"
 accelerate = "^1.0.0"
 requests = "^2.32.3"
+cachetools = "^5.5.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"

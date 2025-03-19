@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from time import time
+from cachetools import cached, LRUCache
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
-
+from time import time
 
 import numpy as np
 import requests  # type: ignore[import-untyped]
@@ -48,23 +48,22 @@ class DuoAttentionPress(BasePress):
     sink_size: int = field(init=False, default=None)
     streaming_mask: torch.Tensor = field(init=False, default=None)
 
+    @cached(LRUCache(maxsize=128), key=lambda self, model: model.config.name_or_path)
     def __post_init_from_model__(self, model):
         """
         Initialize sink_size, recent_size, and streaming_mask from a model
         """
-        if getattr(self, "_post_init_model_name", None) != model.config.name_or_path:
-            # Load attention pattern from the DuoAttention repo
-            self.sink_size, self.recent_size, head_scores = self.load_attention_pattern(model)
-            if self.on_the_fly_scoring:
-                head_scores = duo_attention_on_the_fly(model)
+        # Load attention pattern from the DuoAttention repo
+        self.sink_size, self.recent_size, head_scores = self.load_attention_pattern(model)
+        if self.on_the_fly_scoring:
+            head_scores = duo_attention_on_the_fly(model)
 
-            # Define retrieval and streaming heads through a binary mask
-            n_pruned = round(head_scores.size * self.head_compression_ratio)
-            self.streaming_mask = torch.zeros(head_scores.shape, dtype=bool, device=model.device)
-            if n_pruned > 0:
-                indices = np.argsort(head_scores, axis=None)[:n_pruned]
-                self.streaming_mask[np.unravel_index(indices, head_scores.shape)] = True
-            self._post_init_model_name = model.config.name_or_path
+        # Define retrieval and streaming heads through a binary mask
+        n_pruned = round(head_scores.size * self.head_compression_ratio)
+        self.streaming_mask = torch.zeros(head_scores.shape, dtype=bool, device=model.device)
+        if n_pruned > 0:
+            indices = np.argsort(head_scores, axis=None)[:n_pruned]
+            self.streaming_mask[np.unravel_index(indices, head_scores.shape)] = True
 
     @property
     def compression_ratio(self) -> float:

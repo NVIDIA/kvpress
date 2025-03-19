@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+from cachetools import cached, LRUCache
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -26,12 +27,11 @@ class QFilterPress(ScorerPress):
     Prune KV pairs with Q-filters
     """
 
+    @cached(LRUCache(maxsize=128), key=lambda self, model: model.config.name_or_path)
     def __post_init_from_model__(self, model):
-        if getattr(self, "_post_init_model_name", None) != model.config.name_or_path:
-            model_name = model.config.name_or_path.split("/")[-1]
-            self.q_filters = self.load_q_filters(model_name)
-            self.q_filters = self.q_filters.to(model.dtype)
-            self._post_init_model_name = model.config.name_or_path
+        model_name = model.config.name_or_path.split("/")[-1]
+        self.q_filters = self.load_q_filters(model_name)
+        self.q_filters = self.q_filters.to(model.dtype)
 
     @staticmethod
     def load_q_filters(model_name):

@@ -30,6 +30,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    QFilterPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ PRESS_DICT = {
     "duo_attention": DuoAttentionPress(),
     "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
+    "qfilter": QFilterPress(),
 }
 
 
