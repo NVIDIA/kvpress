@@ -27,9 +27,11 @@ class QFilterPress(ScorerPress):
     """
 
     def __post_init_from_model__(self, model):
-        model_name = model.config.name_or_path.split("/")[-1]
-        self.q_filters = self.load_q_filters(model_name)
-        self.q_filters = self.q_filters.to(model.dtype)
+        if getattr(self, "_post_init_model_name", None) != model.config.name_or_path:
+            model_name = model.config.name_or_path.split("/")[-1]
+            self.q_filters = self.load_q_filters(model_name)
+            self.q_filters = self.q_filters.to(model.dtype)
+            self._post_init_model_name = model.config.name_or_path
 
     @staticmethod
     def load_q_filters(model_name):
