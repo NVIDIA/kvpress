@@ -10,6 +10,9 @@ import torch
 from datasets import load_dataset
 from fire import Fire
 from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
+from longbench.calculate_metrics import calculate_metrics as longbench_scorer
+from longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
+from longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
 from loogle.calculate_metrics import calculate_metrics as loogle_scorer
 from ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from tqdm import tqdm
@@ -19,6 +22,7 @@ from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_sco
 from kvpress import (
     AdaKVPress,
     ChunkKVPress,
+    ComposedPress,
     CriticalAdaKVPress,
     CriticalKVPress,
     DuoAttentionPress,
@@ -39,6 +43,9 @@ DATASET_DICT = {
     "ruler": "simonjegou/ruler",
     "zero_scrolls": "simonjegou/zero_scrolls",
     "infinitebench": "MaxJeblick/InfiniteBench",
+    "longbench": "Xnhyacinth/LongBench",
+    "longbench-e": "Xnhyacinth/LongBench",
+    "longbench-v2": "Xnhyacinth/LongBench-v2",
 }
 
 SCORER_DICT = {
@@ -46,6 +53,9 @@ SCORER_DICT = {
     "ruler": ruler_scorer,
     "zero_scrolls": zero_scrolls_scorer,
     "infinitebench": infinite_bench_scorer,
+    "longbench": longbench_scorer,
+    "longbench-e": longbench_scorer_e,
+    "longbench-v2": longbenchv2_scorer,
 }
 
 PRESS_DICT = {
@@ -66,6 +76,8 @@ PRESS_DICT = {
     "tova": TOVAPress(),
     "duo_attention": DuoAttentionPress(),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
+    "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
+    "full_kv": ExpectedAttentionPress(0.0),
 }
 
 
@@ -80,6 +92,7 @@ def evaluate(
     max_new_tokens: Optional[int] = None,
     max_context_length: Optional[int] = None,
     compress_questions: bool = False,
+    key_channel_compression_ratio: float = 0.5,
 ):
     """
     Evaluate a model on a dataset using a press and save the results
@@ -106,6 +119,8 @@ def evaluate(
         Maximum number of tokens to use in the context. By default will use the maximum length supported by the model.
     compress_questions : bool, optional
         Whether to compress the questions as well, by default False
+    key_channel_compression_ratio : float, optional
+        key Channel Compression ratio for the channel press, by default 0.5
     """
 
     assert dataset in DATASET_DICT, f"No dataset found for {dataset}"
@@ -146,6 +161,20 @@ def evaluate(
 
     if isinstance(press, (DuoAttentionPress)):
         press.head_compression_ratio = compression_ratio
+    elif isinstance(press, (ComposedPress)):
+        for ps in press.presses:
+            if isinstance(ps, (ThinKPress)):
+                ps.key_channel_compression_ratio = key_channel_compression_ratio
+                save_filename = save_filename.with_name(
+                    save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
+                )
+            else:
+                ps.compression_ratio = compression_ratio  # type:ignore[attr-defined]
+    elif isinstance(press, (ThinKPress)):
+        press.key_channel_compression_ratio = key_channel_compression_ratio
+        save_filename = save_filename.with_name(
+            save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
+        )
     else:
         press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
 
@@ -165,7 +194,6 @@ def evaluate(
         pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
     else:
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
-
     # Run pipeline on each context
     df["predicted_answer"] = None
     df_context = df.groupby("context")
