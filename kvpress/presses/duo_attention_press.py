@@ -25,6 +25,8 @@ PATTERNS_DICT = {
     "mistralai/Mistral-7B-Instruct-v0.3": "Mistral-7B-Instruct-v0.3/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
 }
 
+cache = LRUCache(maxsize=128)
+
 
 @dataclass
 class DuoAttentionPress(BasePress):
@@ -48,15 +50,15 @@ class DuoAttentionPress(BasePress):
     sink_size: int = field(init=False, default=None)
     streaming_mask: torch.Tensor = field(init=False, default=None)
 
-    @cached(LRUCache(maxsize=128), key=lambda self, model: model.config.name_or_path)
     def __post_init_from_model__(self, model):
         """
         Initialize sink_size, recent_size, and streaming_mask from a model
         """
         # Load attention pattern from the DuoAttention repo
-        self.sink_size, self.recent_size, head_scores = self.load_attention_pattern(model)
         if self.on_the_fly_scoring:
-            head_scores = duo_attention_on_the_fly(model)
+            self.sink_size, self.recent_size, head_scores = 128, 256, duo_attention_on_the_fly(model)
+        else:
+            self.sink_size, self.recent_size, head_scores = self.load_attention_pattern(model)
 
         # Define retrieval and streaming heads through a binary mask
         n_pruned = round(head_scores.size * self.head_compression_ratio)
@@ -93,6 +95,7 @@ class DuoAttentionPress(BasePress):
         return keys, values
 
     @staticmethod
+    @cached(cache, key=lambda model: model.config.name_or_path)
     def load_attention_pattern(model):
         """
         Load the attention pattern from the DuoAttention repo
@@ -121,6 +124,7 @@ class DuoAttentionPress(BasePress):
             yield
 
 
+@cached(cache, key=lambda model, num_samples=50, q_len=500: (model.config.name_or_path, num_samples, q_len))
 def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
     """
     New experimental method to quickly compute DuoAttention scores:
