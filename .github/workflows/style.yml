@@ -13,11 +13,11 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.12.3
+          python-version: 3.10.11
 
       - name: Install Poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 1.8.5
+          curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH  # Add Poetry to the PATH
 
       - name: Install dependencies
