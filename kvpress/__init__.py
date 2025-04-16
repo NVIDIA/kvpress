@@ -24,6 +24,7 @@ from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
 from kvpress.presses.tova_press import TOVAPress
 from kvpress.presses.qfilter_press import QFilterPress
+from kvpress.presses.pyramidkv_press import PyramidKVPress
 
 # Patch the attention functions to support head-wise compression
 patch_attention_functions()
@@ -51,4 +52,5 @@ __all__ = [
     "DuoAttentionPress",
     "ChunkKVPress",
     "QFilterPress",
+    "PyramidKVPress",
 ]

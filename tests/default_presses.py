@@ -14,6 +14,7 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
     QFilterPress,
+    PyramidKVPress,
 )
 
 
@@ -51,5 +52,9 @@ default_presses = [
             {"lazy_threshold": 0.8, "n_initial": 1, "n_recent": 1, "n_last": 1},
             {"lazy_threshold": 0.2, "n_initial": 1, "n_recent": 1, "n_last": 1},
         ],
+    },
+    {
+        "cls": PyramidKVPress,
+        "kwargs": [{"compression_ratio": 0.2, "window_size": 2}, {"compression_ratio": 0.8, "window_size": 2}],
     },
 ]
