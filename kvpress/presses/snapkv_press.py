@@ -88,7 +88,7 @@ class SnapKVPress(ScorerPress):
         scores = attn_weights.mean(dim=-2)
         scores = F.avg_pool1d(scores, kernel_size=self.kernel_size, padding=self.kernel_size // 2, stride=1)
 
-        # Average per grioup (https://github.com/FasterDecoding/SnapKV/issues/22)
+        # Average per group (https://github.com/FasterDecoding/SnapKV/issues/22)
         scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len - self.window_size)
         scores = scores.mean(2)
 
