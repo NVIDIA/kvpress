@@ -49,6 +49,7 @@ class KeyRerotationPress(BasePress):
         q_len = hidden_states.shape[1]
         n_kept = int(q_len * (1 - self.press.compression_ratio))
         indices = scores.topk(n_kept, dim=-1).indices
+        indices = torch.sort(indices, dim=2).values
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
         cos, sin = kwargs["position_embeddings"]

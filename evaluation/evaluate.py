@@ -36,6 +36,7 @@ from kvpress import (
     TOVAPress,
     QFilterPress,
     PyramidKVPress,
+    FinchPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ PRESS_DICT = {
     "qfilter": QFilterPress(),
     "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
     "pyramidkv": PyramidKVPress(),
+    "finch": FinchPress(),
 }
 
 
@@ -154,11 +156,6 @@ def evaluate(
             save_filename.stem + f"__max_context{max_context_length}" + save_filename.suffix
         )
 
-    if compress_questions:
-        df["context"] = df["context"] + df["question"]
-        df["question"] = ""
-        save_filename = save_filename.with_name(save_filename.stem + "__compressed_questions" + save_filename.suffix)
-
     # Load press
     assert press_name in PRESS_DICT
     press = PRESS_DICT[press_name]
@@ -198,6 +195,15 @@ def evaluate(
         pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
     else:
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
+
+    if isinstance(press, FinchPress):
+        df["context"] = df["context"] + pipe.tokenizer.bos_token
+
+    if compress_questions:
+        df["context"] = df["context"] + df["question"]
+        df["question"] = ""
+        save_filename = save_filename.with_name(save_filename.stem + "__compressed_questions" + save_filename.suffix)
+
     # Run pipeline on each context
     df["predicted_answer"] = None
     df_context = df.groupby("context")
