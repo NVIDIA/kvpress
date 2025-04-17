@@ -29,6 +29,7 @@ class FinchPress(BasePress):
     compression_ratio: float = 0.0
     chunk_length: int = None
     normalize_scores: bool = True
+    rerotate_keys: bool = True
     window_size: int = field(default=None, init=False)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
@@ -71,7 +72,7 @@ class FinchPress(BasePress):
         # Compute scores
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
-        # Compute indices to keep by chunks
+        # Compute indices to keep (optionally by chunks)
         q_len = hidden_states.shape[1]
         if self.chunk_length is None:
             n_kept = int(q_len * (1 - self.compression_ratio))
@@ -85,14 +86,20 @@ class FinchPress(BasePress):
                 chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices
                 indices.append(chunk_indices)
             indices = torch.cat(indices, dim=-1)
+
+        indices = torch.sort(indices, dim=2).values
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        # Rerotate keys and values
-        cos, sin = kwargs["position_embeddings"]
-        keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * (-sin.unsqueeze(1)))
-        keys = keys.gather(2, indices).contiguous()
-        cos, sin = cos[:, : indices.shape[2]], sin[:, : indices.shape[2]]
-        keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
+        # Rerotate keys as in KeyRerotationPress
+        if self.rerotate_keys:
+            cos, sin = kwargs["position_embeddings"]
+            keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * (-sin.unsqueeze(1)))
+            keys = keys.gather(2, indices).contiguous()
+            cos, sin = cos[:, : indices.shape[2]], sin[:, : indices.shape[2]]
+            keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
+        else:
+            keys = keys.gather(2, indices).contiguous()
+
         values = values.gather(2, indices).contiguous()
 
         return keys, values
