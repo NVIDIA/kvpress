@@ -114,7 +114,7 @@ class FinchPress(BasePress):
         if input[0][0, 0] == self.bos_token_id:  # prefilling
             assert len(input[0]) == 1, "Only batch size 1 is supported."
             try:
-                context_length = torch.nonzero(input[0][0] == self.bos_token_id)[1].item()
+                context_length = int(torch.nonzero(input[0][0] == self.bos_token_id)[1].item())
                 self.window_size = len(input[0][0]) - 1 - context_length
                 assert self.window_size > 0, "No window detected (window size must be > 0)."
                 # Remove the second <bos_token> from the output
