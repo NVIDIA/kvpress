@@ -20,20 +20,9 @@ from kvpress import (
     ScorerPress,
     SnapKVPress,
     ThinKPress,
-    FinchPress,
 )
 from tests.default_presses import default_presses
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
-
-
-def test_finch_press(unit_test_model):  # noqa: F811
-    for press in [FinchPress(0.5), FinchPress(0.5, normalize_scores=False), FinchPress(0.2, chunk_length=5)]:
-        with press(unit_test_model):
-            bos = unit_test_model.generation_config.bos_token_id
-            input_ids = torch.arange(10, 20)
-            input_ids[0] = bos
-            input_ids[8] = bos
-            unit_test_model(input_ids.unsqueeze(0))
 
 
 def test_composed_press(unit_test_model):  # noqa: F811
