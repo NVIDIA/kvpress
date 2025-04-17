@@ -19,11 +19,13 @@ class FinchPress(BasePress):
     Implementation of Finch (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)
     without chunked prefilling.
 
-    Finch starts with SnapKV-style compression, but the window size is not fixed. Instead, the user
-    must provide a second <bos_token> to delimit the context and the window.
+    Finch starts with SnapKV-style compression, but the window size is not fixed. Instead, the user must provide
+    a second <bos_token> between the context and the window (input = context + tokenizer.bos_token + question)
 
-    Finch normalizes the scores using the number of non-zero attention weights in the window.
-    Compression is performed by chunks, and the keys and values are re-rotated after compression.
+    The options are also available
+    - normalizing scores using the number of non-zero attention weights in the window
+    - compressing by chunks
+    - rerotating keys after compression (similar to KeyRerotationPress)
     """
 
     compression_ratio: float = 0.0
@@ -69,6 +71,7 @@ class FinchPress(BasePress):
         if self.compression_ratio == 0:
             return keys, values
         assert self.window_size is not None, "window_size must be provided"
+
         # Compute scores
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
@@ -90,7 +93,7 @@ class FinchPress(BasePress):
         indices = torch.sort(indices, dim=2).values
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        # Rerotate keys as in KeyRerotationPress
+        # Rerotate keys
         if self.rerotate_keys:
             cos, sin = kwargs["position_embeddings"]
             keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * (-sin.unsqueeze(1)))
