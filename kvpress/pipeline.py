@@ -180,12 +180,13 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Greedy decoding for each question
         answers = []
         for question_ids in input_tensors["questions_ids"]:
+            if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
+                context_length = cache.get_seq_length()
+
             answer = self.generate_answer(
                 question_ids=question_ids.to(self.model.device),
                 cache=cache,
-                context_length=(
-                    cache.get_seq_length() if isinstance(press, (KeyRerotationPress, FinchPress)) else context_length
-                ),
+                context_length=context_length,
                 max_new_tokens=max_new_tokens,
             )
             answers.append(answer)
