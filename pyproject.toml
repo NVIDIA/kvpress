@@ -28,7 +28,7 @@ accelerate = "^1.0.0"
 requests = "^2.32.3"
 cachetools = "^5.5.2"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.0.0"
 flake8 = "^7.0.0"
 isort = "^5.13.2"
