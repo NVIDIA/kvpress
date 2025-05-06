@@ -12,21 +12,21 @@ Deploying long-context LLMs is costly due to the linear growth of the key-value 
 
 ## Installation
 
-If you only use "presses" or "pipeline", you can install as follows:
-
 ```bash
 pip install kvpress
-```
-
-If you use the [evaluation](https://github.com/NVIDIA/kvpress/tree/main/evaluation) or the [notebooks](https://github.com/NVIDIA/kvpress/tree/main/notebooks) parts, you need to
-
-```bash
-poetry install --with examples
 ```
 
 If possible, install flash attention:
 ```bash
 pip install flash-attn --no-build-isolation
+```
+
+For a local installation with all dev dependencies, use poetry:
+
+```bash
+git clone https://github.com/NVIDIA/kvpress.git
+cd kvpress
+poetry install --with dev
 ```
 
 ## Usage
