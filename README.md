@@ -21,6 +21,14 @@ If possible, install flash attention:
 pip install flash-attn --no-build-isolation
 ```
 
+For a local installation with all dev dependencies, use poetry:
+
+```bash
+git clone https://github.com/NVIDIA/kvpress.git
+cd kvpress
+poetry install --with dev
+```
+
 ## Usage
 
 kvpress provides a set of "presses" that compress the KV cache during the prefilling-phase. Each press is associated with a `compression_ratio` attribute that measures the compression of the cache. The easiest way to use a press is through our custom `KVPressTextGenerationPipeline`. It is automatically registered as a transformers pipeline with the name "kv-press-text-generation" when kvpress is imported and handles chat templates and tokenization for you:
