@@ -11,7 +11,7 @@ from kvpress.presses.scorer_press import ScorerPress
 
 
 @dataclass
-class KnormPress(ScorerPress):
+class LagKVPress(ScorerPress):
     """Prune KV pairs with lag-relative information (https://arxiv.org/abs/2504.04704)"""
     n_sink: int = 4
     lag_size: int = 128
