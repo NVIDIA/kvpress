@@ -44,8 +44,12 @@ class LagKVPress(ScorerPress):
     
     def _compress_algo(self, key_states, value_states):
         base_len = self.n_sink
-        
         in_size = key_states.shape
+        
+        if in_size[-2] < base_len + 2 * self.lag_size:
+            # no compression
+            return torch.ones(in_size[:-1], dtype=key_states.dtype, device=key_states.device)
+        
         end_idx = base_len + ((in_size[-2] - base_len) // self.lag_size) * self.lag_size
         tail_len = self.lag_size + in_size[-2] - end_idx
         
