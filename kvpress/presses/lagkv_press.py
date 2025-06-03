@@ -12,7 +12,7 @@ from kvpress.presses.scorer_press import ScorerPress
 
 @dataclass
 class KnormPress(ScorerPress):
-    """Prune KV pairs with relative-lag information (https://arxiv.org/abs/2504.04704)"""
+    """Prune KV pairs with lag-relative information (https://arxiv.org/abs/2504.04704)"""
     n_sink: int = 4
     lag_size: int = 128
     # if cross scoring is enabled, the score will not be limited to inside partion
