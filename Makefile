@@ -21,6 +21,7 @@ style: reports
 	@echo -n > reports/flake8_errors.log
 	@echo -n > reports/mypy_errors.log
 	@echo -n > reports/mypy.log
+	@echo -n > reports/copyright_errors.log
 	@echo
 
 	-$(POETRY) run flake8 | tee -a reports/flake8_errors.log
@@ -28,6 +29,11 @@ style: reports
 
 	-$(POETRY) run mypy . --check-untyped-defs | tee -a reports/mypy.log
 	@if ! grep -Eq "Success: no issues found in [0-9]+ source files" reports/mypy.log ; then exit 1; fi
+
+	@echo "Checking for SPDX-FileCopyrightText headers in Python files..."
+	@find . -name "*.py" -not -path "*/\.*" | xargs grep -L "SPDX-FileCopyrightText:" | tee reports/copyright_errors.log || true
+	@if [ -s reports/copyright_errors.log ]; then echo "Error: Missing SPDX-FileCopyrightText headers in files listed above"; exit 1; fi
+	@echo "Success: All Python files have SPDX-FileCopyrightText headers."
 
 
 reports:

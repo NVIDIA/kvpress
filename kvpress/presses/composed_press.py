@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 from dataclasses import dataclass
 
 from kvpress.presses.adakv_press import AdaKVPress
