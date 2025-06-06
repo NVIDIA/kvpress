@@ -16,10 +16,6 @@ class QFilters(torch.nn.Module, PyTorchModelHubMixin):
         super().__init__()
         self.q_filters = torch.nn.Parameter(torch.randn(num_layers, num_kv_heads, kv_head_dim))
 
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path):
-        return super().from_pretrained(pretrained_model_name_or_path)
-
 
 @dataclass
 class QFilterPress(ScorerPress):
