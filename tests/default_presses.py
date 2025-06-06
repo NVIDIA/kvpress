@@ -15,6 +15,7 @@ from kvpress import (
     TOVAPress,
     QFilterPress,
     PyramidKVPress,
+    LagKVPress,
 )
 
 
@@ -56,5 +57,12 @@ default_presses = [
     {
         "cls": PyramidKVPress,
         "kwargs": [{"compression_ratio": 0.2, "window_size": 2}, {"compression_ratio": 0.8, "window_size": 2}],
+    },
+    {
+        "cls": LagKVPress,
+        "kwargs": [
+            {"compression_ratio": 0.5, "n_sink": 16, "lag_size": 128},
+            {"compression_ratio": 0.8, "n_sink": 16, "lag_size": 128}
+        ],
     },
 ]
