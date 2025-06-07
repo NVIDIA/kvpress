@@ -38,19 +38,25 @@ class LagKVPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
-        base_len = self.n_sink
         bsz, num_key_value_heads, q_len, d = keys.shape
-        if q_len < base_len + 2 * self.lag_size:
+        if q_len < self.n_sink + 2 * self.lag_size:
             # no compression
-            return None
+            score = torch.ones((bsz, num_key_value_heads, q_len),
+                               dtype=keys.dtype, device=keys.device)
+            if q_len > self.n_sink:
+                # make sure the sliding part will be selected.
+                score[:, :, self.n_sink:] = (torch.arange(q_len - self.n_sink, device=keys.device)
+                                             / (q_len - self.n_sink)
+                                             ).to(keys.dtype)
+            return score
 
-        end_idx = base_len + ((q_len - base_len) // self.lag_size) * self.lag_size
+        end_idx = self.n_sink + ((q_len - self.n_sink) // self.lag_size) * self.lag_size
         tail_len = self.lag_size + q_len - end_idx
 
         key_score = self._get_states_score(
-            keys[:, :, base_len:end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d))
+            keys[:, :, self.n_sink:end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d))
         value_score = self._get_states_score(
-            values[:, :, base_len:end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d))
+            values[:, :, self.n_sink:end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d))
         # score is in range [0, 1]
         score = (key_score + value_score) / 2
 
