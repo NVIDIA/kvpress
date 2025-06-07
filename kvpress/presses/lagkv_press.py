@@ -71,38 +71,6 @@ class LagKVPress(ScorerPress):
         score = torch.cat((sink_score, score.reshape(bsz, num_key_value_heads, -1), tail_score), dim=-1)
         return score
 
-    def compress(
-        self,
-        module: nn.Module,
-        hidden_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-        attentions: torch.Tensor,
-        kwargs: dict,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Override this to conver the case of short sequence length in self.score"""
-        if self.compression_ratio == 0:
-            return keys, values
-
-        # Compute scores
-        scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
-
-        if scores is None:
-            # no compression
-            return keys, values
-
-        # Get indices of KV pairs with the lowest scores
-        q_len = hidden_states.shape[1]
-        n_kept = int(q_len * (1 - self.compression_ratio))
-        indices = scores.topk(n_kept, dim=-1).indices
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
-
-        # Prune keys and values
-        keys = keys.gather(2, indices).contiguous()
-        values = values.gather(2, indices).contiguous()
-
-        return keys, values
-
     def _get_states_score(self, target_v):
         """evaluate the scores of keys and values for each token"""
         ref = target_v[:, :, 1:, :, :]
