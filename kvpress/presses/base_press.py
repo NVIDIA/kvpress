@@ -22,6 +22,15 @@ from transformers import (
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_MODELS = (
+    LlamaForCausalLM,
+    MistralForCausalLM,
+    Phi3ForCausalLM,
+    Qwen2ForCausalLM,
+    Qwen3ForCausalLM,
+    Gemma3ForCausalLM,
+)
+
 
 @dataclass
 class BasePress:
@@ -129,16 +138,11 @@ class BasePress:
         model : PreTrainedModel
             Model to apply the compression method to
         """
-        supported_models = (
-            LlamaForCausalLM,
-            MistralForCausalLM,
-            Phi3ForCausalLM,
-            Qwen2ForCausalLM,
-            Qwen3ForCausalLM,
-            Gemma3ForCausalLM,
-        )
-        if not isinstance(model, supported_models):
-            logger.warning(f"Model {type(model)} not tested")
+        if not isinstance(model, SUPPORTED_MODELS):
+            logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
+
+        if isinstance(model, Gemma3ForCausalLM):
+            logger.warning("Compression in Gemma3 is only applied to layer without sliding window attention")
 
         hooks = []
         try:

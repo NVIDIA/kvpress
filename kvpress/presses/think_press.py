@@ -7,12 +7,11 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from transformers.models.llama.modeling_llama import rotate_half
-
-from kvpress.presses.base_press import BasePress
-
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+
+from kvpress.presses.base_press import BasePress
 
 
 @dataclass
