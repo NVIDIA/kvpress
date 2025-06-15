@@ -16,9 +16,20 @@ from transformers import (
     PreTrainedModel,
     QuantizedCache,
     Qwen2ForCausalLM,
+    Qwen3ForCausalLM,
+    Gemma3ForCausalLM,
 )
 
 logger = logging.getLogger(__name__)
+
+SUPPORTED_MODELS = (
+    LlamaForCausalLM,
+    MistralForCausalLM,
+    Phi3ForCausalLM,
+    Qwen2ForCausalLM,
+    Qwen3ForCausalLM,
+    Gemma3ForCausalLM,
+)
 
 
 @dataclass
@@ -127,13 +138,18 @@ class BasePress:
         model : PreTrainedModel
             Model to apply the compression method to
         """
+        if not isinstance(model, SUPPORTED_MODELS):
+            logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
-        if not isinstance(model, (LlamaForCausalLM, MistralForCausalLM, Phi3ForCausalLM, Qwen2ForCausalLM)):
-            logger.warning(f"Model {type(model)} not tested")
+        if isinstance(model, Gemma3ForCausalLM):
+            logger.warning("Compression in Gemma3 is only applied to layer without sliding window attention")
 
         hooks = []
         try:
             for layer in model.model.layers:
+                if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
+                    # Skip layers with sliding window attention, only for Gemma3
+                    continue
                 layer.self_attn.rotary_emb = model.model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield

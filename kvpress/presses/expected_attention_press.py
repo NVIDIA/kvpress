@@ -9,6 +9,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
+from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.phi3.modeling_phi3 import Phi3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
 
@@ -44,10 +47,14 @@ class ExpectedAttentionPress(ScorerPress):
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
 
-        if hasattr(module, "q_proj"):
-            Wq = module.q_proj.weight
-        elif hasattr(module, "qkv_proj"):
-            Wq = module.qkv_proj.weight[: n * d]  # type: ignore[index]
+        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
+            # Qwen and Gemma use QK norm, which is not compatible with ExpectedAttentionPress (for now)
+            raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
+        elif isinstance(module, Phi3Attention):
+            Wq = module.qkv_proj.weight[: n * d]
+        elif hasattr(module, "q_proj"):
+            # Assume Llama-like attention layer
+            Wq = module.q_proj.weight  # type: ignore[assignment]
         else:
             raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
 
