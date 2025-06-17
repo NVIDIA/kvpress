@@ -197,7 +197,10 @@ def evaluate(
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
     if isinstance(press, FinchPress):
-        df["context"] = df["context"] + pipe.tokenizer.bos_token
+        delimiter_token = pipe.tokenizer.bos_token or pipe.tokenizer.eos_token
+        press.delimiter_token_id = pipe.tokenizer.convert_tokens_to_ids(delimiter_token)
+        df["context"] = df["context"] + (pipe.tokenizer.bos_token or pipe.tokenizer.eos_token)
+        
 
     if compress_questions:
         df["context"] = df["context"] + df["question"]

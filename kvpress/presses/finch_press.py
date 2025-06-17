@@ -20,7 +20,8 @@ class FinchPress(BasePress):
     without chunked prefilling.
 
     Finch starts with SnapKV-style compression, but the window size is not fixed. Instead, the user must provide
-    a second <bos_token> between the context and the window (input = context + tokenizer.bos_token + question)
+    a delimiter token between the context and the window (input = context + delimiter_token + question).
+    By default, the delimiter token is the model's bos_token_id, but it can be overridden with any other token id.
 
     The options are also available
     - normalizing scores using the number of non-zero attention weights in the window
@@ -32,6 +33,7 @@ class FinchPress(BasePress):
     chunk_length: int = None
     normalize_scores: bool = True
     rerotate_keys: bool = True
+    delimiter_token_id: int = None  # To be set by the user before calling the press
     window_size: int = field(default=None, init=False)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
@@ -109,23 +111,26 @@ class FinchPress(BasePress):
 
     def embed_token_forward_hook(self, module, input, output):
         """
-        Forward hook to detect a second <bos_token> delimiting the context and the window
+        Forward hook to detect a delimiter token between the context and the window
         """
-        if input[0][0, 0] == self.bos_token_id:  # prefilling
+        if input[0][0, 0] == self.delimiter_token_id:  # prefilling
             assert len(input[0]) == 1, "Only batch size 1 is supported."
             try:
-                context_length = int(torch.nonzero(input[0][0] == self.bos_token_id)[1].item())
+                context_length = int(torch.nonzero(input[0][0] == self.delimiter_token_id)[1].item())
                 self.window_size = len(input[0][0]) - 1 - context_length
                 assert self.window_size > 0, "No window detected (window size must be > 0)."
-                # Remove the second <bos_token> from the output
+                # Remove the delimiter token from the output
                 output = torch.cat([output[:, :context_length], output[:, context_length + 1 :]], dim=1)
             except IndexError:
-                raise IndexError("A second <bos_token> must delimit the context and the question.")
+                raise IndexError("A delimiter token must be present between the context and the question.")
         return output
 
     @contextmanager
     def __call__(self, model):
-        self.bos_token_id = model.generation_config.bos_token_id
+        # The user should set the delimiter_token_id before calling the press.
+        if self.delimiter_token_id is None:
+            raise ValueError("No delimiter token ID provided. Please set the delimiter_token_id attribute.")
+
         with super().__call__(model):
             try:
                 hook = model.model.embed_tokens.register_forward_hook(self.embed_token_forward_hook)
