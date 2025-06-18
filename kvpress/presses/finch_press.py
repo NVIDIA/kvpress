@@ -2,15 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from dataclasses import dataclass, field
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 
 import torch
 from torch.nn import functional as F
+from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.snapkv_press import SnapKVPress
-from transformers.models.llama.modeling_llama import rotate_half
 
 
 @dataclass
@@ -113,10 +113,10 @@ class FinchPress(BasePress):
         """
         Forward hook to detect a delimiter token between the context and the window
         """
-        if input[0][0, 0] == self.delimiter_token_id:  # prefilling
+        if input[0].shape[1] > 1 and self.delimiter_token_id in input[0][0]:  # prefilling
             assert len(input[0]) == 1, "Only batch size 1 is supported."
             try:
-                context_length = int(torch.nonzero(input[0][0] == self.delimiter_token_id)[1].item())
+                context_length = int(torch.nonzero(input[0][0] == self.delimiter_token_id)[-1].item())
                 self.window_size = len(input[0][0]) - 1 - context_length
                 assert self.window_size > 0, "No window detected (window size must be > 0)."
                 # Remove the delimiter token from the output

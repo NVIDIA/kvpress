@@ -27,16 +27,16 @@ from kvpress import (
     CriticalKVPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
+    FinchPress,
     KnormPress,
     ObservedAttentionPress,
+    PyramidKVPress,
+    QFilterPress,
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
-    QFilterPress,
-    PyramidKVPress,
-    FinchPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -197,10 +197,14 @@ def evaluate(
         pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
     if isinstance(press, FinchPress):
-        delimiter_token = pipe.tokenizer.bos_token or '<|im_start|>'  # We use <|im_start|> for Qwen, as it does not have a bos token
-        press.delimiter_token_id = pipe.tokenizer.convert_tokens_to_ids(delimiter_token)
+        if compress_questions is False:
+            raise ValueError("FinchPress requires compress_questions to be set to True")
+        # FinchPress uses a delimiter token to separate the context and the question
+        delimiter_token = "<|finch_sep|>"
+        if delimiter_token not in pipe.tokenizer.get_vocab():
+            pipe.tokenizer.add_special_tokens({"additional_special_tokens": [delimiter_token]})
+        press.delimiter_token_id = pipe.tokenizer.convert_tokens_to_ids(delimiter_token)  # type: ignore
         df["context"] = df["context"] + delimiter_token
-
 
     if compress_questions:
         df["context"] = df["context"] + df["question"]

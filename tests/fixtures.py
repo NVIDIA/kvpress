@@ -55,16 +55,3 @@ def kv_press_llama3_1_flash_attn_pipeline():
         model_kwargs={"attn_implementation": attn_implementation},
     )
     return pipe
-
-
-@pytest.fixture(scope="session")
-def tokenizer_families():
-    return [
-        "meta-llama/Meta-Llama-3-8B",
-        "mistralai/Mistral-7B-v0.1",
-        "microsoft/phi-2",
-        "microsoft/Phi-3.5-mini-instruct",
-        "Qwen/Qwen2-7B",
-        "Qwen/Qwen3-8B",
-        "google/gemma-3-1b-it",
-    ]
