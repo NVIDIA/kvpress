@@ -10,8 +10,8 @@ def test_tokenizer_has_bos_or_eos(tokenizer_families):  # noqa: F811
     # Test that all tokenizers have either a BOS or EOS token
     for family in tokenizer_families:
         tokenizer = AutoTokenizer.from_pretrained(family, trust_remote_code=True)
-        assert tokenizer.bos_token is not None or tokenizer.eos_token is not None, (
-            f"Tokenizer {family} has neither BOS nor EOS token. It will not work with FinchPress"
+        assert tokenizer.bos_token is not None or '<|im_start|>' in tokenizer.all_special_tokens, (
+            f"Tokenizer {family} has neither BOS nor '<|im_start|>' token. It will not work with FinchPress"
         )
 
 
