@@ -21,7 +21,8 @@ class FinchPress(BasePress):
 
     Finch starts with SnapKV-style compression, but the window size is not fixed. Instead, the user must provide
     a delimiter token between the context and the window (input = context + delimiter_token + question).
-    By default, the delimiter token is the model's bos_token_id, but it can be overridden with any other token id.
+    The delimiter token is set by the user via the update_model_and_tokenizer method.
+
 
     The options are also available
     - normalizing scores using the number of non-zero attention weights in the window
@@ -33,7 +34,8 @@ class FinchPress(BasePress):
     chunk_length: int = None
     normalize_scores: bool = True
     rerotate_keys: bool = True
-    delimiter_token_id: int = None  # To be set by the user before calling the press
+    delimiter_token: str = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
+    delimiter_token_id: int = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
     window_size: int = field(default=None, init=False)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
@@ -115,21 +117,35 @@ class FinchPress(BasePress):
         """
         if input[0].shape[1] > 1 and self.delimiter_token_id in input[0][0]:  # prefilling
             assert len(input[0]) == 1, "Only batch size 1 is supported."
-            try:
-                context_length = int(torch.nonzero(input[0][0] == self.delimiter_token_id)[-1].item())
-                self.window_size = len(input[0][0]) - 1 - context_length
-                assert self.window_size > 0, "No window detected (window size must be > 0)."
-                # Remove the delimiter token from the output
-                output = torch.cat([output[:, :context_length], output[:, context_length + 1 :]], dim=1)
-            except IndexError:
-                raise IndexError("A delimiter token must be present between the context and the question.")
+            # Find the delimiter token and compute the window size
+            delim_tokens = input[0][0] == self.delimiter_token_id
+            assert delim_tokens.sum() == 1, "Only one delimiter token should be present."
+            context_length = int(torch.nonzero(delim_tokens)[-1].item())
+            self.window_size = len(input[0][0]) - 1 - context_length
+            assert self.window_size > 0, "No window detected (window size must be > 0)."
+            # Remove the delimiter token from the output
+            output = torch.cat([output[:, :context_length], output[:, context_length + 1 :]], dim=1)
         return output
+
+    def update_model_and_tokenizer(self, model, tokenizer, delimiter_token : str = "<|finch_sep|>"):
+        """
+        Set the delimiter token and update the tokenizer accordingly.
+        This method should be called before calling the press.
+        """
+        self.delimiter_token = delimiter_token
+        if delimiter_token not in tokenizer.get_vocab():
+            tokenizer.add_special_tokens({"additional_special_tokens": [delimiter_token]})
+        self.delimiter_token_id = tokenizer.convert_tokens_to_ids(delimiter_token)  # type: ignore
+        # update model embeddings
+        model.resize_token_embeddings(len(tokenizer))
+        return tokenizer
 
     @contextmanager
     def __call__(self, model):
         # The user should set the delimiter_token_id before calling the press.
         if self.delimiter_token_id is None:
-            raise ValueError("No delimiter token ID provided. Please set the delimiter_token_id attribute.")
+            raise ValueError("""No delimiter token ID provided.
+                             Use the update_model_and_tokenizer method before calling the press.""")
 
         with super().__call__(model):
             try:
