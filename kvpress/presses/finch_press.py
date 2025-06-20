@@ -120,11 +120,11 @@ class FinchPress(BasePress):
             # Find the delimiter token and compute the window size
             delim_tokens = input[0][0] == self.delimiter_token_id
             assert delim_tokens.sum() == 1, "Only one delimiter token should be present."
-            context_length = int(torch.nonzero(delim_tokens)[-1].item())
+            context_length = int(torch.nonzero(delim_tokens)[0].item())
             self.window_size = len(input[0][0]) - 1 - context_length
             assert self.window_size > 0, "No window detected (window size must be > 0)."
             # Remove the delimiter token from the output
-            output = torch.cat([output[:, :context_length], output[:, context_length + 1 :]], dim=1)
+            output = output[:, ~delim_tokens]
         return output
 
     def update_model_and_tokenizer(self, model, tokenizer, delimiter_token : str = "<|finch_sep|>"):
