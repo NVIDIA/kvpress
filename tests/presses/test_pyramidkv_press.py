@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from kvpress.presses.pyramidkv_press import PyramidKVPress
 import torch.nn as nn
+
+from kvpress.presses.pyramidkv_press import PyramidKVPress
 
 
 class MockConfig:
