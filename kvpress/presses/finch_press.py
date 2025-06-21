@@ -37,6 +37,30 @@ class FinchPress(BasePress):
     delimiter_token: str = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
     delimiter_token_id: int = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
     window_size: int = field(default=None, init=False)
+    with_fix: bool = False
+    
+    @staticmethod
+    def _rerotate_cos_sin(x, inv_freq, important_pos_batch):
+        B, H, L = important_pos_batch.shape
+        device = important_pos_batch.device
+        device_type = x.device.type
+        dtype = x.dtype
+        idx = torch.arange(0, L, device=device)
+        idx = idx.unsqueeze(0)
+        inv_freq = inv_freq[None, None, :, None].float().expand(B, H, -1, 1)  # (B, H, M, 1)
+        idx = idx[:, None, :].float().expand(B, H, L)  # (B, H, L)
+        delta_pos = idx - important_pos_batch
+        delta_pos = delta_pos.unsqueeze(2)  # (B, H, 1, L)
+
+        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+
+        with torch.autocast(device_type=device_type, enabled=False):
+            freqs = delta_pos.float() * inv_freq.float()
+            freqs = freqs.transpose(2, 3)
+            emb = torch.cat((freqs, freqs), dim=-1)
+            cos = emb.cos().contiguous()
+            sin = emb.sin().contiguous()
+        return cos.to(dtype=dtype), sin.to(dtype=dtype)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         """
@@ -95,17 +119,28 @@ class FinchPress(BasePress):
             indices = torch.cat(indices, dim=-1)
 
         indices = torch.sort(indices, dim=2).values
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
+        if not self.with_fix:
+            indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 
-        # Rerotate keys
-        if self.rerotate_keys:
-            cos, sin = kwargs["position_embeddings"]
-            keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * (-sin.unsqueeze(1)))
-            keys = keys.gather(2, indices).contiguous()
-            cos, sin = cos[:, : indices.shape[2]], sin[:, : indices.shape[2]]
-            keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
+            # Rerotate keys
+            if self.rerotate_keys:
+                cos, sin = kwargs["position_embeddings"]
+                keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * (-sin.unsqueeze(1)))
+                keys = keys.gather(2, indices).contiguous()
+                cos, sin = cos[:, : indices.shape[2]], sin[:, : indices.shape[2]]
+                keys = (keys * cos.unsqueeze(1)) + (rotate_half(keys) * sin.unsqueeze(1))
+            else:
+                keys = keys.gather(2, indices).contiguous()
         else:
-            keys = keys.gather(2, indices).contiguous()
+            if self.rerotate_keys:
+                new_cos, new_sin = self._rerotate_cos_sin(keys, module.rotary_emb.inv_freq, indices)
+                indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
+                keys = keys.gather(2, indices).contiguous()
+                keys = (keys * new_cos) + (rotate_half(keys) * new_sin)
+            else:
+                indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
+                keys = keys.gather(2, indices).contiguous()
+            
 
         values = values.gather(2, indices).contiguous()
 

@@ -37,6 +37,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    KeyRerotationPress
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,9 @@ PRESS_DICT = {
     "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
     "pyramidkv": PyramidKVPress(),
     "finch": FinchPress(),
+    "finch_with_fix": FinchPress(with_fix=True),
+    "expected_attention_rerotation": KeyRerotationPress(ExpectedAttentionPress()),
+    "expected_attention_rerotation_with_fix": KeyRerotationPress(press=ExpectedAttentionPress(), with_fix=True),
 }
 
 
@@ -99,6 +103,7 @@ def evaluate(
     max_context_length: Optional[int] = None,
     compress_questions: bool = False,
     key_channel_compression_ratio: float = 0.5,
+    apply_yarn: bool = False,
 ):
     """
     Evaluate a model on a dataset using a press and save the results
@@ -190,6 +195,18 @@ def evaluate(
             model_kwargs["attn_implementation"] = "flash_attention_2"
         except ImportError:
             pass
+        
+    if apply_yarn:
+        # Append additional keyword arguments for Qwen
+        logger.info("Applying yarn technique")
+        model_kwargs.update({
+            "max_position_embeddings": 131072,
+            "rope_scaling": {
+                "factor": 4.0,
+                "original_max_position_embeddings": 32768,
+                "type": "yarn"
+            }
+        })
 
     if device == "auto":
         pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
