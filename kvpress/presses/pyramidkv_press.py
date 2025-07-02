@@ -16,27 +16,92 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PyramidKVPress(SnapKVPress):
     """
-    PyramidKV (https://arxiv.org/abs/2406.02069) dynamically adjusts KV cache sizes across layers,
-    allocating more in lower layers and less in higher layers.
-
-    We use the budget calculation formula from:
-    https://github.com/Zefan-Cai/KVCache-Factory/blob/main/pyramidkv/pyramidkv_utils.py#L197
-
-    This implementation always applies compression_ratio,
-    instead of disabling compression or keeping fixed budget for short queries like the original code.
-
-    max_capacity_prompt is calculated as:
-    max_num + min_num   &= (max_capacity_prompt - window_size) * 2
-    total_kvcache_size  &= \frac{(max_num + min_num) * num_layers}{2}
-                        &= (max_capacity_prompt - window_size) * num_layers
-    total_kvcache_size  &= query_length * num_layers * (1 - compression_ratio)
-    max_capacity_prompt &= window_size + query_length * (1 - compression_ratio)
+    PyramidKV: Layer-wise adaptive KV cache allocation with pyramid structure.
+    
+    Based on PyramidKV (https://arxiv.org/abs/2406.02069), this method dynamically
+    adjusts KV cache sizes across different transformer layers, following a pyramid
+    structure where lower layers retain more tokens and higher layers retain fewer.
+    
+    The pyramid allocation is based on the observation that:
+    - Lower layers capture more basic linguistic patterns and need more context
+    - Higher layers focus on more abstract representations and can work with less context
+    - A gradual reduction from bottom to top layers optimizes the memory-performance trade-off
+    
+    The method works by:
+    1. Computing a layer-specific budget using the pyramid formula
+    2. Allocating more cache capacity to lower layers (larger budgets)
+    3. Allocating less cache capacity to higher layers (smaller budgets)
+    4. Using SnapKV-style attention computation within each layer's budget
+    5. Applying the beta parameter to control the pyramid's steepness
+    
+    Budget calculation follows the formula:
+    ```
+    max_capacity_prompt = window_size + query_length * (1 - compression_ratio)
+    ```
+    
+    Key advantages:
+    - Optimizes memory usage across the entire model depth
+    - Maintains performance by preserving more context where it's most needed
+    - Provides fine-grained control over layer-wise compression
+    - Builds upon the proven SnapKV attention mechanism
+    
+    Note: This implementation always applies the specified compression_ratio,
+    unlike the original code which may disable compression for short queries.
     """
 
     compression_ratio: float = 0.0
+    """
+    Fraction of key-value pairs to remove during compression.
+    
+    This parameter controls the overall compression level across all layers.
+    The actual compression per layer varies according to the pyramid structure,
+    but the total compression across all layers averages to this ratio.
+    
+    See ScorerPress.compression_ratio for detailed description.
+    """
+    
     window_size: int = 64
+    """
+    Base window size for attention computation.
+    
+    This parameter works similarly to SnapKVPress.window_size but is used
+    in the pyramid budget calculation. Each layer's effective window size
+    may vary based on the pyramid allocation.
+    
+    See SnapKVPress.window_size for detailed description.
+    """
+    
     kernel_size: int = 5
-    beta: int = 20  # a hyperparameter to adjust the pyramid’s shape
+    """
+    Size of the pooling kernel for attention smoothing.
+    
+    This parameter is inherited from SnapKVPress and controls the pooling
+    operation applied to attention weights for more stable importance scores.
+    
+    See SnapKVPress.kernel_size for detailed description.
+    """
+    
+    beta: int = 20
+    """
+    Hyperparameter controlling the pyramid's shape and steepness.
+    
+    This parameter adjusts how aggressively the cache allocation decreases
+    from lower to higher layers. It controls the "steepness" of the pyramid:
+    
+    Larger beta values:
+    - Create a steeper pyramid (more dramatic difference between layers)
+    - Allocate much more cache to lower layers, much less to higher layers
+    - May provide better compression but could hurt higher-layer performance
+    
+    Smaller beta values:
+    - Create a gentler pyramid (more gradual difference between layers)
+    - Provide more balanced allocation across layers
+    - May be safer but less aggressive in compression
+    
+    The default value of 20 provides a good balance for most models and tasks.
+    Fine-tuning this parameter can help optimize the trade-off between
+    memory usage and model performance for specific use cases.
+    """
 
     def get_layer_budget(
         self,

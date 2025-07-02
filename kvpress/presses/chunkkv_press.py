@@ -13,16 +13,60 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class ChunkKVPress(BasePress):
     """
-    Wrapper class for any ScorerPress.
-    First calculates global scores using the ScorerPress,
-    then selects tokens chunk by chunk based on these global scores.
-    This method was proposed in
-    ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference
-    https://arxiv.org/abs/2502.00299
+    ChunkKV: Semantic-preserving compression with chunk-wise token selection.
+    
+    Based on ChunkKV (https://arxiv.org/abs/2502.00299), this method enhances any
+    ScorerPress by applying chunk-wise token selection instead of global selection.
+    The approach first computes global importance scores, then selects tokens
+    chunk by chunk to preserve semantic coherence within local contexts.
+    
+    The method works by:
+    1. Computing global importance scores using the underlying ScorerPress
+    2. Dividing the sequence into fixed-size chunks
+    3. For each chunk, selecting the most important tokens based on global scores
+    4. Ensuring each chunk contributes proportionally to the final compressed sequence
+    
+    This approach offers several advantages:
+    - Preserves local semantic coherence within chunks
+    - Prevents over-concentration of selected tokens in specific regions
+    - Maintains balanced representation across the entire sequence
+    - Can improve performance compared to pure global selection
+    
+    The chunk-wise selection helps maintain the semantic structure of the input
+    by ensuring that important tokens are distributed throughout the sequence
+    rather than clustered in high-importance regions.
     """
 
     press: ScorerPress
+    """
+    The underlying scoring method used to compute global importance scores.
+    
+    This can be any ScorerPress subclass (e.g., SnapKVPress, KnormPress, etc.).
+    The ChunkKV wrapper will use this method to compute importance scores for
+    all tokens, then apply chunk-wise selection based on these scores.
+    """
+    
     chunk_length: int = 20
+    """
+    Length of each chunk for token selection.
+    
+    The sequence is divided into non-overlapping chunks of this size, and tokens
+    are selected proportionally from each chunk based on their global importance
+    scores. This parameter controls the granularity of the chunk-wise selection.
+    
+    Larger chunk lengths:
+    - Allow more flexibility in token selection within each chunk
+    - May better preserve local semantic coherence
+    - Reduce the number of chunks to process
+    
+    Smaller chunk lengths:
+    - Provide more fine-grained control over token distribution
+    - Ensure more uniform selection across the sequence
+    - May fragment semantic units if too small
+    
+    The default value of 20 provides a good balance between semantic preservation
+    and uniform token distribution for most applications.
+    """
 
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "ChunkKVPress requires a ScorerPress as input"

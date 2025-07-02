@@ -16,13 +16,47 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ObservedAttentionPress(ScorerPress):
     """
-    The observed attention score is defined as the average attention weight over all prompt tokens
-    Requires output_attentions=True and attn_implementation="eager" to have access to attentions
-    This approach is related to H2O (https://arxiv.org/abs/2306.14048).
+    Observed attention-based KV cache compression.
+    
+    This method computes importance scores based on the actual attention weights
+    observed during the forward pass. The score for each key-value pair is defined
+    as the average attention weight it receives from all query tokens in the sequence.
+    
+    This approach is related to H2O (https://arxiv.org/abs/2306.14048) and provides
+    a direct measure of how much attention each token actually receives during processing.
+    
+    Requirements:
+    - Model must be configured with output_attentions=True
+    - Model must use attn_implementation="eager" (not flash attention)
+    - Attention weights must be available in the forward pass output
+    
+    The method works by:
+    1. Extracting attention weights from the model's forward pass
+    2. Computing average attention received by each key position
+    3. Using these averages as importance scores for compression
     """
 
     compression_ratio: float = 0.0
+    """
+    Fraction of key-value pairs to remove during compression.
+    See ScorerPress.compression_ratio for detailed description.
+    """
+    
     output_attentions: bool = False
+    """
+    Whether to return attention weights in the model output.
+    
+    This parameter controls whether attention weights are included in the
+    model's output after compression is applied. The attention weights are
+    always needed internally for computing importance scores, but they can
+    be removed from the output to save memory.
+    
+    - True: Include attention weights in model output (uses more memory)
+    - False: Remove attention weights from output after scoring (saves memory)
+    
+    Note: Regardless of this setting, attention weights must be computed
+    during the forward pass (requires output_attentions=True in model config).
+    """
 
     def __post_init__(self):
         if not self.output_attentions:

@@ -19,14 +19,64 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class SnapKVPress(ScorerPress):
     """
-    SnapKV (https://arxiv.org/abs/2404.14469) use the attention of the latest window_size tokens to estimate the
-    importance of the previous KV pairs. We use the default settings from:
-    https://github.com/FasterDecoding/SnapKV/blob/main/snapkv/monkeypatch/snapkv_utils.py#L24
+    SnapKV: Attention-based KV cache compression using recent token attention patterns.
+    
+    Based on SnapKV (https://arxiv.org/abs/2404.14469), this method uses the attention
+    patterns of the most recent tokens to estimate the importance of previous key-value pairs.
+    The intuition is that tokens which receive high attention from recent queries are likely
+    to be important for future processing.
+    
+    The method computes attention weights between the last `window_size` queries and all
+    previous keys, then applies pooling to obtain importance scores for compression.
+    
+    This approach is particularly effective because:
+    - Recent attention patterns are good predictors of future importance
+    - It avoids the need to store full attention matrices
+    - It works well across different model architectures
     """
 
     compression_ratio: float = 0.0
+    """
+    Fraction of key-value pairs to remove during compression.
+    See ScorerPress.compression_ratio for detailed description.
+    """
+    
     window_size: int = 64
+    """
+    Number of recent tokens to use for computing attention-based importance scores.
+    
+    This parameter controls how many of the most recent query tokens are used to
+    compute attention weights with all previous key tokens. The attention patterns
+    from these recent tokens are used to estimate which older tokens are important.
+    
+    Larger window sizes:
+    - Provide more comprehensive attention patterns
+    - May capture longer-range dependencies better
+    - Require more computation for attention calculation
+    
+    Smaller window sizes:
+    - Are more computationally efficient
+    - Focus on very recent attention patterns
+    - May miss some important long-range dependencies
+    
+    Default value of 64 is based on the original SnapKV paper's recommendations.
+    """
+    
     kernel_size: int = 5
+    """
+    Size of the pooling kernel applied to attention weights for smoothing.
+    
+    After computing attention weights between recent queries and all keys, a pooling
+    operation is applied to smooth the attention scores. This helps reduce noise and
+    creates more stable importance estimates.
+    
+    The pooling helps because:
+    - Raw attention weights can be noisy
+    - Smoothing creates more robust importance scores
+    - It reduces the impact of outlier attention values
+    
+    Typical values range from 3 to 7, with 5 being the default from the original paper.
+    """
 
     @staticmethod
     def compute_window_attention(module, hidden_states, keys, window_size, position_embeddings):

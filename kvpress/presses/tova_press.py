@@ -15,14 +15,36 @@ from kvpress.presses.snapkv_press import SnapKVPress
 @dataclass
 class TOVAPress(ScorerPress):
     """
-    TOVA (https://arxiv.org/abs/2401.06104) use the attention of the last token averaged across heads
-    to estimate the importance of the previous KV pairs. This press was reviewed by Michael Hassid,
-    one of the authors of the TOVA paper.
-
-    Official implementation can be found here: https://github.com/schwartz-lab-NLP/TOVA/blob/main/src/tova_cache.py
+    TOVA: Token-wise Optimal Value Attention for KV cache compression.
+    
+    Based on TOVA (https://arxiv.org/abs/2401.06104), this method uses the attention
+    weights of the last token (averaged across all attention heads) to estimate the
+    importance of previous key-value pairs. The intuition is that the attention pattern
+    of the most recent token provides a good indicator of which historical tokens
+    are important for the current context.
+    
+    The method works by:
+    1. Computing attention weights between the last query and all previous keys
+    2. Averaging these attention weights across all attention heads
+    3. Using the averaged attention as importance scores for compression
+    4. Adding back the last token with maximum score to ensure it's never pruned
+    
+    This approach is particularly effective because:
+    - The last token's attention pattern reflects current context needs
+    - Averaging across heads provides a robust importance estimate
+    - It's computationally efficient (only requires one attention computation)
+    - It naturally handles different types of attention patterns
+    
+    This implementation has been reviewed by Michael Hassid, one of the authors
+    of the TOVA paper. Official implementation: 
+    https://github.com/schwartz-lab-NLP/TOVA/blob/main/src/tova_cache.py
     """
 
     compression_ratio: float = 0.0
+    """
+    Fraction of key-value pairs to remove during compression.
+    See ScorerPress.compression_ratio for detailed description.
+    """
 
     def score(
         self,

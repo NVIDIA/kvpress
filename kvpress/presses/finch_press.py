@@ -16,27 +16,114 @@ from kvpress.presses.snapkv_press import SnapKVPress
 @dataclass
 class FinchPress(BasePress):
     """
-    Implementation of Finch (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)
-    without chunked prefilling.
-
-    Finch starts with SnapKV-style compression, but the window size is not fixed. Instead, the user must provide
-    a delimiter token between the context and the window (input = context + delimiter_token + question).
-    The delimiter token is set by the user via the update_model_and_tokenizer method.
-
-
-    The options are also available
-    - normalizing scores using the number of non-zero attention weights in the window
-    - compressing by chunks
-    - rerotating keys after compression (similar to KeyRerotationPress)
+    FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models.
+    
+    Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280),
+    this method implements a SnapKV-style compression with dynamic window sizing based
+    on delimiter tokens. Unlike SnapKV which uses a fixed window size, FINCH adapts
+    the window size based on the structure of the input.
+    
+    The method requires a specific input format:
+    `context + delimiter_token + question`
+    
+    The delimiter token separates the context from the query portion, allowing FINCH
+    to dynamically determine the appropriate window size for attention computation.
+    This makes it particularly suitable for question-answering tasks where the
+    question portion should be used as the attention window.
+    
+    Key features:
+    - Dynamic window sizing based on delimiter tokens
+    - SnapKV-style attention computation within the determined window
+    - Optional score normalization by non-zero attention weights
+    - Optional chunked compression for very long contexts
+    - Optional key rerotation after compression (similar to KeyRerotationPress)
+    
+    The delimiter token must be set using the `update_model_and_tokenizer` method
+    before using this press. This method analyzes the input to find the delimiter
+    and sets the appropriate window size.
+    
+    Note: This implementation does not include chunked prefilling from the original paper.
     """
 
     compression_ratio: float = 0.0
+    """
+    Fraction of key-value pairs to remove during compression.
+    See ScorerPress.compression_ratio for detailed description.
+    """
+    
     chunk_length: int = None
+    """
+    Length of chunks for optional chunked compression.
+    
+    If specified, the context will be processed in chunks of this size rather
+    than as a single block. This can be useful for very long contexts to
+    manage memory usage and computation time.
+    
+    - None: Process the entire context at once (default)
+    - Positive integer: Process in chunks of this size
+    
+    Chunked processing may affect compression quality but can be necessary
+    for very long sequences that exceed memory constraints.
+    """
+    
     normalize_scores: bool = True
+    """
+    Whether to normalize attention scores by the number of non-zero weights.
+    
+    When True, the computed attention scores are normalized by the count of
+    non-zero attention weights in the window. This normalization can help
+    stabilize the importance scores across different window sizes and
+    attention patterns.
+    
+    - True: Apply normalization (generally recommended)
+    - False: Use raw attention scores
+    
+    Normalization typically improves the stability and quality of compression.
+    """
+    
     rerotate_keys: bool = True
-    delimiter_token: str = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
-    delimiter_token_id: int = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
+    """
+    Whether to rerotate keys after compression using RoPE.
+    
+    When True, the method applies key rerotation after compression to maintain
+    proper positional encoding relationships. This is similar to the functionality
+    provided by KeyRerotationPress and helps preserve attention quality after
+    token removal.
+    
+    - True: Apply key rerotation after compression (recommended)
+    - False: Skip key rerotation (may hurt performance)
+    
+    Key rerotation is generally recommended to maintain proper positional
+    relationships in the compressed sequence.
+    """
+    
+    delimiter_token: str = field(default=None, init=False)
+    """
+    The delimiter token string used to separate context from query.
+    
+    This token is automatically detected and set by the update_model_and_tokenizer
+    method. It should not be set manually during initialization.
+    
+    The delimiter token is used to identify where the context ends and the
+    query begins, allowing FINCH to determine the appropriate window size.
+    """
+    
+    delimiter_token_id: int = field(default=None, init=False)
+    """
+    The token ID corresponding to the delimiter token.
+    
+    This is automatically set by the update_model_and_tokenizer method based
+    on the tokenizer's vocabulary. It should not be set manually.
+    """
+    
     window_size: int = field(default=None, init=False)
+    """
+    The dynamically determined window size based on delimiter token position.
+    
+    This value is computed during processing based on the position of the
+    delimiter token in the input sequence. It represents the number of tokens
+    in the query portion that will be used for attention computation.
+    """
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         """

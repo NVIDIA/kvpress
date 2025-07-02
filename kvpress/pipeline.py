@@ -22,9 +22,33 @@ logger = logging.getLogger(__name__)
 
 class KVPressTextGenerationPipeline(Pipeline):
     """
-    Pipeline for key-value compression in causal language models.
-    This pipeline allows you to compress a long prompt using a key-value press
-    and then generate answers using greedy decoding.
+    Pipeline for key-value cache compression in causal language models.
+    
+    This pipeline enables efficient processing of long contexts by applying KV cache
+    compression during the pre-filling phase, then generating answers using greedy
+    decoding. It's particularly useful for question-answering tasks over long documents
+    where the full context needs to be processed but memory constraints are a concern.
+    
+    The pipeline supports:
+    - Single or multiple questions about the same context
+    - Various compression methods (press objects)
+    - Customizable generation parameters
+    - Cache reuse for multiple questions
+    
+    Example usage:
+    ```python
+    from kvpress import KVPressTextGenerationPipeline, SnapKVPress
+    
+    pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)
+    press = SnapKVPress(compression_ratio=0.5)
+    
+    result = pipeline(
+        context="Long document text...",
+        question="What is the main topic?",
+        press=press,
+        max_new_tokens=100
+    )
+    ```
     """
 
     def _sanitize_parameters(
@@ -51,7 +75,21 @@ class KVPressTextGenerationPipeline(Pipeline):
         answer_prefix : str, optional
             The prefix to be added to the generated answer.
         press : BasePress, optional
-            The key-value press to use for compression.
+            The key-value cache compression method to apply during pre-filling.
+            
+            This parameter accepts any KVPress compression method (subclass of BasePress)
+            that defines how to reduce the size of the key-value cache. Common options include:
+            
+            - SnapKVPress: Uses recent attention patterns to identify important tokens
+            - KnormPress: Scores tokens based on key vector norms
+            - ExpectedAttentionPress: Uses expected attention patterns for scoring
+            - BlockPress: Applies compression in blocks for memory efficiency
+            - AdaKVPress: Adaptive head-wise compression with safeguards
+            - ComposedPress: Combines multiple compression methods
+            
+            If None, no compression is applied and the full context is processed.
+            The compression method significantly affects both memory usage and
+            model performance, so choose based on your specific requirements.
         max_new_tokens : int, optional
             The maximum number of new tokens to generate for each answer.
         max_context_length : int, optional
@@ -92,13 +130,42 @@ class KVPressTextGenerationPipeline(Pipeline):
         max_context_length: int,
     ):
         """
-        Apply the chat template to the triplet (context, questions, answer_prefix) and tokenize it.
+        Apply chat template and tokenize the context and questions for processing.
+        
+        This method prepares the input text for KV cache compression and text generation
+        by applying the appropriate chat template (if available) and tokenizing the
+        context and questions. It handles both models with and without chat templates.
+
+        Parameters
+        ----------
+        context : str
+            The long context text that will be compressed using the specified press method.
+            This is typically a document, article, or other long-form text that contains
+            the information needed to answer the questions.
+        questions : list[str]
+            List of questions to be asked about the context. Each question will be
+            processed separately, but they can share the same compressed context for
+            efficiency.
+        answer_prefix : str
+            Optional prefix to be added to each generated answer. This can be used
+            to format the output or provide consistent answer formatting.
+        max_context_length : int
+            Maximum number of tokens allowed in the context. If the tokenized context
+            exceeds this length, it will be truncated to fit within the limit.
 
         Returns
         -------
         dict[str, GenericTensor]
-            A dictionary containing the tokenized context (key: "context_ids") and questions (key: "questions_ids").
-
+            A dictionary containing the tokenized inputs:
+            - "context_ids": Tokenized context ready for compression
+            - "questions_ids": List of tokenized questions for generation
+            
+        Notes
+        -----
+        The method automatically handles different tokenizer configurations:
+        - For models with chat templates: Applies the template with proper formatting
+        - For models without chat templates: Uses simple BOS token prefixing
+        - Ensures proper separation between context and questions
         """
 
         # Apply chat template if available
@@ -140,23 +207,47 @@ class KVPressTextGenerationPipeline(Pipeline):
         cache: Optional[Cache] = None,
     ):
         """
-        Forward pass of the kv-press pipeline.
+        Execute the core KV cache compression and text generation pipeline.
+        
+        This method performs the main processing steps: context compression using
+        the specified press method, followed by greedy decoding to generate answers
+        for each question. The compression is applied only during the pre-filling
+        phase, while generation uses the compressed cache.
 
         Parameters
         ----------
         input_tensors : dict[str, GenericTensor]
-            A dictionary containing the tokenized context and questions.
-        max_new_tokens : int, optional
-            The maximum number of new tokens to generate for each answer. Defaults to 50.
+            Dictionary containing tokenized inputs from the preprocess method:
+            - "context_ids": Tokenized context tensor for compression
+            - "questions_ids": List of tokenized question tensors for generation
+        max_new_tokens : int, default=50
+            Maximum number of new tokens to generate for each answer. Controls
+            the length of generated responses. Larger values allow longer answers
+            but increase computation time.
         press : BasePress, optional
-            The key-value press to use for compression. Defaults to None.
+            The compression method to apply during context pre-filling. If None,
+            no compression is applied and the full context is used. The press
+            method determines how the KV cache is compressed to save memory.
         cache : Cache, optional
-            The cache to use for the forward pass. Defaults to None (DynamicCache).
+            Pre-existing cache object to use for the forward pass. If None,
+            a new DynamicCache is created. Reusing cache objects can be more
+            efficient when processing multiple questions on the same context.
 
         Returns
         -------
         list[str]
-            A list of generated answers.
+            List of generated answers corresponding to each input question.
+            The answers are generated using greedy decoding from the compressed
+            context representation.
+            
+        Notes
+        -----
+        The method follows this processing pipeline:
+        1. Pre-fill the context with compression applied (if press is specified)
+        2. Log compression statistics (original vs compressed context length)
+        3. Generate answers for each question using greedy decoding
+        4. Handle special cases for methods requiring key rerotation
+        5. Return the list of generated text answers
         """
 
         context_ids = input_tensors["context_ids"].to(self.model.device)

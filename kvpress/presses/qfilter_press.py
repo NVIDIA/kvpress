@@ -20,7 +20,27 @@ class QFilters(torch.nn.Module, PyTorchModelHubMixin):
 @dataclass
 class QFilterPress(ScorerPress):
     """
-    Prune KV pairs with Q-filters
+    Q-Filter: Learned filter-based KV cache compression.
+    
+    This method uses pre-trained learned filters (Q-filters) to score and compress
+    key-value pairs. Unlike heuristic-based methods, Q-filters are neural network
+    parameters that have been trained to identify important tokens for specific
+    model architectures.
+    
+    The method works by:
+    1. Loading pre-trained Q-filter parameters for the specific model
+    2. Computing dot products between keys and the learned filters
+    3. Using these dot products as importance scores for compression
+    4. Pruning tokens with the lowest filter response scores
+    
+    Key characteristics:
+    - Uses learned parameters rather than heuristics
+    - Model-specific filters optimized for each architecture
+    - Potentially more accurate than generic scoring methods
+    - Requires pre-trained filter parameters to be available
+    
+    The Q-filters are automatically loaded based on the model name and are
+    expected to be available in a Hugging Face model collection.
     """
 
     def __post_init_from_model__(self, model):

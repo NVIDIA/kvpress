@@ -19,22 +19,114 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class ExpectedAttentionPress(ScorerPress):
     """
-    Compute scores based on the expected attention on next positions. To do so
-        1. Compute the mean and covariance matrix of the queries before RoPE.
-        2. Compute the RoPE rotation matrix R on next n_future_positions and average it
-        3. Apply R to the mean and covariance matrice of the queries.
-        4. As attention A = exp(Q @ K / sqrt(d)), we compute the expected attention
-        E(A) = exp(K @ mean.T / sqrt(d) + 1/2 K @ cov @ K.T / d)
-        5. Rescale the scores using (scores + epsilon) * ||V||_2
-    The first n_sink tokens are removed from calculations (sink attention phenomenon).
+    Expected attention-based KV cache compression.
+    
+    This method computes importance scores based on the expected attention that
+    future query tokens will pay to current key-value pairs. It uses statistical
+    modeling of query patterns to predict which tokens will be most important
+    for upcoming attention computations.
+    
+    The algorithm works by:
+    1. Computing mean and covariance statistics of queries before RoPE application
+    2. Modeling future query positions using RoPE rotation matrices
+    3. Computing expected attention weights: E[A] = exp(K @ μ^T / √d + ½K @ Σ @ K^T / d)
+    4. Optionally rescaling scores using value norms: (scores + ε) * ||V||₂
+    5. Excluding sink tokens from calculations to handle sink attention phenomenon
+    
+    This approach is particularly effective because:
+    - It predicts future attention patterns rather than relying on past patterns
+    - It accounts for positional encoding effects through RoPE modeling
+    - It can incorporate both mean and variance information from query distributions
+    - It handles the sink attention phenomenon by excluding initial tokens
     """
 
     compression_ratio: float = 0.0
+    """
+    Fraction of key-value pairs to remove during compression.
+    See ScorerPress.compression_ratio for detailed description.
+    """
+    
     n_future_positions: int = 512
+    """
+    Number of future positions to consider when computing expected attention.
+    
+    This parameter controls how far ahead the method looks when predicting
+    future attention patterns. The RoPE rotation matrices are computed for
+    this many future positions and averaged to estimate expected attention.
+    
+    Larger values:
+    - Consider longer-range future dependencies
+    - May provide more stable attention estimates
+    - Require more computation for RoPE matrix calculations
+    
+    Smaller values:
+    - Focus on near-term attention patterns
+    - Are more computationally efficient
+    - May miss longer-range dependencies
+    
+    Default of 512 provides a good balance for most applications.
+    """
+    
     n_sink: int = 4
+    """
+    Number of initial tokens to exclude from compression (sink tokens).
+    
+    The "sink attention" phenomenon refers to the tendency of language models
+    to assign high attention weights to the first few tokens in a sequence,
+    regardless of their semantic importance. These tokens act as "attention sinks."
+    
+    This parameter specifies how many initial tokens to always preserve:
+    - 0: No sink tokens (may hurt performance)
+    - 4: Preserve first 4 tokens (default, works well for most models)
+    - 8+: More conservative, preserves more initial tokens
+    
+    Preserving sink tokens typically improves model performance after compression.
+    """
+    
     use_covariance: bool = True
+    """
+    Whether to include covariance information in expected attention computation.
+    
+    When True, the method computes both mean and covariance of query distributions
+    and uses both in the expected attention formula. When False, only the mean
+    is used, which is computationally cheaper but may be less accurate.
+    
+    - True: Use full statistical model (mean + covariance) - more accurate
+    - False: Use only mean statistics - faster but potentially less precise
+    
+    The covariance term captures the uncertainty in query patterns and generally
+    improves compression quality at the cost of additional computation.
+    """
+    
     use_vnorm: bool = True
+    """
+    Whether to rescale scores using value vector norms.
+    
+    When True, the computed expected attention scores are rescaled by the L2 norm
+    of the corresponding value vectors: (scores + epsilon) * ||V||₂. This helps
+    account for the magnitude of values when determining token importance.
+    
+    - True: Rescale by value norms (generally recommended)
+    - False: Use raw expected attention scores
+    
+    Value norm rescaling typically improves compression quality by considering
+    both attention patterns and the magnitude of information being attended to.
+    """
+    
     epsilon: float = 0.0
+    """
+    Small constant added to scores before value norm rescaling.
+    
+    This parameter is only used when use_vnorm=True. It's added to the expected
+    attention scores before multiplying by value norms to provide numerical
+    stability and prevent issues with very small attention scores.
+    
+    - 0.0: No additional constant (default)
+    - Small positive value: Provides numerical stability
+    
+    Usually the default of 0.0 works well, but small positive values can help
+    in cases where numerical instability is observed.
+    """
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
