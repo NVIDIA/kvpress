@@ -28,6 +28,8 @@ from kvpress.presses.pyramidkv_press import PyramidKVPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.lagkv_press import LagKVPress
 from kvpress.presses.base_press import SUPPORTED_MODELS
+from kvpress.presses.block_press import BlockPress
+from kvpress.presses.keydiff_press import KeyDiffPress
 
 # Patch the attention functions to support head-wise compression
 patch_attention_functions()
@@ -58,4 +60,6 @@ __all__ = [
     "PyramidKVPress",
     "FinchPress",
     "LagKVPress",
+    "BlockPress",
+    "KeyDiffPress",
 ]

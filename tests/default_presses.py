@@ -16,6 +16,7 @@ from kvpress import (
     QFilterPress,
     PyramidKVPress,
     LagKVPress,
+    KeyDiffPress,
 )
 
 
@@ -65,4 +66,5 @@ default_presses = [
             {"compression_ratio": 0.8, "n_sink": 16, "lag_size": 128}
         ],
     },
+    {"cls": KeyDiffPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
 ]

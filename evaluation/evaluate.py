@@ -37,6 +37,8 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    BlockPress,
+    KeyDiffPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +86,8 @@ PRESS_DICT = {
     "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
     "pyramidkv": PyramidKVPress(),
     "finch": FinchPress(),
+    "keydiff": KeyDiffPress(),
+    "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
 }
 
 
