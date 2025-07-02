@@ -18,20 +18,10 @@ class CriticalKVPress(ScorerPress):
     """
     CriticalKV: Two-stage compression with output projection weighting.
     
-    Based on CriticalKV (https://arxiv.org/abs/2502.03805), this method enhances
-    existing scoring methods by rescaling their scores using the L1 norm of the
-    output projection applied to values (Wo @ values). This provides a more
-    accurate estimate of each token's contribution to the final output.
-    
-    The method works in two stages:
-    1. First stage: Select a subset of tokens using the base scoring method
-    2. Second stage: Rescale all scores by their output projection magnitude
-    3. Final selection: Combine both stages to make final compression decisions
-    
-    This approach is particularly effective because:
-    - It considers not just attention patterns but actual output contributions
-    - The two-stage process balances different importance signals
-    - It can improve any existing scoring method as a wrapper
+    Enhances existing scoring methods by rescaling scores using the L1 norm
+    of output projection applied to values (Wo @ values). Provides more accurate
+    importance estimation by considering actual output contributions.
+    Based on CriticalKV (https://arxiv.org/abs/2502.03805).
     """
 
     def __init__(self, press: ScorerPress, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
@@ -41,21 +31,12 @@ class CriticalKVPress(ScorerPress):
         Parameters
         ----------
         press : ScorerPress
-            The base scoring method to enhance with output projection weighting.
+            Base scoring method to enhance with output projection weighting.
         epsilon : float, default=1e-4
-            Small value added for numerical stability when computing score rescaling.
-            Prevents division by zero and stabilizes gradients during computation.
+            Small value for numerical stability in score rescaling.
         first_stage_ratio : float, default=0.5
-            Fraction of the compression budget allocated to the first stage selection.
-            
-            The first stage selects `compression_ratio * first_stage_ratio * seq_len`
-            tokens using the base scoring method. The remaining budget is used in
-            the second stage with output projection weighting.
-            
-            Values should be between 0.0 and 1.0:
-            - 0.0: Only use output projection weighting (skip first stage)
-            - 0.5: Balance both stages equally (default)
-            - 1.0: Only use base scoring method (skip output weighting)
+            Fraction of compression budget allocated to first stage selection.
+            Remaining budget used in second stage with output projection weighting.
         """
         self.press = press
         self.epsilon = epsilon
@@ -116,56 +97,23 @@ class CriticalAdaKVPress(BasePress):
     """
     CriticalAdaKV: Combined two-stage compression with adaptive head-wise selection.
     
-    Based on CriticalAdaKV (https://arxiv.org/abs/2502.03805), this method combines
-    the output projection weighting from CriticalKV with the adaptive head-wise
-    compression from AdaKV. This provides both accurate importance estimation
-    and head-specific compression adaptation.
-    
-    The method works by:
-    1. Computing base importance scores using the underlying scorer
-    2. Applying two-stage selection with output projection weighting
-    3. Performing adaptive head-wise compression with safeguards
-    4. Masking less important tokens during attention computation
-    
-    This combines the best of both approaches:
-    - CriticalKV's accurate output-based importance estimation
-    - AdaKV's adaptive head-wise compression strategy
-    - Safeguards to protect individual attention heads
+    Combines output projection weighting from CriticalKV with adaptive head-wise
+    compression from AdaKV. Provides both accurate importance estimation and
+    head-specific compression adaptation.
+    Based on CriticalAdaKV (https://arxiv.org/abs/2502.03805).
     """
 
     press: ScorerPress
     """The underlying scoring method used to evaluate token importance."""
     
     alpha_safeguard: float = 0.20
-    """
-    Minimum fraction of KV pairs that each head must retain.
-    
-    This safeguard parameter ensures that no attention head is compressed too
-    aggressively, which could severely impact its functionality. Even if a head's
-    tokens receive low global importance scores, it will still retain at least
-    `alpha_safeguard` fraction of its original tokens.
-    
-    See AdaKVPress.alpha_safeguard for detailed description.
-    """
+    """Minimum fraction of KV pairs that each head must retain."""
     
     epsilon: float = 1e-4
-    """
-    Small value added for numerical stability when computing score rescaling.
-    
-    This prevents division by zero and stabilizes gradients during the computation
-    of output projection magnitudes. Should be a small positive value.
-    """
+    """Small value for numerical stability in score rescaling."""
     
     first_stage_ratio: float = 0.5
-    """
-    Fraction of the compression budget allocated to the first stage selection.
-    
-    The first stage selects tokens using the base scoring method, while the
-    second stage applies output projection weighting. This parameter controls
-    the balance between these two selection criteria.
-    
-    See CriticalKVPress.__init__ for detailed description of this parameter.
-    """
+    """Fraction of compression budget allocated to first stage selection."""
     
     def __post_init__(self):
         assert 0 <= self.alpha_safeguard <= 1, "alpha_safeguard should be in 0, 1]"

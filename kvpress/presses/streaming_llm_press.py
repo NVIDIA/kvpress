@@ -15,53 +15,23 @@ class StreamingLLMPress(ScorerPress):
     """
     StreamingLLM: Window-based KV cache compression with sink tokens.
     
-    Based on StreamingLLM (https://arxiv.org/abs/2309.17453), this method implements
-    a sliding window approach that preserves the first few tokens (sink tokens) and
-    the most recent tokens, while pruning tokens in the middle of the sequence.
+    Implements sliding window approach preserving first few tokens (sink tokens)
+    and most recent tokens, while pruning middle tokens. Based on StreamingLLM
+    (https://arxiv.org/abs/2309.17453).
     
-    This approach is particularly effective for streaming applications where:
-    - The beginning of the sequence contains important context (sink tokens)
-    - Recent tokens are most relevant for current processing
-    - Middle tokens can be safely discarded to maintain a fixed memory footprint
-    
-    The method works by:
-    1. Always preserving the first n_sink tokens (attention sinks)
-    2. Preserving the last n_local tokens (recent context)
-    3. Pruning all tokens in between these two windows
-    
-    Note: The original StreamingLLM implementation also includes key rerotation.
-    To achieve the full StreamingLLM behavior, combine with KeyRerotationPress:
-    ```python
-    press = KeyRerotationPress(press=StreamingLLMPress(compression_ratio, n_sink))
-    ```
+    Note: For full StreamingLLM behavior, combine with KeyRerotationPress.
     """
 
     compression_ratio: float = 0.0
-    """
-    Fraction of key-value pairs to remove during compression.
-    
-    This determines how many recent tokens (n_local) to keep:
-    n_local = (1 - compression_ratio) * seq_len - n_sink
-    
-    Higher compression ratios result in smaller local windows and more aggressive pruning.
-    See ScorerPress.compression_ratio for detailed description.
-    """
+    """Fraction of key-value pairs to remove during compression."""
     
     n_sink: int = 4
     """
     Number of initial tokens to always preserve (sink tokens).
     
-    These tokens at the beginning of the sequence are never pruned, regardless
-    of the compression ratio. They serve as "attention sinks" that help maintain
-    model stability and performance.
-    
-    Typical values:
-    - 4: Default value, works well for most models
-    - 0: No sink tokens (may hurt performance)
-    - 8+: More conservative, preserves more initial context
-    
-    The sink tokens are preserved because language models often assign high
-    attention weights to early tokens regardless of their semantic content.
+    These tokens are never pruned and serve as "attention sinks" that help
+    maintain model stability. Language models often assign high attention
+    weights to early tokens regardless of semantic content.
     """
 
     def score(

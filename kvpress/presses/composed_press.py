@@ -13,53 +13,27 @@ class ComposedPress(BasePress):
     """
     Composed compression: Chain multiple compression methods sequentially.
     
-    This class allows combining multiple compression methods to achieve more
-    sophisticated compression strategies. The methods are applied sequentially,
-    with each method operating on the output of the previous one.
+    Applies multiple compression methods in sequence, with each method operating
+    on the output of the previous one. Useful for combining complementary approaches
+    like sequence + dimension compression.
     
-    The composition is particularly useful for:
-    - Combining complementary compression approaches (e.g., sequence + dimension compression)
-    - Creating multi-stage compression pipelines
-    - Experimenting with hybrid compression strategies
-    
-    Example usage:
+    Example:
     ```python
-    # Combine sequence compression with dimensional compression
     press = ComposedPress([
-        SnapKVPress(compression_ratio=0.3),  # First reduce sequence length
-        ThinKPress(key_channel_compression_ratio=0.2)  # Then reduce key dimensions
-    ])
-    
-    # Multi-stage sequence compression
-    press = ComposedPress([
-        StreamingLLMPress(compression_ratio=0.4, n_sink=4),  # Window-based pruning
-        KnormPress(compression_ratio=0.2)  # Further refinement with norm-based pruning
+        SnapKVPress(compression_ratio=0.3),
+        ThinKPress(key_channel_compression_ratio=0.2)
     ])
     ```
     
-    The effective compression ratio is the product of all individual ratios.
-    For example, two methods with 0.5 compression ratio each result in 0.75
-    overall compression (keeping 25% of original tokens).
-    
-    Limitations:
-    - Cannot include ObservedAttentionPress or AdaKVPress due to implementation constraints
-    - Order of composition matters and affects final results
-    - Computational overhead increases with number of composed methods
+    Cannot include ObservedAttentionPress or AdaKVPress due to implementation constraints.
     """
 
     presses: list[BasePress]
     """
     List of compression methods to apply sequentially.
     
-    The methods are applied in the order specified, with each method operating
-    on the compressed output of the previous method. The list should contain
-    BasePress instances that are compatible with sequential composition.
-    
-    Restrictions:
-    - Cannot include ObservedAttentionPress (requires specific attention handling)
-    - Cannot include AdaKVPress (requires head-wise masking incompatible with composition)
-    
-    The final compression ratio will be the product of all individual compression ratios.
+    Methods are applied in order, with each operating on the compressed output
+    of the previous method. Final compression ratio is the product of all ratios.
     """
 
     def __post_init__(self):

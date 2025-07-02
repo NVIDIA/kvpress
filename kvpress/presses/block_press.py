@@ -13,41 +13,23 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class BlockPress(BasePress):
     """
-    Block-wise iterative KV cache compression method.
+    BlockPress: Block-wise iterative KV cache compression.
     
-    Simulates block prompt processing as described in KeyDiff (https://arxiv.org/abs/2504.15364).
-    This method segments the input sequence into non-overlapping blocks and applies compression
-    iteratively, maintaining a limited memory overhead for long context inference.
-    
-    The algorithm works by:
-    1. Starting with an empty set of kept tokens
-    2. Processing each block of tokens sequentially
-    3. For each block, scoring all tokens (kept + current block)
-    4. Selecting the top-k tokens to keep for the next iteration
-    5. Continuing until all blocks are processed
-    
-    This approach is particularly effective for very long sequences where global scoring
-    would be computationally expensive or memory-intensive.
+    Applies compression in fixed-size blocks to manage memory usage during
+    processing. Iteratively scores and prunes tokens block by block, maintaining
+    a buffer of previously kept tokens for context. Mathematically equivalent
+    to global compression when scoring uses only local information.
     """
 
     press: ScorerPress
     """The underlying scoring method used to evaluate token importance within each block."""
     
-    block_size: int = 128
+    block_size: int = 256
     """
-    Size of each processing block in tokens.
+    Size of each block for iterative compression.
     
-    Larger blocks:
-    - Provide more context for scoring decisions
-    - Require more memory during processing
-    - May be slower for very long sequences
-    
-    Smaller blocks:
-    - Use less memory per iteration
-    - Process faster but with less context
-    - May make suboptimal compression decisions
-    
-    Typical values range from 64 to 512 tokens depending on available memory and sequence length.
+    Larger blocks provide more context for scoring but use more memory.
+    Smaller blocks are more memory-efficient but may miss longer-range dependencies.
     """
 
     def __post_init__(self):

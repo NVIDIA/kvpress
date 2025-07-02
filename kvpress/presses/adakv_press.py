@@ -15,23 +15,9 @@ class AdaKVPress(BasePress):
     """
     AdaKV: Adaptive head-wise KV cache compression.
     
-    Based on AdaKV (https://arxiv.org/abs/2407.11550), this method performs head-specific
-    compression by selecting the top-k keys and values across all heads in a layer based
-    on importance scores. Unlike uniform compression, AdaKV allows different heads to
-    retain different numbers of tokens based on their individual importance patterns.
-    
-    The method works by:
-    1. Computing importance scores for all tokens across all heads
-    2. Selecting the globally most important tokens across heads
-    3. Applying a safeguard to ensure each head retains a minimum fraction of tokens
-    4. Masking less important tokens during attention computation
-    
-    Key advantages:
-    - Adapts compression to each head's specific attention patterns
-    - Maintains model performance better than uniform compression
-    - Preserves critical tokens that multiple heads find important
-    
-    This implementation has been reviewed by Yuan Feng, first author of AdaKV.
+    Performs head-specific compression by selecting top-k tokens across all heads
+    based on importance scores. Applies safeguards to ensure each head retains
+    a minimum fraction of tokens. Based on AdaKV (https://arxiv.org/abs/2407.11550).
     """
 
     press: ScorerPress
@@ -41,19 +27,9 @@ class AdaKVPress(BasePress):
     """
     Minimum fraction of KV pairs that each head must retain.
     
-    This safeguard parameter ensures that no attention head is compressed too
-    aggressively, which could severely impact its functionality. Even if a head's
-    tokens receive low global importance scores, it will still retain at least
-    `alpha_safeguard` fraction of its original tokens.
-    
-    Values should be between 0.0 and 1.0:
-    - 0.0: No safeguard (heads could lose all tokens - not recommended)
-    - 0.2: Each head keeps at least 20% of tokens (default)
-    - 0.5: Each head keeps at least 50% of tokens (conservative)
-    
-    Higher values provide more protection for individual heads but may reduce
-    overall compression effectiveness. The default of 0.2 provides a good
-    balance between compression and head functionality preservation.
+    Ensures no attention head is compressed too aggressively. Even if tokens
+    receive low global importance scores, each head retains at least this
+    fraction of its original tokens.
     """
 
     def __post_init__(self):
