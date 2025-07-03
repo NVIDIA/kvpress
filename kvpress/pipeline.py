@@ -174,22 +174,22 @@ class KVPressTextGenerationPipeline(Pipeline):
                 num_logits_to_keep=1,
             )
 
-        logger.debug(f"Context Length: {context_length}")
-        logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
+            logger.debug(f"Context Length: {context_length}")
+            logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
-        # Greedy decoding for each question
-        answers = []
-        for question_ids in input_tensors["questions_ids"]:
-            if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
-                context_length = cache.get_seq_length()
+            # Greedy decoding for each question
+            answers = []
+            for question_ids in input_tensors["questions_ids"]:
+                if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
+                    context_length = cache.get_seq_length()
 
-            answer = self.generate_answer(
-                question_ids=question_ids.to(self.model.device),
-                cache=cache,
-                context_length=context_length,
-                max_new_tokens=max_new_tokens,
-            )
-            answers.append(answer)
+                answer = self.generate_answer(
+                    question_ids=question_ids.to(self.model.device),
+                    cache=cache,
+                    context_length=context_length,
+                    max_new_tokens=max_new_tokens,
+                )
+                answers.append(answer)
 
         return answers
 
@@ -260,6 +260,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             generated_ids.append(new_id)
             if new_id.item() in should_stop_token_ids:
                 break
+                    
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
         # Remove the generated tokens from the cache
