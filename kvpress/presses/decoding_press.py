@@ -21,10 +21,59 @@ class DecodingPress(BasePress):
     This press accumulates hidden states during decoding and applies compression every N steps
     using a scorer press to determine which tokens to keep.
     
+    **COMPATIBILITY ISSUES AND LIMITATIONS:**
+    
+    **Presses that will NOT work with DecodingPress:**
+    
+    1. **AdaKVPress and CriticalAdaKVPress**: These presses use attention masking via 
+       `module.masked_key_indices` which requires eager attention mode and conflicts with 
+       the decoding compression approach. They also assume `q_len = hidden_states.shape[1]` 
+       which is incorrect during decoding (should be `keys.shape[2]`).
+    
+    2. **DuoAttentionPress**: Uses attention masking and streaming patterns that are 
+       incompatible with iterative decoding compression.
+    
+    3. **KeyRerotationPress and FinchPress**: These require `position_embeddings` from kwargs
+       and perform RoPE operations that assume the full sequence context. During decoding,
+       position embeddings may not be available or may be inconsistent with the compressed cache.
+    
+    4. **SnapKVPress, TOVAPress, ThinKPress**: These compute attention weights using 
+       `compute_window_attention()` which requires position embeddings and assumes specific
+       sequence structures that may be disrupted during iterative decoding compression.
+    
+    5. **SimLayerKVPress**: Uses lazy evaluation based on position embeddings and sequence
+       patterns that may not work correctly with decoding compression.
+    
+    **Presses that SHOULD work with DecodingPress:**
+    
+    1. **ScorerPress with simple scorers**: Basic scoring functions like:
+       - `expected_attention`: Uses hidden states only
+       - `random`: No dependencies on sequence structure
+    
+    2. **KnormPress**: Only uses key norms, no position dependencies
+    
+    3. **StreamingLLMPress**: Simple sink-based scoring
+    
+    **Key Issues:**
+    
+    - **q_len mismatch**: Many presses use `q_len = hidden_states.shape[1]` but during 
+      decoding, `hidden_states.shape[1] = 1` while the actual sequence length is 
+      `keys.shape[2]`. This causes incorrect compression ratios and indexing.
+    
+    - **Position embeddings**: Presses requiring `kwargs["position_embeddings"]` may fail
+      during decoding as position embeddings might not be available or consistent.
+    
+    - **Attention masking**: Presses that set `module.masked_key_indices` for attention
+      masking are incompatible with the gather-based compression used in decoding.
+    
+    - **Sequence assumptions**: Presses that assume specific sequence structures or
+      windowing patterns may break when applied iteratively during decoding.
+    
     Parameters
     ----------
     scorer_press : ScorerPress
-        The scorer press used to compute importance scores for tokens
+        The scorer press used to compute importance scores for tokens. Should use a simple
+        scorer that doesn't depend on position embeddings or attention patterns.
     compression_steps : int, default=10
         Number of decoding steps between compression operations
     compression_ratio : float, default=0.5

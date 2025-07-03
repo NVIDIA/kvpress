@@ -5,6 +5,9 @@ Example demonstrating the new compression during decoding interface.
 This example shows how to use:
 1. DecodingPress - for compression only during decoding
 2. PrefillDecodingPress - for combining prefilling and decoding compression
+
+IMPORTANT: Only certain presses are compatible with DecodingPress.
+See DecodingPress docstring for detailed compatibility information.
 """
 
 import torch
@@ -13,8 +16,9 @@ from kvpress.presses import (
     DecodingPress, 
     PrefillDecodingPress,
     ScorerPress,
-    ExpectedAttentionPress,
-    SnapKVPress
+    KnormPress,
+    StreamingLLMPress,
+    RandomPress
 )
 from kvpress.pipeline import KVPressTextGenerationPipeline
 
@@ -37,12 +41,11 @@ def main():
         tokenizer=tokenizer
     )
     
-    # Example 1: DecodingPress only
-    print("\n=== Example 1: DecodingPress only ===")
+    # Example 1: DecodingPress with compatible scorer
+    print("\n=== Example 1: DecodingPress with KnormPress (compatible) ===")
     
-    # Create a scorer press for computing importance scores
-    scorer_press = ScorerPress(
-        scorer="expected_attention",
+    # Create a compatible scorer press (KnormPress only uses key norms)
+    scorer_press = KnormPress(
         compression_ratio=0.3,  # Remove 30% of tokens
     )
     
@@ -56,35 +59,58 @@ def main():
     context = "The weather today is sunny and warm. Many people are enjoying outdoor activities."
     question = "What is the weather like?"
     
-    result = pipeline(
-        context=context,
-        question=question,
-        press=decoding_press,
-        max_new_tokens=20
+    try:
+        result = pipeline(
+            context=context,
+            question=question,
+            press=decoding_press,
+            max_new_tokens=20
+        )
+        
+        print(f"Context: {context}")
+        print(f"Question: {question}")
+        print(f"Answer: {result['answers'][0]}")
+    except Exception as e:
+        print(f"Error with KnormPress: {e}")
+    
+    # Example 2: DecodingPress with RandomPress (always compatible)
+    print("\n=== Example 2: DecodingPress with RandomPress (always compatible) ===")
+    
+    random_scorer = RandomPress(compression_ratio=0.2)
+    
+    decoding_press_random = DecodingPress(
+        scorer_press=random_scorer,
+        compression_steps=3,
+        compression_ratio=0.2
     )
     
-    print(f"Context: {context}")
-    print(f"Question: {question}")
-    print(f"Answer: {result['answers'][0]}")
+    try:
+        result_random = pipeline(
+            context=context,
+            question="How is the weather?",
+            press=decoding_press_random,
+            max_new_tokens=15
+        )
+        
+        print(f"Question: How is the weather?")
+        print(f"Answer: {result_random['answers'][0]}")
+    except Exception as e:
+        print(f"Error with RandomPress: {e}")
     
-    # Example 2: PrefillDecodingPress combining both phases
-    print("\n=== Example 2: PrefillDecodingPress (combined) ===")
+    # Example 3: PrefillDecodingPress combining compatible presses
+    print("\n=== Example 3: PrefillDecodingPress (prefill + decoding) ===")
     
-    # Create a prefilling press (e.g., SnapKV for prefilling)
-    prefilling_press = SnapKVPress(
+    # Use StreamingLLMPress for prefilling (compatible)
+    prefilling_press = StreamingLLMPress(
         compression_ratio=0.4,  # Remove 40% during prefilling
-        window_size=32
+        n_sink=4  # Keep 4 sink tokens
     )
     
-    # Create a different decoding press
-    decoding_scorer = ScorerPress(
-        scorer="expected_attention",
-        compression_ratio=0.2,  # Remove 20% during decoding
-    )
-    
+    # Use KnormPress for decoding
+    decoding_scorer = KnormPress(compression_ratio=0.2)
     decoding_press_2 = DecodingPress(
         scorer_press=decoding_scorer,
-        compression_steps=3,  # Compress every 3 steps
+        compression_steps=3,
         compression_ratio=0.2
     )
     
@@ -103,36 +129,30 @@ def main():
     patterns from large amounts of data.
     """
     
-    question_long = "What has AI achieved recently?"
+    try:
+        result_combined = pipeline(
+            context=context_long.strip(),
+            question="What has AI achieved recently?",
+            press=combined_press,
+            max_new_tokens=30
+        )
+        
+        print(f"Context: {context_long.strip()}")
+        print(f"Question: What has AI achieved recently?")
+        print(f"Answer: {result_combined['answers'][0]}")
+    except Exception as e:
+        print(f"Error with combined press: {e}")
     
-    result_combined = pipeline(
-        context=context_long.strip(),
-        question=question_long,
-        press=combined_press,
-        max_new_tokens=30
-    )
-    
-    print(f"Context: {context_long.strip()}")
-    print(f"Question: {question_long}")
-    print(f"Answer: {result_combined['answers'][0]}")
-    
-    # Example 3: DecodingPress only (no prefilling compression)
-    print("\n=== Example 3: DecodingPress only (no prefilling) ===")
-    
-    decoding_only_press = PrefillDecodingPress(
-        prefilling_press=None,  # No prefilling compression
-        decoding_press=decoding_press
-    )
-    
-    result_decoding_only = pipeline(
-        context=context_long.strip(),
-        question="How has deep learning helped?",
-        press=decoding_only_press,
-        max_new_tokens=25
-    )
-    
-    print(f"Question: How has deep learning helped?")
-    print(f"Answer: {result_decoding_only['answers'][0]}")
+    # Example 4: Demonstrate incompatible press (will show warning)
+    print("\n=== Example 4: Warning about incompatible presses ===")
+    print("WARNING: The following presses are NOT compatible with DecodingPress:")
+    print("- AdaKVPress, CriticalAdaKVPress (attention masking conflicts)")
+    print("- KeyRerotationPress, FinchPress (position embedding dependencies)")
+    print("- SnapKVPress, TOVAPress, ThinKPress (window attention dependencies)")
+    print("- DuoAttentionPress (streaming pattern conflicts)")
+    print("- SimLayerKVPress (lazy evaluation conflicts)")
+    print("\nUse only simple scorers like KnormPress, RandomPress, or StreamingLLMPress")
+    print("with DecodingPress for reliable results.")
 
 
 if __name__ == "__main__":
