@@ -96,11 +96,6 @@ def patch_attention_functions():
     after this function is called. It's automatically called when importing
     kvpress to ensure compatibility with head-wise compression methods.
 
-    Effects:
-    - Enables head-wise compression methods to mask specific tokens per head
-    - Allows compressed models to generate text correctly during decoding
-    - Maintains compatibility with existing transformer attention implementations
-
     Notes
     -----
     This function modifies the global attention functions in the transformers
