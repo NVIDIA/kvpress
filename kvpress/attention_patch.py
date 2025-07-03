@@ -7,15 +7,9 @@ from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 def search_hyperplane(X, max_iter: int = 1000):
     """
-    Search for a hyperplane that makes attention weights zero for masked tokens.
-
-    Given a tensor X representing query vectors, this function finds a hyperplane Y
-    such that the dot product of any query with Y is non-positive. This is used to
-    create "fake" keys that will result in zero attention weights when computed with
-    any query vector.
-
-    The algorithm iteratively refines the hyperplane by incorporating queries that
-    violate the non-positive constraint until all queries satisfy it.
+    Given a tensor X of shape (bsz, seq_len, head_dim), search for an hyperplane Y (bsz, head_dim)
+    such that for every i, <X[:, i], Y> <= 0. Returns - 1e5 * Y / ||Y|| ** 2 to ensure exp(<X, Y>) = 0
+    Raises a ValueError if no such hyperplane is found
 
     Parameters
     ----------
@@ -36,11 +30,6 @@ def search_hyperplane(X, max_iter: int = 1000):
     ------
     ValueError
         If no valid hyperplane is found within max_iter iterations.
-
-    Notes
-    -----
-    The returned hyperplane is scaled to ensure that attention weights computed
-    as exp(<query, hyperplane>) are effectively zero, enabling head-wise masking.
     """
     Y = X.mean(1)  # this initialization is enough for most cases
     for _ in range(max_iter):
