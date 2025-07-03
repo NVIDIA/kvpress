@@ -24,28 +24,32 @@ class FinchPress(BasePress):
     Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
     
     Use `update_model_and_tokenizer` method to set delimiter token before use.
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    chunk_length : int, optional
+        Length of chunks for optional chunked compression. None processes entire context at once.
+    normalize_scores : bool, default=True
+        Whether to normalize attention scores by number of non-zero weights.
+    rerotate_keys : bool, default=True
+        Whether to rerotate keys after compression using RoPE for proper positional encoding.
+    delimiter_token : str
+        Delimiter token string separating context from query (set automatically).
+    delimiter_token_id : int
+        Token ID for delimiter token (set automatically).
+    window_size : int
+        Dynamically determined window size based on delimiter position (set automatically).
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-    
     chunk_length: int = None
-    """Length of chunks for optional chunked compression. None processes entire context at once."""
-    
     normalize_scores: bool = True
-    """Whether to normalize attention scores by number of non-zero weights."""
-    
     rerotate_keys: bool = True
-    """Whether to rerotate keys after compression using RoPE for proper positional encoding."""
-    
     delimiter_token: str = field(default=None, init=False)
-    """Delimiter token string separating context from query (set automatically)."""
-    
     delimiter_token_id: int = field(default=None, init=False)
-    """Token ID for delimiter token (set automatically)."""
-    
     window_size: int = field(default=None, init=False)
-    """Dynamically determined window size based on delimiter position (set automatically)."""
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         """

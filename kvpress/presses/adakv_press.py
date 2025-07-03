@@ -18,19 +18,20 @@ class AdaKVPress(BasePress):
     Performs head-specific compression by selecting top-k tokens across all heads
     based on importance scores. Applies safeguards to ensure each head retains
     a minimum fraction of tokens. Based on AdaKV (https://arxiv.org/abs/2407.11550).
+    
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method used to evaluate token importance.
+    alpha_safeguard : float, default=0.20
+        Minimum fraction of KV pairs that each head must retain.
+        Ensures no attention head is compressed too aggressively. Even if tokens
+        receive low global importance scores, each head retains at least this
+        fraction of its original tokens.
     """
 
     press: ScorerPress
-    """The underlying scoring method used to evaluate token importance."""
-    
     alpha_safeguard: float = 0.20
-    """
-    Minimum fraction of KV pairs that each head must retain.
-    
-    Ensures no attention head is compressed too aggressively. Even if tokens
-    receive low global importance scores, each head retains at least this
-    fraction of its original tokens.
-    """
 
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "AdaKVPress requires a ScorerPress as input"

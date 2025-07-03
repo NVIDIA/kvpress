@@ -19,29 +19,27 @@ class LagKVPress(ScorerPress):
     partitions. Divides sequence into partitions and uses subsequent partitions
     as references for scoring tokens in prior partitions.
     Based on LagKV (https://arxiv.org/abs/2504.04704).
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    n_sink : int, default=4
+        Number of initial tokens to preserve as attention sinks.
+    lag_size : int, default=128
+        Size of each partition for lag-relative scoring.
+        Sequence is divided into partitions of this size, with each partition
+        serving as reference for scoring tokens in the previous partition.
+    cross_scoring : bool, default=False
+        Whether to enable cross-partition scoring (experimental).
+        When True, scoring considers cross-partition dependencies rather than
+        limiting to within-partition relationships. Useful with AdaKVPress.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-    
     n_sink: int = 4
-    """Number of initial tokens to preserve as attention sinks."""
-    
     lag_size: int = 128
-    """
-    Size of each partition for lag-relative scoring.
-    
-    Sequence is divided into partitions of this size, with each partition
-    serving as reference for scoring tokens in the previous partition.
-    """
-    
     cross_scoring: bool = False
-    """
-    Whether to enable cross-partition scoring (experimental).
-    
-    When True, scoring considers cross-partition dependencies rather than
-    limiting to within-partition relationships. Useful with AdaKVPress.
-    """
 
     def score(
         self,

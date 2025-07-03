@@ -39,11 +39,9 @@ class BasePress:
     
     This class provides the foundation for implementing various key-value cache compression
     techniques. Subclasses must implement the `compress` method to define their specific
-    compression logic. The `forward_hook` method is automatically called after the forward
-    pass of an attention layer to apply compression during the pre-filling phase.
+    compression logic.
     
-    The compression is applied only during pre-filling (not during generation) and handles
-    both quantized and unquantized caches correctly.
+    The compression is applied only during pre-filling (not during generation).
     """
 
     def compress(
@@ -61,8 +59,7 @@ class BasePress:
         Parameters
         ----------
         module : nn.Module
-            The transformer attention layer where compression is applied. Contains layer-specific
-            information like layer index, head dimensions, and configuration.
+            The transformer attention layer where compression is applied.
         hidden_states : torch.Tensor
             Hidden states of the current layer with shape (batch_size, seq_len, hidden_dim).
             These represent the input embeddings to the attention layer.

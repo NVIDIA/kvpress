@@ -21,10 +21,14 @@ class TOVAPress(ScorerPress):
     importance of previous key-value pairs. The last token's attention pattern
     provides a good indicator of which historical tokens are important.
     Based on TOVA (https://arxiv.org/abs/2401.06104).
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
 
     def score(
         self,

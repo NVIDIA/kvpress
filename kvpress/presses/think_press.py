@@ -19,63 +19,20 @@ class ThinKPress(BasePress):
     """
     ThinK: Channel-wise key compression for transformer attention.
     
-    Based on ThinK (https://arxiv.org/pdf/2407.21018), this method compresses the dimensions
-    of the keys rather than the sequence length. Unlike other methods that remove entire
-    tokens, ThinK reduces the dimensionality of each key vector by zeroing out less
-    important channels.
+    Compresses key dimensions rather than sequence length by zeroing out
+    less important channels. Based on ThinK (https://arxiv.org/pdf/2407.21018).
+    Can be combined with sequence compression methods.
     
-    This approach is complementary to sequence-length compression methods and can be
-    combined with them for even greater compression. For example:
-    ```python
-    press = ComposedPress([SnapKVPress(0.5), ThinKPress(0.5)])
-    ```
-    
-    Key characteristics:
-    - Compresses key dimensions, not sequence length
-    - Can be combined with other compression methods
-    - Uses recent query patterns to identify important key channels
-    - Currently zeros out pruned dimensions (no memory savings in this implementation)
-    
-    Note: This implementation zeros out pruned dimensions rather than removing them,
-    so memory usage remains the same while computation may be reduced.
-    
-    This press has been reviewed by Yuhui Xu, first author of the ThinK paper.
+    Parameters
+    ----------
+    key_channel_compression_ratio : float, default=0.0
+        Fraction of key channels (dimensions) to remove during compression.
+    window_size : int, default=32
+        Number of recent tokens to use for computing key channel importance.
     """
 
     key_channel_compression_ratio: float = 0.0
-    """
-    Fraction of key channels (dimensions) to remove during compression.
-    
-    Must be between 0.0 and 1.0:
-    - 0.0: No compression (keep all key dimensions)
-    - 0.3: Remove 30% of key channels (keep 70%)
-    - 0.7: Remove 70% of key channels (keep 30%)
-    
-    Unlike sequence compression, this affects the dimensionality of each key vector
-    rather than the number of tokens. Higher values result in more aggressive
-    dimensional reduction but may impact attention quality.
-    """
-    
     window_size: int = 32
-    """
-    Number of recent tokens to use for computing key channel importance.
-    
-    This parameter determines how many of the most recent query tokens are used
-    to compute attention patterns with keys, which helps identify which key
-    channels are most important for recent attention computations.
-    
-    Larger window sizes:
-    - Provide more comprehensive patterns for channel importance
-    - May better capture which dimensions are consistently important
-    - Require more computation for the importance analysis
-    
-    Smaller window sizes:
-    - Are more computationally efficient
-    - Focus on very recent attention patterns
-    - May miss some important channel dependencies
-    
-    Default value of 32 provides a good balance between accuracy and efficiency.
-    """
 
     def compute_window_queries(self, module, hidden_states, position_embeddings):
         """

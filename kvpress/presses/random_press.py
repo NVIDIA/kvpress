@@ -19,13 +19,17 @@ class RandomPress(ScorerPress):
     Randomly selects which key-value pairs to prune, without considering
     importance or attention patterns. Useful for establishing baseline
     performance metrics and validating other compression methods.
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    seed : int, optional
+        Random seed for reproducible compression results.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-    
     seed: Optional[int] = None
-    """Random seed for reproducible compression results."""
     
     def score(
         self,

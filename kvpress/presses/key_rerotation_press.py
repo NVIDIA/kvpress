@@ -17,48 +17,21 @@ class KeyRerotationPress(BasePress):
     """
     Key Rerotation: RoPE-aware compression wrapper for maintaining positional encoding.
     
-    This wrapper enhances any ScorerPress by applying key rerotation after compression
-    to maintain proper RoPE (Rotary Position Embedding) representations. When tokens
-    are pruned from the sequence, the remaining tokens need their positional encodings
-    adjusted to reflect their new positions in the compressed sequence.
+    Enhances any ScorerPress by applying key rerotation after compression to maintain
+    proper RoPE (Rotary Position Embedding) representations. When tokens are pruned,
+    remaining tokens need positional encodings adjusted for their new positions.
     
-    The rerotation process works by:
-    1. Applying the underlying ScorerPress to identify tokens to keep
-    2. Inverse-rotating the selected keys to remove their original RoPE encoding
-    3. Re-applying RoPE with the new consecutive positions after compression
-    4. Ensuring proper positional relationships in the compressed sequence
+    Essential for compression methods that need accurate positional information.
+    Ensures attention computations remain accurate after compression.
     
-    This method is essential for compression techniques that need to maintain
-    accurate positional information, and is used in several key-value cache
-    compression methods including:
-    - SinkCache implementation in Hugging Face's transformers library
-    - FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
-    - StreamingLLM with proper positional encoding
-    
-    The rerotation ensures that attention computations remain accurate after
-    compression by preserving the relative positional relationships between
-    the remaining tokens.
-    
-    Key benefits:
-    - Maintains accurate positional encoding after token removal
-    - Preserves attention quality in compressed sequences
-    - Can be applied to any underlying ScorerPress method
-    - Essential for models that rely heavily on positional information
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method to enhance with key rerotation.
+        Rerotation is applied after the press determines which tokens to keep.
     """
 
     press: ScorerPress
-    """
-    The underlying scoring method to enhance with key rerotation.
-    
-    This should be any ScorerPress subclass that identifies which tokens to
-    keep during compression. The KeyRerotationPress wrapper will apply the
-    scoring method and then rerotate the keys of the selected tokens to
-    maintain proper RoPE positional encoding.
-    
-    The rerotation is applied after the underlying press determines which
-    tokens to keep, ensuring that the compressed sequence maintains accurate
-    positional relationships for attention computation.
-    """
 
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress)

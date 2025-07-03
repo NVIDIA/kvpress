@@ -20,19 +20,20 @@ class StreamingLLMPress(ScorerPress):
     (https://arxiv.org/abs/2309.17453).
     
     Note: For full StreamingLLM behavior, combine with KeyRerotationPress.
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    n_sink : int, default=4
+        Number of initial tokens to always preserve (sink tokens).
+        These tokens are never pruned and serve as "attention sinks" that help
+        maintain model stability. Language models often assign high attention
+        weights to early tokens regardless of semantic content.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-    
     n_sink: int = 4
-    """
-    Number of initial tokens to always preserve (sink tokens).
-    
-    These tokens are never pruned and serve as "attention sinks" that help
-    maintain model stability. Language models often assign high attention
-    weights to early tokens regardless of semantic content.
-    """
 
     def score(
         self,

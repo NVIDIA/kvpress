@@ -34,96 +34,38 @@ class DuoAttentionPress(BasePress):
     """
     DuoAttention: Hybrid attention with retrieval and streaming heads.
     
-    Based on DuoAttention (https://arxiv.org/abs/2410.10819), this method splits
-    attention heads into two complementary types to optimize both memory usage
-    and attention quality:
+    Splits attention heads into two types: retrieval heads (use full KV cache) and
+    streaming heads (use only sink + recent tokens). Different heads have different
+    attention patterns - some benefit from full context while others work well with
+    limited context. Based on DuoAttention (https://arxiv.org/abs/2410.10819).
     
-    - **Retrieval heads**: Use the full KV cache for comprehensive attention
-    - **Streaming heads**: Use only sink tokens + recent tokens (like StreamingLLM)
+    Uses pre-computed attention patterns for supported models, falls back to
+    on-the-fly computation for unsupported models.
     
-    This hybrid approach leverages the observation that different attention heads
-    have different attention patterns and memory requirements. Some heads benefit
-    from full context (retrieval), while others work well with limited context (streaming).
-    
-    The method works by:
-    1. Loading pre-computed attention patterns for the specific model
-    2. Classifying heads as retrieval or streaming based on these patterns
-    3. Applying different compression strategies per head type
-    4. Using head_compression_ratio to control the retrieval/streaming split
-    
-    Key advantages:
-    - Maintains high attention quality for heads that need full context
-    - Reduces memory usage for heads that work well with limited context
-    - Model-specific optimization based on learned attention patterns
-    - Balances performance and efficiency automatically
-    
-    The attention patterns are pre-computed and cached for supported models.
-    If patterns are not available for a model, the method falls back to
-    on-the-fly computation using random samples.
+    Parameters
+    ----------
+    head_compression_ratio : float, default=0.0
+        Fraction of attention heads to convert to streaming heads.
+        Controls balance between retrieval (full cache) and streaming (limited cache) heads.
+    on_the_fly_scoring : bool, default=False
+        Whether to compute attention patterns on-the-fly using random samples.
+        If True, computes patterns instead of loading pre-computed ones.
+    compression_ratio_ : float
+        Actual compression ratio achieved (computed during forward pass).
+    recent_size : int
+        Size of recent token window for streaming heads (determined automatically).
+    sink_size : int
+        Number of initial tokens preserved for streaming heads (determined automatically).
+    streaming_mask : torch.Tensor
+        Binary mask indicating which heads are streaming heads.
     """
 
     head_compression_ratio: float = 0.0
-    """
-    Fraction of attention heads to convert to streaming heads.
-    
-    This parameter controls the balance between retrieval and streaming heads:
-    - 0.0: All heads are retrieval heads (full KV cache, no compression)
-    - 0.5: 50% streaming heads, 50% retrieval heads (balanced approach)
-    - 0.8: 80% streaming heads, 20% retrieval heads (aggressive compression)
-    - 1.0: All heads are streaming heads (maximum compression)
-    
-    Higher values result in more memory savings but may reduce attention quality
-    for tasks requiring long-range dependencies. The optimal value depends on
-    the specific model and use case.
-    
-    The heads are selected for streaming based on pre-computed attention patterns
-    that identify which heads work well with limited context.
-    """
-    
     on_the_fly_scoring: bool = False
-    """
-    Whether to compute attention patterns on the fly using random samples.
-    
-    If True, the method will compute attention patterns using random samples
-    instead of loading pre-computed patterns. This can be useful for models
-    that are not supported by the pre-computed patterns.
-    
-    Note that on-the-fly computation can be slower and may not provide the same
-    level of optimization as pre-computed patterns.
-    """
-    
     compression_ratio_: float = field(init=False, default=None)
-    """
-    The actual compression ratio achieved by the DuoAttentionPress.
-    
-    This value is computed during the forward pass and represents the fraction
-    of attention heads that are converted to streaming heads.
-    """
-    
     recent_size: int = field(init=False, default=None)
-    """
-    The size of the recent token window for streaming heads.
-    
-    Streaming heads use only sink tokens (first few tokens) plus the most recent
-    `recent_size` tokens. This value is determined based on the pre-computed
-    attention patterns or on-the-fly computation.
-    """
-    
     sink_size: int = field(init=False, default=None)
-    """
-    The number of initial tokens to preserve for streaming heads (sink tokens).
-    
-    Similar to StreamingLLM, streaming heads always preserve the first `sink_size`
-    tokens regardless of the window size. These act as "attention sinks" that
-    help maintain model stability.
-    """
-    
     streaming_mask: torch.Tensor = field(init=False, default=None)
-    """
-    A binary mask indicating which attention heads are streaming heads.
-    
-    This mask is used to apply different compression strategies per head type.
-    """
 
     def __post_init_from_model__(self, model):
         """

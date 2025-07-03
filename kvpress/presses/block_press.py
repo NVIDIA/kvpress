@@ -19,18 +19,19 @@ class BlockPress(BasePress):
     processing. Iteratively scores and prunes tokens block by block, maintaining
     a buffer of previously kept tokens for context. Mathematically equivalent
     to global compression when scoring uses only local information.
+    
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method used to evaluate token importance within each block.
+    block_size : int, default=256
+        Size of each block for iterative compression.
+        Larger blocks provide more context for scoring but use more memory.
+        Smaller blocks are more memory-efficient but may miss longer-range dependencies.
     """
 
     press: ScorerPress
-    """The underlying scoring method used to evaluate token importance within each block."""
-    
     block_size: int = 256
-    """
-    Size of each block for iterative compression.
-    
-    Larger blocks provide more context for scoring but use more memory.
-    Smaller blocks are more memory-efficient but may miss longer-range dependencies.
-    """
 
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "BlockPress requires a ScorerPress"

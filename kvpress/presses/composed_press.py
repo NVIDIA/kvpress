@@ -26,15 +26,16 @@ class ComposedPress(BasePress):
     ```
     
     Cannot include ObservedAttentionPress or AdaKVPress due to implementation constraints.
+    
+    Parameters
+    ----------
+    presses : list[BasePress]
+        List of compression methods to apply sequentially.
+        Methods are applied in order, with each operating on the compressed output
+        of the previous method. Final compression ratio is the product of all ratios.
     """
 
     presses: list[BasePress]
-    """
-    List of compression methods to apply sequentially.
-    
-    Methods are applied in order, with each operating on the compressed output
-    of the previous method. Final compression ratio is the product of all ratios.
-    """
 
     def __post_init__(self):
         self.compression_ratio = None

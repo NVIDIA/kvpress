@@ -23,16 +23,20 @@ class SnapKVPress(ScorerPress):
     
     Uses attention patterns of the most recent tokens to estimate importance
     of previous key-value pairs. Based on SnapKV (https://arxiv.org/abs/2404.14469).
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    window_size : int, default=64
+        Number of recent tokens to use for computing attention-based importance scores.
+    kernel_size : int, default=5
+        Size of the pooling kernel applied to attention weights for smoothing.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-    
     window_size: int = 64
-    """Number of recent tokens to use for computing attention-based importance scores."""
-    
     kernel_size: int = 5
-    """Size of the pooling kernel applied to attention weights for smoothing."""
 
     @staticmethod
     def compute_window_attention(module, hidden_states, keys, window_size, position_embeddings):

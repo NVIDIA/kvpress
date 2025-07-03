@@ -24,40 +24,35 @@ class ExpectedAttentionPress(ScorerPress):
     Computes importance scores based on expected attention that future queries
     will pay to current key-value pairs. Uses statistical modeling of query
     patterns and RoPE rotation matrices to predict future attention.
+    
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    n_future_positions : int, default=512
+        Number of future positions to consider when computing expected attention.
+    n_sink : int, default=4
+        Number of initial tokens to exclude from compression (sink tokens).
+        Preserves first few tokens due to "sink attention" phenomenon where models
+        assign high attention to early tokens regardless of semantic importance.
+    use_covariance : bool, default=True
+        Whether to include covariance information in expected attention computation.
+        When True, uses both mean and covariance of query distributions for more
+        accurate but computationally expensive scoring. When False, uses only mean.
+    use_vnorm : bool, default=True
+        Whether to rescale scores using value vector norms.
+        Rescales expected attention scores by L2 norm of corresponding value vectors:
+        (scores + epsilon) * ||V||₂. Accounts for magnitude of attended information.
+    epsilon : float, default=0.0
+        Small constant added to scores before value norm rescaling for numerical stability.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-    
     n_future_positions: int = 512
-    """Number of future positions to consider when computing expected attention."""
-    
     n_sink: int = 4
-    """
-    Number of initial tokens to exclude from compression (sink tokens).
-    
-    Preserves first few tokens due to "sink attention" phenomenon where models
-    assign high attention to early tokens regardless of semantic importance.
-    """
-    
     use_covariance: bool = True
-    """
-    Whether to include covariance information in expected attention computation.
-    
-    When True, uses both mean and covariance of query distributions for more
-    accurate but computationally expensive scoring. When False, uses only mean.
-    """
-    
     use_vnorm: bool = True
-    """
-    Whether to rescale scores using value vector norms.
-    
-    Rescales expected attention scores by L2 norm of corresponding value vectors:
-    (scores + epsilon) * ||V||₂. Accounts for magnitude of attended information.
-    """
-    
     epsilon: float = 0.0
-    """Small constant added to scores before value norm rescaling for numerical stability."""
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
