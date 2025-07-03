@@ -3,6 +3,7 @@
 
 import logging
 from typing import Optional
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -14,6 +15,7 @@ from .decoding_press import DecodingPress
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class PrefillDecodingPress(BasePress):
     """
     A wrapper press that combines separate prefilling and decoding compression strategies.
@@ -30,15 +32,9 @@ class PrefillDecodingPress(BasePress):
         Press to use during the decoding phase. If None, no compression is applied during decoding.
     """
     
-    def __init__(
-        self,
-        prefilling_press: Optional[BasePress] = None,
-        decoding_press: Optional[DecodingPress] = None,
-    ):
-        super().__init__()
-        self.prefilling_press = prefilling_press
-        self.decoding_press = decoding_press
-        
+    prefilling_press: Optional[BasePress] = None
+    decoding_press: Optional[DecodingPress] = None
+    
     def compress(
         self,
         module: nn.Module,
@@ -114,39 +110,17 @@ class PrefillDecodingPress(BasePress):
         """
         Context manager to apply the combined press to a model.
         
-        This registers hooks for both prefilling and decoding phases.
+        This uses the base press logic and adds decoding press reset at the end.
         """
-        # Register hooks from both presses if they exist
-        hooks = []
-        
-        # Get all attention modules
-        attention_modules = []
-        for name, module in model.named_modules():
-            if hasattr(module, "self_attn") or "attn" in name.lower():
-                if hasattr(module, "forward"):
-                    attention_modules.append(module)
-                    
-        # Register our combined hook on all attention modules
-        for module in attention_modules:
-            hook = module.register_forward_hook(
-                self.forward_hook, with_kwargs=True
-            )
-            hooks.append(hook)
-            
         try:
-            yield
+            with super().__call__(model):
+                yield
         finally:
-            # Clean up hooks
-            for hook in hooks:
-                hook.remove()
-                
             # Reset decoding press if it exists
             if self.decoding_press is not None:
                 self.decoding_press.reset()
                 
     def reset(self):
         """Reset both presses."""
-        if self.prefilling_press is not None and hasattr(self.prefilling_press, 'reset'):
-            self.prefilling_press.reset()
         if self.decoding_press is not None:
             self.decoding_press.reset()

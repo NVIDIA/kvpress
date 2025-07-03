@@ -3,6 +3,7 @@
 
 import logging
 from typing import Optional
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -14,6 +15,7 @@ from .scorer_press import ScorerPress
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class DecodingPress(BasePress):
     """
     A press that only operates during decoding phase and maintains a running buffer of hidden states.
@@ -28,7 +30,7 @@ class DecodingPress(BasePress):
     1. **AdaKVPress and CriticalAdaKVPress**: These presses use attention masking via 
        `module.masked_key_indices` which requires eager attention mode and conflicts with 
        the decoding compression approach. They also assume `q_len = hidden_states.shape[1]` 
-       which is incorrect during decoding (should be `keys.shape[2]`).
+       which is incorrect during decoding (should be `q_len = keys.shape[2]`).
     
     2. **DuoAttentionPress**: Uses attention masking and streaming patterns that are 
        incompatible with iterative decoding compression.
@@ -58,7 +60,7 @@ class DecodingPress(BasePress):
     
     - **q_len mismatch**: Many presses use `q_len = hidden_states.shape[1]` but during 
       decoding, `hidden_states.shape[1] = 1` while the actual sequence length is 
-      `keys.shape[2]`. This causes incorrect compression ratios and indexing.
+      `keys.shape[2]`. To handle this, use `q_len = keys.shape[2]` during decoding.
     
     - **Position embeddings**: Presses requiring `kwargs["position_embeddings"]` may fail
       during decoding as position embeddings might not be available or consistent.
@@ -80,21 +82,14 @@ class DecodingPress(BasePress):
         Fraction of tokens to remove during compression (0.0-1.0)
     """
     
-    def __init__(
-        self,
-        scorer_press: ScorerPress,
-        compression_steps: int = 10,
-        compression_ratio: float = 0.5,
-    ):
-        super().__init__()
-        self.scorer_press = scorer_press
-        self.compression_steps = compression_steps
-        self.compression_ratio = compression_ratio
-        
+    scorer_press: ScorerPress
+    compression_steps: int = 10
+    compression_ratio: float = 0.5
+    
+    def __post_init__(self):
         # Buffer to store hidden states during decoding
         self.hidden_states_buffer = []
         self.step_count = 0
-        self.is_decoding = False
         
     def compress(
         self,
@@ -154,7 +149,6 @@ class DecodingPress(BasePress):
             return output
             
         # We're in decoding phase
-        self.is_decoding = True
         
         # Add current hidden states to buffer
         self.hidden_states_buffer.append(hidden_states.detach().clone())
@@ -198,4 +192,3 @@ class DecodingPress(BasePress):
         """Reset the decoding press state."""
         self.hidden_states_buffer.clear()
         self.step_count = 0
-        self.is_decoding = False
