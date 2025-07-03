@@ -40,7 +40,7 @@ class SimLayerKVPress(BasePress):
     """
 
     lazy_threshold: float = 1.0
-    n_last: int = 1
+    n_last: int = 1  # n_last=1 to match SKLV-decode
     n_recent: int = 1024
     n_initial: int = 4
 

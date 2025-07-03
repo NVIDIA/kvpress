@@ -34,10 +34,12 @@ class DuoAttentionPress(BasePress):
     """
     DuoAttention: Hybrid attention with retrieval and streaming heads.
 
-    Splits attention heads into two types: retrieval heads (use full KV cache) and
-    streaming heads (use only sink + recent tokens). Different heads have different
-    attention patterns - some benefit from full context while others work well with
-    limited context. Based on DuoAttention (https://arxiv.org/abs/2410.10819).
+    Splits attention heads into two types:
+        - retrieval heads (use full KV cache) and
+        - streaming heads (use only sink + recent tokens).
+    Different heads have different attention patterns - some benefit from full context while others work well with
+    limited context.
+    Based on DuoAttention (https://arxiv.org/abs/2410.10819).
 
     Uses pre-computed attention patterns for supported models, falls back to
     on-the-fly computation for unsupported models.

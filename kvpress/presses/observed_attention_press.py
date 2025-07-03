@@ -23,19 +23,20 @@ class ObservedAttentionPress(ScorerPress):
     it receives from all query tokens. Related to H2O (https://arxiv.org/abs/2306.14048).
 
     Requires: output_attentions=True and attn_implementation="eager".
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    output_attentions : bool, default=False
+        Whether to return attention weights in model output.
+        Controls whether attention weights are included in output after compression.
+        Attention weights are always needed internally for scoring but can be removed
+        from output to save memory.
     """
 
     compression_ratio: float = 0.0
-    """Fraction of key-value pairs to remove during compression."""
-
     output_attentions: bool = False
-    """
-    Whether to return attention weights in model output.
-    
-    Controls whether attention weights are included in output after compression.
-    Attention weights are always needed internally for scoring but can be removed
-    from output to save memory.
-    """
 
     def __post_init__(self):
         if not self.output_attentions:

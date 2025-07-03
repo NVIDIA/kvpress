@@ -15,8 +15,7 @@ class BlockPress(BasePress):
     """
     BlockPress: Block-wise iterative KV cache compression.
 
-    Applies compression in fixed-size blocks to manage memory usage during
-    processing. Iteratively scores and prunes tokens block by block, maintaining
+    Applies compression in fixed-size blocks. Iteratively scores and prunes tokens block by block, maintaining
     a buffer of previously kept tokens for context. Mathematically equivalent
     to global compression when scoring uses only local information.
 
@@ -24,14 +23,12 @@ class BlockPress(BasePress):
     ----------
     press : ScorerPress
         The underlying scoring method used to evaluate token importance within each block.
-    block_size : int, default=256
+    block_size : int, default=128
         Size of each block for iterative compression.
-        Larger blocks provide more context for scoring but use more memory.
-        Smaller blocks are more memory-efficient but may miss longer-range dependencies.
     """
 
     press: ScorerPress
-    block_size: int = 256
+    block_size: int = 128
 
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "BlockPress requires a ScorerPress"

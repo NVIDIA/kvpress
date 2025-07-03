@@ -21,21 +21,13 @@ class ChunkPress(BasePress):
     uniform compression across the entire context by processing each chunk separately.
 
     This approach was proposed in FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)
-    and offers several advantages:
-    - Ensures uniform compression across the entire sequence
-    - Prevents over-concentration of selected tokens in specific regions
-    - Maintains balanced representation throughout the context
-    - Can improve performance for tasks requiring distributed information
 
     Parameters
     ----------
     press : ScorerPress
         The underlying scoring method to apply to each chunk independently.
-        This can be any ScorerPress subclass (e.g., SnapKVPress, KnormPress, etc.).
     chunk_length : int, default=1024
         Length of each chunk for independent compression.
-        Larger chunks allow more context but use more memory. Smaller chunks
-        provide more uniform compression but may fragment semantic units.
     """
 
     press: ScorerPress

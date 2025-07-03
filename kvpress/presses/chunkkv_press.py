@@ -20,14 +20,10 @@ class ChunkKVPress(BasePress):
     chunk by chunk to preserve semantic coherence within local contexts.
     Based on ChunkKV (https://arxiv.org/abs/2502.00299).
 
-    Prevents over-concentration of selected tokens in specific regions and
-    maintains balanced representation across the entire sequence.
-
     Parameters
     ----------
     press : ScorerPress
         The underlying scoring method used to compute global importance scores.
-        Can be any ScorerPress subclass (e.g., SnapKVPress, KnormPress, etc.).
     chunk_length : int, default=20
         Length of each chunk for token selection.
         Sequence is divided into chunks of this size, with tokens selected

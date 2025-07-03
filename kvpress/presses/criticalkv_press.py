@@ -14,34 +14,31 @@ from kvpress.presses.scorer_press import ScorerPress
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class CriticalKVPress(ScorerPress):
     """
     CriticalKV: Two-stage compression with output projection weighting.
 
     Enhances existing scoring methods by rescaling scores using the L1 norm
-    of output projection applied to values (Wo @ values). Provides more accurate
-    importance estimation by considering actual output contributions.
+    of output projection applied to values (Wo @ values).
     Based on CriticalKV (https://arxiv.org/abs/2502.03805).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        Base scoring method to enhance with output projection weighting.
+    epsilon : float, default=1e-4
+        Small value for numerical stability in score rescaling.
+    first_stage_ratio : float, default=0.5
+        Fraction of compression budget allocated to first stage selection.
+        Remaining budget used in second stage with output projection weighting.
     """
 
-    def __init__(self, press: ScorerPress, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
-        """
-        Initialize CriticalKV compression method.
+    press: ScorerPress = None
+    epsilon: float = 1e-4
+    first_stage_ratio: float = 0.5
 
-        Parameters
-        ----------
-        press : ScorerPress
-            Base scoring method to enhance with output projection weighting.
-        epsilon : float, default=1e-4
-            Small value for numerical stability in score rescaling.
-        first_stage_ratio : float, default=0.5
-            Fraction of compression budget allocated to first stage selection.
-            Remaining budget used in second stage with output projection weighting.
-        """
-        self.press = press
-        self.epsilon = epsilon
-        self.first_stage_ratio = first_stage_ratio
-
+    def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "CriticalKVPress requires a ScorerPress as input"
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
             logger.warning("use_vnorm should be disabled for CriticalKVPress")
@@ -114,7 +111,7 @@ class CriticalAdaKVPress(BasePress):
         Fraction of compression budget allocated to first stage selection.
     """
 
-    press: ScorerPress
+    press: ScorerPress = None
     alpha_safeguard: float = 0.20
     epsilon: float = 1e-4
     first_stage_ratio: float = 0.5

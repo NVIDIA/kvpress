@@ -15,9 +15,8 @@ class KnormPress(ScorerPress):
     """
     Key norm-based KV cache compression.
 
-    Prunes key-value pairs based on L2 norm of key vectors. Keys with higher
-    norms tend to have larger magnitudes in attention computation and may be
-    more important. Simple, efficient method requiring only norm calculation.
+    Prunes key-value pairs based on L2 norm of key vectors.
+    Simple, efficient method requiring only norm calculation.
     Based on https://arxiv.org/pdf/2406.11430.
     """
 

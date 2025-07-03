@@ -29,13 +29,10 @@ class ScorerPress(BasePress):
     compression_ratio: float = 0.0
     """
     Fraction of key-value pairs to remove during compression.
-    
-    Must be between 0.0 and 1.0:
+    Must be between 0.0 and 1.0, e.g.
     - 0.0: No compression (keep all tokens)
-    - 0.5: Remove 50% of tokens (keep 50%)
     - 0.8: Remove 80% of tokens (keep 20%)
     - 1.0: Remove all tokens (not practical)
-    
     Higher values result in more aggressive compression but may degrade model performance.
     """
 

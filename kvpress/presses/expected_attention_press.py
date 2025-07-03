@@ -24,6 +24,13 @@ class ExpectedAttentionPress(ScorerPress):
     Computes importance scores based on expected attention that future queries
     will pay to current key-value pairs. Uses statistical modeling of query
     patterns and RoPE rotation matrices to predict future attention.
+    In particular:
+        1. Compute the mean and covariance matrix of the queries before RoPE.
+        2. Compute the RoPE rotation matrix R on next n_future_positions and average it
+        3. Apply R to the mean and covariance matrice of the queries.
+        4. As attention A = exp(Q @ K / sqrt(d)), we compute the expected attention
+        E(A) = exp(K @ mean.T / sqrt(d) + 1/2 K @ cov @ K.T / d)
+        5. Rescale the scores using (scores + epsilon) * ||V||_2
 
     Parameters
     ----------

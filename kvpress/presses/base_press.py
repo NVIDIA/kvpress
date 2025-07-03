@@ -62,21 +62,18 @@ class BasePress:
             The transformer attention layer where compression is applied.
         hidden_states : torch.Tensor
             Hidden states of the current layer with shape (batch_size, seq_len, hidden_dim).
-            These represent the input embeddings to the attention layer.
+            These represent the input to the attention layer.
         keys : torch.Tensor
             Key tensors from the KV cache with shape (batch_size, num_kv_heads, seq_len, head_dim).
-            These are unquantized keys ready for compression.
+            These are keys ready for compression.
         values : torch.Tensor
             Value tensors from the KV cache with shape (batch_size, num_kv_heads, seq_len, head_dim).
-            These are unquantized values ready for compression.
+            These are values ready for compression.
         attentions : torch.Tensor
             Attention weights from the layer with shape (batch_size, num_heads, seq_len, seq_len).
             May be None if attention weights are not computed or needed.
         kwargs : dict
-            Additional keyword arguments from the forward pass, including:
-            - cache_position: Position indices in the cache
-            - position_embeddings: RoPE embeddings if applicable
-            - past_key_value: The cache object being modified
+            Additional keyword arguments from the forward pass.
 
         Returns
         -------
@@ -103,8 +100,7 @@ class BasePress:
         Parameters
         ----------
         module : nn.Module
-            The transformer attention layer. Must have a layer_idx attribute to identify
-            which layer in the model this hook is attached to.
+            The transformer attention layer.
         input : list[torch.Tensor]
             Input tensors to the forward pass of the attention layer. This parameter
             is provided by PyTorch's hook mechanism but not used in the default implementation.
@@ -122,8 +118,8 @@ class BasePress:
         Returns
         -------
         list
-            The potentially modified output from the forward pass. In most cases, this
-            is the same as the input output, but the underlying cache has been compressed.
+            The potentially modified output from the forward pass. This
+            is the same as the input output, but the underlying cache has been compressed in-place.
         """
 
         hidden_states = kwargs["hidden_states"]
@@ -165,19 +161,11 @@ class BasePress:
         removed when exiting the context manager.
 
         Apply this context manager during the pre-filling phase to compress the context.
-        Do not use during generation as compression is only beneficial during pre-filling.
 
         Parameters
         ----------
         model : PreTrainedModel
-            The transformer model to apply compression to. Must be one of the supported
-            model types (Llama, Mistral, Phi3, Qwen2, Qwen3, Gemma3). The model should
-            be loaded and ready for inference.
-
-        Yields
-        ------
-        None
-            The context manager yields control back to the caller while the hooks are active.
+            The transformer model to apply compression to.
 
         Examples
         --------
@@ -186,11 +174,6 @@ class BasePress:
         >>> with press(model):
         ...     # Forward pass with compression applied
         ...     outputs = model(input_ids, past_key_values=cache)
-
-        Warnings
-        --------
-        - Unsupported model types will generate a warning but compression will still be attempted
-        - For Gemma3 models, compression is only applied to layers without sliding window attention
         """
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")

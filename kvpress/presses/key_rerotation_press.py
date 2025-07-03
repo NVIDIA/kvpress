@@ -20,9 +20,9 @@ class KeyRerotationPress(BasePress):
     Enhances any ScorerPress by applying key rerotation after compression to maintain
     proper RoPE (Rotary Position Embedding) representations. When tokens are pruned,
     remaining tokens need positional encodings adjusted for their new positions.
-
-    Essential for compression methods that need accurate positional information.
-    Ensures attention computations remain accurate after compression.
+    This method is used in several key-value cache compression methods, such as
+    - SinkCache implementation in Hugging Face's transformers library
+    - FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
 
     Parameters
     ----------
