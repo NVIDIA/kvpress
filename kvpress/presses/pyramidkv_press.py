@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class PyramidKVPress(SnapKVPress):
     """
     PyramidKV: Layer-wise adaptive KV cache allocation with pyramid structure.
-    
+
     Dynamically adjusts KV cache sizes across transformer layers, allocating
     more tokens to lower layers and fewer to higher layers. Based on the
     observation that lower layers need more context while higher layers
@@ -26,13 +26,13 @@ class PyramidKVPress(SnapKVPress):
 
     compression_ratio: float = 0.0
     """Fraction of key-value pairs to remove during compression."""
-    
+
     window_size: int = 64
     """Base window size for attention computation, used in pyramid budget calculation."""
-    
+
     kernel_size: int = 5
     """Size of the pooling kernel for attention smoothing (inherited from SnapKV)."""
-    
+
     beta: int = 20
     """
     Hyperparameter controlling the pyramid's shape and steepness.

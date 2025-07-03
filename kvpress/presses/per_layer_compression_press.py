@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 class PerLayerCompressionPress(BasePress):
     """
     Per-layer compression: Apply different compression ratios to different layers.
-    
+
     Wrapper that applies layer-specific compression ratios using any underlying
     ScorerPress method. Different layers may have different importance patterns,
     so layer-specific compression can improve quality-efficiency trade-offs.
-    
+
     **Important**: Experimental feature that only works with flash attention.
-    
+
     Parameters
     ----------
     press : ScorerPress

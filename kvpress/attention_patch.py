@@ -8,12 +8,12 @@ from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 def search_hyperplane(X, max_iter: int = 1000):
     """
     Search for a hyperplane that makes attention weights zero for masked tokens.
-    
+
     Given a tensor X representing query vectors, this function finds a hyperplane Y
     such that the dot product of any query with Y is non-positive. This is used to
     create "fake" keys that will result in zero attention weights when computed with
     any query vector.
-    
+
     The algorithm iteratively refines the hyperplane by incorporating queries that
     violate the non-positive constraint until all queries satisfy it.
 
@@ -36,7 +36,7 @@ def search_hyperplane(X, max_iter: int = 1000):
     ------
     ValueError
         If no valid hyperplane is found within max_iter iterations.
-        
+
     Notes
     -----
     The returned hyperplane is scaled to ensure that attention weights computed
@@ -54,15 +54,15 @@ def search_hyperplane(X, max_iter: int = 1000):
 def attention_patch(func):
     """
     Decorator to enable head-wise key masking in attention computation.
-    
+
     This decorator modifies attention functions to support head-wise compression
     by replacing masked keys with "fake" keys that produce zero attention weights.
     The masking is controlled by the `masked_key_indices` attribute on the module.
-    
+
     The patching works by:
     1. During pre-filling: No masking is applied (keys and queries have same length)
     2. During generation: Masked keys are replaced with fake keys that nullify attention
-    
+
     This approach enables head-wise compression methods like AdaKV to work correctly
     during the generation phase by ensuring that pruned tokens don't contribute to
     attention computations.
@@ -77,13 +77,14 @@ def attention_patch(func):
     -------
     callable
         The wrapped attention function that supports head-wise key masking.
-        
+
     Notes
     -----
     - This solution doesn't reduce peak memory usage but enables correct head-wise compression
     - The fake keys are computed dynamically during generation to ensure zero attention
     - The module must have a `masked_key_indices` attribute set by compression methods
     """
+
     def wrapper(module, query, key, value, attention_mask, dropout, **kwargs):
         if query.shape[2] == key.shape[2]:
             # Prefilling
@@ -112,21 +113,21 @@ def attention_patch(func):
 def patch_attention_functions():
     """
     Apply attention patching to all transformer attention functions.
-    
+
     This function automatically patches all attention functions registered in
     transformers' ALL_ATTENTION_FUNCTIONS to support head-wise key masking.
     It enables KVPress compression methods that require head-specific masking
     (like AdaKV) to work correctly during text generation.
-    
+
     The patching is applied globally and affects all transformer models loaded
     after this function is called. It's automatically called when importing
     kvpress to ensure compatibility with head-wise compression methods.
-    
+
     Effects:
     - Enables head-wise compression methods to mask specific tokens per head
     - Allows compressed models to generate text correctly during decoding
     - Maintains compatibility with existing transformer attention implementations
-    
+
     Notes
     -----
     This function modifies the global attention functions in the transformers

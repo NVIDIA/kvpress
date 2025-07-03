@@ -14,15 +14,15 @@ from kvpress.presses.scorer_press import ScorerPress
 class ChunkKVPress(BasePress):
     """
     ChunkKV: Semantic-preserving compression with chunk-wise token selection.
-    
+
     Enhances any ScorerPress by applying chunk-wise token selection instead of
     global selection. Computes global importance scores, then selects tokens
     chunk by chunk to preserve semantic coherence within local contexts.
     Based on ChunkKV (https://arxiv.org/abs/2502.00299).
-    
+
     Prevents over-concentration of selected tokens in specific regions and
     maintains balanced representation across the entire sequence.
-    
+
     Parameters
     ----------
     press : ScorerPress

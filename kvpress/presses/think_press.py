@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import rotate_half
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.base_press import BasePress
 
@@ -18,11 +18,11 @@ from kvpress.presses.base_press import BasePress
 class ThinKPress(BasePress):
     """
     ThinK: Channel-wise key compression for transformer attention.
-    
+
     Compresses key dimensions rather than sequence length by zeroing out
     less important channels. Based on ThinK (https://arxiv.org/pdf/2407.21018).
     Can be combined with sequence compression methods.
-    
+
     Parameters
     ----------
     key_channel_compression_ratio : float, default=0.0
@@ -44,11 +44,11 @@ class ThinKPress(BasePress):
 
         # Get last self.window_size queries
         if isinstance(module, Phi3Attention):
-            qkv = module.qkv_proj(hidden_states[:, -self.window_size:])
+            qkv = module.qkv_proj(hidden_states[:, -self.window_size :])
             query_states = qkv[..., : num_heads * head_dim]
         elif hasattr(module, "q_proj"):
             # Assume Llama-like attention layer
-            query_states = module.q_proj(hidden_states[:, -self.window_size:])
+            query_states = module.q_proj(hidden_states[:, -self.window_size :])
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
 

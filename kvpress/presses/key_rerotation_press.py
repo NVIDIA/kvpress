@@ -16,14 +16,14 @@ from kvpress.presses.scorer_press import ScorerPress
 class KeyRerotationPress(BasePress):
     """
     Key Rerotation: RoPE-aware compression wrapper for maintaining positional encoding.
-    
+
     Enhances any ScorerPress by applying key rerotation after compression to maintain
     proper RoPE (Rotary Position Embedding) representations. When tokens are pruned,
     remaining tokens need positional encodings adjusted for their new positions.
-    
+
     Essential for compression methods that need accurate positional information.
     Ensures attention computations remain accurate after compression.
-    
+
     Parameters
     ----------
     press : ScorerPress

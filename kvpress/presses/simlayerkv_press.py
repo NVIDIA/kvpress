@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 class SimLayerKVPress(BasePress):
     """
     SimLayerKV: Similarity-based layer-wise KV cache compression.
-    
+
     Uses layer-wise approach to compression by identifying "lazy" layers that can
     work effectively with reduced KV cache sizes. Dynamically determines which
     layers need full context and which can use streaming-style compression.
     Based on SimLayerKV (https://arxiv.org/abs/2410.13846).
-    
+
     Recommended lazy_threshold values: Llama3 (0.9), Llama2 (0.65), Mistral (0.8), Qwen (0.85).
-    
+
     Parameters
     ----------
     lazy_threshold : float, default=1.0

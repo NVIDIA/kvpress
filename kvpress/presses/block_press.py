@@ -14,12 +14,12 @@ from kvpress.presses.scorer_press import ScorerPress
 class BlockPress(BasePress):
     """
     BlockPress: Block-wise iterative KV cache compression.
-    
+
     Applies compression in fixed-size blocks to manage memory usage during
     processing. Iteratively scores and prunes tokens block by block, maintaining
     a buffer of previously kept tokens for context. Mathematically equivalent
     to global compression when scoring uses only local information.
-    
+
     Parameters
     ----------
     press : ScorerPress

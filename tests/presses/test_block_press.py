@@ -7,9 +7,8 @@ import torch
 import torch.nn as nn
 from transformers import DynamicCache
 
-from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.block_press import BlockPress
-
+from kvpress.presses.scorer_press import ScorerPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 

@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from cachetools import cached, LRUCache  # type: ignore[import-untyped]
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
@@ -9,11 +8,12 @@ from io import StringIO
 import numpy as np
 import requests  # type: ignore[import-untyped]
 import torch
+from cachetools import LRUCache, cached  # type: ignore[import-untyped]
 from datasets import load_dataset
 from transformers import AutoTokenizer
+from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 
 from kvpress.presses.base_press import BasePress
 
@@ -33,15 +33,15 @@ cache = LRUCache(maxsize=128)
 class DuoAttentionPress(BasePress):
     """
     DuoAttention: Hybrid attention with retrieval and streaming heads.
-    
+
     Splits attention heads into two types: retrieval heads (use full KV cache) and
     streaming heads (use only sink + recent tokens). Different heads have different
     attention patterns - some benefit from full context while others work well with
     limited context. Based on DuoAttention (https://arxiv.org/abs/2410.10819).
-    
+
     Uses pre-computed attention patterns for supported models, falls back to
     on-the-fly computation for unsupported models.
-    
+
     Parameters
     ----------
     head_compression_ratio : float, default=0.0

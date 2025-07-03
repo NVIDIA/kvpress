@@ -14,12 +14,12 @@ from kvpress.presses.scorer_press import ScorerPress
 class LagKVPress(ScorerPress):
     """
     LagKV: Lag-relative information-based KV cache compression.
-    
+
     Compresses KV cache by leveraging lag-relative information between sequence
     partitions. Divides sequence into partitions and uses subsequent partitions
     as references for scoring tokens in prior partitions.
     Based on LagKV (https://arxiv.org/abs/2504.04704).
-    
+
     Parameters
     ----------
     compression_ratio : float, default=0.0
@@ -53,22 +53,23 @@ class LagKVPress(ScorerPress):
         bsz, num_key_value_heads, q_len, d = keys.shape
         if q_len < self.n_sink + 2 * self.lag_size:
             # no compression
-            score = torch.ones((bsz, num_key_value_heads, q_len),
-                               dtype=keys.dtype, device=keys.device)
+            score = torch.ones((bsz, num_key_value_heads, q_len), dtype=keys.dtype, device=keys.device)
             if q_len > self.n_sink:
                 # make sure the sliding part will be selected.
-                score[:, :, self.n_sink:] = (torch.arange(q_len - self.n_sink, device=keys.device)
-                                             / (q_len - self.n_sink)
-                                             ).to(keys.dtype)
+                score[:, :, self.n_sink :] = (
+                    torch.arange(q_len - self.n_sink, device=keys.device) / (q_len - self.n_sink)
+                ).to(keys.dtype)
             return score
 
         end_idx = self.n_sink + ((q_len - self.n_sink) // self.lag_size) * self.lag_size
         tail_len = self.lag_size + q_len - end_idx
 
         key_score = self._get_states_score(
-            keys[:, :, self.n_sink:end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d))
+            keys[:, :, self.n_sink : end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d)
+        )
         value_score = self._get_states_score(
-            values[:, :, self.n_sink:end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d))
+            values[:, :, self.n_sink : end_idx].view(bsz, num_key_value_heads, -1, self.lag_size, d)
+        )
         # score is in range [0, 1]
         score = (key_score + value_score) / 2
 

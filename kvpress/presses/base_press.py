@@ -10,6 +10,7 @@ from typing import Generator
 import torch
 from torch import nn
 from transformers import (
+    Gemma3ForCausalLM,
     LlamaForCausalLM,
     MistralForCausalLM,
     Phi3ForCausalLM,
@@ -17,7 +18,6 @@ from transformers import (
     QuantizedCache,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
-    Gemma3ForCausalLM,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,11 +36,11 @@ SUPPORTED_MODELS = (
 class BasePress:
     """
     Base class for all KV cache compression methods.
-    
+
     This class provides the foundation for implementing various key-value cache compression
     techniques. Subclasses must implement the `compress` method to define their specific
     compression logic.
-    
+
     The compression is applied only during pre-filling (not during generation).
     """
 
@@ -90,13 +90,13 @@ class BasePress:
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
         Default forward hook called after the forward pass of an attention layer.
-        
+
         This hook automatically applies compression during the pre-filling phase by:
         1. Checking if we're still in pre-filling (not generation) phase
         2. Extracting keys and values from the cache (handling quantization)
         3. Calling the compress method to reduce the cache size
         4. Updating the cache with compressed keys and values
-        
+
         The hook ensures compression is only applied during pre-filling and correctly
         handles both quantized and unquantized caches.
 
@@ -159,11 +159,11 @@ class BasePress:
     def __call__(self, model: PreTrainedModel) -> Generator:
         """
         Context manager to apply a compression method to a model.
-        
+
         This method registers forward hooks on all attention layers of the model to enable
         automatic KV cache compression during the pre-filling phase. The hooks are automatically
         removed when exiting the context manager.
-        
+
         Apply this context manager during the pre-filling phase to compress the context.
         Do not use during generation as compression is only beneficial during pre-filling.
 
@@ -186,7 +186,7 @@ class BasePress:
         >>> with press(model):
         ...     # Forward pass with compression applied
         ...     outputs = model(input_ids, past_key_values=cache)
-        
+
         Warnings
         --------
         - Unsupported model types will generate a warning but compression will still be attempted

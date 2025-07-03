@@ -21,6 +21,7 @@ from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_sco
 
 from kvpress import (
     AdaKVPress,
+    BlockPress,
     ChunkKVPress,
     ComposedPress,
     CriticalAdaKVPress,
@@ -28,6 +29,7 @@ from kvpress import (
     DuoAttentionPress,
     ExpectedAttentionPress,
     FinchPress,
+    KeyDiffPress,
     KnormPress,
     ObservedAttentionPress,
     PyramidKVPress,
@@ -37,8 +39,6 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
-    BlockPress,
-    KeyDiffPress,
 )
 
 logger = logging.getLogger(__name__)

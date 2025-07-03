@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 class ScorerPress(BasePress):
     """
     Base class for score-based KV cache compression methods.
-    
+
     This class provides a framework for compression methods that assign importance scores
     to key-value pairs and prune those with the lowest scores. Subclasses must implement
     the `score` method to define how importance is calculated.
-    
+
     The compression is applied uniformly across all heads and layers based on the
     compression_ratio parameter, which determines what fraction of tokens to remove.
     """
@@ -53,7 +53,7 @@ class ScorerPress(BasePress):
     ) -> torch.Tensor:
         """
         Compute importance scores for each key-value pair.
-        
+
         This method must be implemented by subclasses to define how the importance
         of each token position is calculated. Higher scores indicate more important
         tokens that should be kept during compression.

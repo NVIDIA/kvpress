@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CriticalKVPress(ScorerPress):
     """
     CriticalKV: Two-stage compression with output projection weighting.
-    
+
     Enhances existing scoring methods by rescaling scores using the L1 norm
     of output projection applied to values (Wo @ values). Provides more accurate
     importance estimation by considering actual output contributions.
@@ -27,7 +27,7 @@ class CriticalKVPress(ScorerPress):
     def __init__(self, press: ScorerPress, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
         """
         Initialize CriticalKV compression method.
-        
+
         Parameters
         ----------
         press : ScorerPress
@@ -96,12 +96,12 @@ class CriticalKVPress(ScorerPress):
 class CriticalAdaKVPress(BasePress):
     """
     CriticalAdaKV: Combined two-stage compression with adaptive head-wise selection.
-    
+
     Combines output projection weighting from CriticalKV with adaptive head-wise
     compression from AdaKV. Provides both accurate importance estimation and
     head-specific compression adaptation.
     Based on CriticalAdaKV (https://arxiv.org/abs/2502.03805).
-    
+
     Parameters
     ----------
     press : ScorerPress

@@ -14,7 +14,7 @@ from kvpress.presses.scorer_press import ScorerPress
 class KnormPress(ScorerPress):
     """
     Key norm-based KV cache compression.
-    
+
     Prunes key-value pairs based on L2 norm of key vectors. Keys with higher
     norms tend to have larger magnitudes in attention computation and may be
     more important. Simple, efficient method requiring only norm calculation.

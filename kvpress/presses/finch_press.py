@@ -17,14 +17,14 @@ from kvpress.presses.snapkv_press import SnapKVPress
 class FinchPress(BasePress):
     """
     FINCH: Prompt-guided Key-Value Cache Compression.
-    
+
     SnapKV-style compression with dynamic window sizing based on delimiter tokens.
     Requires input format: `context + delimiter_token + question`. The delimiter
     separates context from query, allowing dynamic window size determination.
     Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
-    
+
     Use `update_model_and_tokenizer` method to set delimiter token before use.
-    
+
     Parameters
     ----------
     compression_ratio : float, default=0.0
@@ -140,7 +140,7 @@ class FinchPress(BasePress):
             output = output[:, ~delim_tokens]
         return output
 
-    def update_model_and_tokenizer(self, model, tokenizer, delimiter_token : str = "<|finch_sep|>"):
+    def update_model_and_tokenizer(self, model, tokenizer, delimiter_token: str = "<|finch_sep|>"):
         """
         Set the delimiter token and update the tokenizer accordingly.
         This method should be called before calling the press.
@@ -157,8 +157,10 @@ class FinchPress(BasePress):
     def __call__(self, model):
         # The user should set the delimiter_token_id before calling the press.
         if self.delimiter_token_id is None:
-            raise ValueError("""No delimiter token ID provided.
-                             Use the update_model_and_tokenizer method before calling the press.""")
+            raise ValueError(
+                """No delimiter token ID provided.
+                             Use the update_model_and_tokenizer method before calling the press."""
+            )
 
         with super().__call__(model):
             try:

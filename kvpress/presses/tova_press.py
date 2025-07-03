@@ -16,12 +16,12 @@ from kvpress.presses.snapkv_press import SnapKVPress
 class TOVAPress(ScorerPress):
     """
     TOVA: Token-wise Optimal Value Attention for KV cache compression.
-    
+
     Uses attention weights of the last token (averaged across heads) to estimate
     importance of previous key-value pairs. The last token's attention pattern
     provides a good indicator of which historical tokens are important.
     Based on TOVA (https://arxiv.org/abs/2401.06104).
-    
+
     Parameters
     ----------
     compression_ratio : float, default=0.0

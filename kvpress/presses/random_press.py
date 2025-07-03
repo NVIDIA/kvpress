@@ -15,11 +15,11 @@ from kvpress.presses.scorer_press import ScorerPress
 class RandomPress(ScorerPress):
     """
     Random KV cache compression for baseline comparison.
-    
+
     Randomly selects which key-value pairs to prune, without considering
     importance or attention patterns. Useful for establishing baseline
     performance metrics and validating other compression methods.
-    
+
     Parameters
     ----------
     compression_ratio : float, default=0.0
@@ -30,7 +30,7 @@ class RandomPress(ScorerPress):
 
     compression_ratio: float = 0.0
     seed: Optional[int] = None
-    
+
     def score(
         self,
         module: nn.Module,
@@ -40,6 +40,8 @@ class RandomPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
+        generator = None
         if self.seed is not None:
-            torch.manual_seed(self.seed)
-        return torch.rand(*keys.shape[:-1]).to(keys.device, keys.dtype)
+            generator = torch.Generator()
+            generator.manual_seed(self.seed)
+        return torch.rand(*keys.shape[:-1], generator=generator, device=keys.device, dtype=keys.dtype)

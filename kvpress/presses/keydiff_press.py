@@ -14,12 +14,13 @@ from kvpress.presses.scorer_press import ScorerPress
 class KeyDiffPress(ScorerPress):
     """
     KeyDiff: Key similarity-based KV cache compression.
-    
+
     Evicts tokens based on key vector similarity to average key pattern.
     Identifies tokens with most similar keys to average and removes them,
     keeping tokens with more distinctive key vectors.
     Based on KeyDiff (https://arxiv.org/abs/2504.15364).
     """
+
     def score(
         self,
         module: nn.Module,

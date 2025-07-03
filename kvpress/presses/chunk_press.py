@@ -14,19 +14,19 @@ from kvpress.presses.scorer_press import ScorerPress
 class ChunkPress(BasePress):
     """
     ChunkPress: Uniform compression through independent chunk processing.
-    
+
     This wrapper enhances any ScorerPress by applying compression independently
     to fixed-size chunks of the sequence. Unlike global compression methods that
     may concentrate selection in high-importance regions, ChunkPress ensures
     uniform compression across the entire context by processing each chunk separately.
-    
+
     This approach was proposed in FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)
     and offers several advantages:
     - Ensures uniform compression across the entire sequence
     - Prevents over-concentration of selected tokens in specific regions
     - Maintains balanced representation throughout the context
     - Can improve performance for tasks requiring distributed information
-    
+
     Parameters
     ----------
     press : ScorerPress

@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 class KVPressTextGenerationPipeline(Pipeline):
     """
     Pipeline for key-value cache compression in causal language models.
-    
+
     Enables efficient processing of long contexts by applying KV cache compression
     during pre-filling, then generating answers using greedy decoding. Particularly
     useful for question-answering tasks over long documents.
-    
+
     Example:
     ```python
     pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)
@@ -61,7 +61,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             The prefix to be added to the generated answer.
         press : BasePress, optional
             The key-value cache compression method to apply during pre-filling.
-            
+
             Accepts any KVPress compression method (SnapKVPress, KnormPress,
             ExpectedAttentionPress, BlockPress, AdaKVPress, ComposedPress, etc.).
             If None, no compression is applied.
@@ -106,7 +106,7 @@ class KVPressTextGenerationPipeline(Pipeline):
     ):
         """
         Apply chat template and tokenize the context and questions.
-        
+
         Prepares input text for KV cache compression and generation by applying
         appropriate chat templates and tokenizing. Handles models with and without
         chat templates.
@@ -168,7 +168,7 @@ class KVPressTextGenerationPipeline(Pipeline):
     ):
         """
         Execute KV cache compression and text generation pipeline.
-        
+
         Performs context compression using the press method during pre-filling,
         then generates answers using greedy decoding.
 

@@ -8,10 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
 
@@ -20,10 +20,10 @@ from kvpress.presses.scorer_press import ScorerPress
 class SnapKVPress(ScorerPress):
     """
     SnapKV: Attention-based KV cache compression using recent token patterns.
-    
+
     Uses attention patterns of the most recent tokens to estimate importance
     of previous key-value pairs. Based on SnapKV (https://arxiv.org/abs/2404.14469).
-    
+
     Parameters
     ----------
     compression_ratio : float, default=0.0

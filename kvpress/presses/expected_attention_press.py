@@ -8,10 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import repeat_kv
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
 
@@ -20,11 +20,11 @@ from kvpress.presses.scorer_press import ScorerPress
 class ExpectedAttentionPress(ScorerPress):
     """
     Expected attention-based KV cache compression.
-    
+
     Computes importance scores based on expected attention that future queries
     will pay to current key-value pairs. Uses statistical modeling of query
     patterns and RoPE rotation matrices to predict future attention.
-    
+
     Parameters
     ----------
     compression_ratio : float, default=0.0
