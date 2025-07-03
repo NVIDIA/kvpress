@@ -86,7 +86,7 @@ class SimLayerKVPress(BasePress):
             self.compression_ratios = []
 
         # Check if compression is needed
-        q_len = hidden_states.shape[1]
+        q_len = keys.shape[2]
         min_length = self.n_initial + self.n_recent + self.n_last
 
         if q_len <= min_length:

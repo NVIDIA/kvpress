@@ -80,7 +80,7 @@ class DuoAttentionPress(BasePress):
     def compress(self, module, hidden_states, keys, values, attentions, kwargs):
 
         assert module.config._attn_implementation != "eager", "eager mode not supported"
-        q_len = hidden_states.shape[1]
+        q_len = keys.shape[2]
 
         if (self.head_compression_ratio > 0) or (q_len > (self.sink_size + self.recent_size)):
 

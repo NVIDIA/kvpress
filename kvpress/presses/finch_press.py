@@ -80,7 +80,7 @@ class FinchPress(BasePress):
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Compute indices to keep (optionally by chunks)
-        q_len = hidden_states.shape[1]
+        q_len = keys.shape[2]  # Use actual sequence length from keys instead of hidden_states
         if self.chunk_length is None:
             n_kept = int(q_len * (1 - self.compression_ratio))
             indices = scores.topk(n_kept, dim=-1).indices
