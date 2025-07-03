@@ -76,11 +76,6 @@ class PrefillDecodingPress(BasePress):
         return output
 
     def __call__(self, model: PreTrainedModel):
-        """
-        Context manager to apply the combined press to a model.
-        
-        This uses the base press logic and adds decoding press reset at the end.
-        """
         try:
             with super().__call__(model):
                 yield
