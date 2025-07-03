@@ -2,12 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from typing import Optional
 from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from transformers.cache_utils import Cache, QuantizedCache
+from transformers.cache_utils import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
@@ -81,31 +80,29 @@ class DecodingPress(BasePress):
     compression_ratio : float, default=0.5
         Fraction of tokens to remove during compression (0.0-1.0)
     """
-    
+
     base_press: BasePress
     compression_steps: int = 10
     compression_ratio: float = 0.5
-    
+
     def __post_init__(self):
         # Buffer to store hidden states during decoding
         self.hidden_states_buffer = []
         self.step_count = 0
-        
+
     def compress(
-        self,
-        module: nn.Module,
-        hidden_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-        attentions: torch.Tensor,
-        kwargs: dict,
+            self,
+            module: nn.Module,
+            hidden_states: torch.Tensor,
+            keys: torch.Tensor,
+            values: torch.Tensor,
+            attentions: torch.Tensor,
+            kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Use the scorer press to compute importance scores
-        # The scorer press will use the accumulated hidden states for scoring
         return self.base_press.compress(
             module, hidden_states, keys, values, attentions, kwargs
         )
-        
+
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
         Forward hook that manages decoding-specific compression logic.
@@ -119,22 +116,22 @@ class DecodingPress(BasePress):
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_value"]
         q_len = hidden_states.shape[1]
-        
+
         # Only operate during decoding phase (after prefilling)
         if kwargs["cache_position"][-1] <= q_len:
             # We're still in prefilling phase, don't do anything
             return output
-            
+
         # We're in decoding phase
-        
+
         # Add current hidden states to buffer
         self.hidden_states_buffer.append(hidden_states.detach().clone())
         self.step_count += 1
-        
+
         # Apply compression every N steps
         if self.step_count >= self.compression_steps:
             logger.debug(f"Applying decoding compression at step {self.step_count}")
-            
+
             # Get keys and values from cache
             if isinstance(cache, QuantizedCache):
                 keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
@@ -142,29 +139,27 @@ class DecodingPress(BasePress):
             else:
                 keys = cache.key_cache[module.layer_idx]
                 values = cache.value_cache[module.layer_idx]
-                
+
             # Get attention weights from output
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
-            
+
             # Apply compression
-            compressed_keys, compressed_values = self.compress(
-                module, hidden_states, keys, values, attentions, kwargs
-            )
-            
+            keys, values = self.compress(module, hidden_states, keys, values, attentions, kwargs)
+
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
-                cache._quantized_key_cache[module.layer_idx] = cache._quantize(compressed_keys, axis=-1)
-                cache._quantized_value_cache[module.layer_idx] = cache._quantize(compressed_values, axis=-1)
+                cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=-1)
+                cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=-1)
             else:
-                cache.key_cache[module.layer_idx] = compressed_keys
-                cache.value_cache[module.layer_idx] = compressed_values
-                
+                cache.key_cache[module.layer_idx] = keys
+                cache.value_cache[module.layer_idx] = values
+
             # Clear buffer and reset step count
             self.hidden_states_buffer.clear()
             self.step_count = 0
-            
+
         return output
-        
+
     def reset(self):
         """Reset the decoding press state."""
         self.hidden_states_buffer.clear()

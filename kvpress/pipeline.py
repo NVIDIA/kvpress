@@ -264,6 +264,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
         # Remove the generated tokens from the cache
+        # This is needed if multiple answers are generated, as the cache is shared between the forward passes
         cache.key_cache = [
             cache.key_cache[layer_idx][:, :, :sequence_length]
             for layer_idx, sequence_length in enumerate(cache_seq_lengths)
