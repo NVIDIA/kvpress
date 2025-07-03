@@ -101,20 +101,24 @@ class CriticalAdaKVPress(BasePress):
     compression from AdaKV. Provides both accurate importance estimation and
     head-specific compression adaptation.
     Based on CriticalAdaKV (https://arxiv.org/abs/2502.03805).
+    
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method used to evaluate token importance.
+    alpha_safeguard : float, default=0.20
+        Minimum fraction of KV pairs that each head must retain.
+    epsilon : float, default=1e-4
+        Small value for numerical stability in score rescaling.
+    first_stage_ratio : float, default=0.5
+        Fraction of compression budget allocated to first stage selection.
     """
 
     press: ScorerPress
-    """The underlying scoring method used to evaluate token importance."""
-    
     alpha_safeguard: float = 0.20
-    """Minimum fraction of KV pairs that each head must retain."""
-    
     epsilon: float = 1e-4
-    """Small value for numerical stability in score rescaling."""
-    
     first_stage_ratio: float = 0.5
-    """Fraction of compression budget allocated to first stage selection."""
-    
+
     def __post_init__(self):
         assert 0 <= self.alpha_safeguard <= 1, "alpha_safeguard should be in 0, 1]"
         assert isinstance(self.press, ScorerPress), "CriticalAdaKVPress requires a ScorerPress as input"
