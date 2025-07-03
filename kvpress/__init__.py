@@ -30,8 +30,8 @@ from kvpress.presses.lagkv_press import LagKVPress
 from kvpress.presses.base_press import SUPPORTED_MODELS
 from kvpress.presses.block_press import BlockPress
 from kvpress.presses.keydiff_press import KeyDiffPress
-from kvpress.presses.decoding_press import DecodingPress
-from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
+from kvpress.presses.generation.decoding_press import DecodingPress
+from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 
 # Patch the attention functions to support head-wise compression
 patch_attention_functions()

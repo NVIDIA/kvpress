@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 from transformers.cache_utils import Cache, QuantizedCache
 
-from .base_press import BasePress
-from .scorer_press import ScorerPress
+from kvpress.presses.base_press import BasePress
+from kvpress.presses.scorer_press import ScorerPress
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class DecodingPress(BasePress):
     
     Parameters
     ----------
-    scorer_press : ScorerPress
+    base_press : ScorerPress
         The scorer press used to compute importance scores for tokens. Should use a simple
         scorer that doesn't depend on position embeddings or attention patterns.
     compression_steps : int, default=10
@@ -82,7 +82,7 @@ class DecodingPress(BasePress):
         Fraction of tokens to remove during compression (0.0-1.0)
     """
     
-    scorer_press: ScorerPress
+    base_press: BasePress
     compression_steps: int = 10
     compression_ratio: float = 0.5
     
@@ -100,32 +100,9 @@ class DecodingPress(BasePress):
         attentions: torch.Tensor,
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Compress KV cache during decoding using accumulated hidden states.
-        
-        Parameters
-        ----------
-        module : nn.Module
-            Transformer attention layer
-        hidden_states : torch.Tensor
-            Current hidden states
-        keys : torch.Tensor
-            Keys of the cache (unquantized)
-        values : torch.Tensor
-            Values of the cache (unquantized)
-        attentions : torch.Tensor
-            Attention weights of the layer
-        kwargs : dict
-            Keyword arguments from the forward pass
-            
-        Returns
-        -------
-        tuple[torch.Tensor, torch.Tensor]
-            Updated keys and values
-        """
         # Use the scorer press to compute importance scores
         # The scorer press will use the accumulated hidden states for scoring
-        return self.scorer_press.compress(
+        return self.base_press.compress(
             module, hidden_states, keys, values, attentions, kwargs
         )
         

@@ -47,7 +47,7 @@ def main():
     
     # Create a decoding press that compresses every 5 steps
     decoding_press = DecodingPress(
-        scorer_press=scorer_press,
+        base_press=scorer_press,
         compression_steps=5,
         compression_ratio=0.3
     )
@@ -75,7 +75,7 @@ def main():
     random_scorer = RandomPress(compression_ratio=0.2)
     
     decoding_press_random = DecodingPress(
-        scorer_press=random_scorer,
+        base_press=random_scorer,
         compression_steps=3,
         compression_ratio=0.2
     )
@@ -105,7 +105,7 @@ def main():
     # Use KnormPress for decoding
     decoding_scorer = KnormPress(compression_ratio=0.2)
     decoding_press_2 = DecodingPress(
-        scorer_press=decoding_scorer,
+        base_press=decoding_scorer,
         compression_steps=3,
         compression_ratio=0.2
     )
