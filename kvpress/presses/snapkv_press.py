@@ -48,7 +48,6 @@ class SnapKVPress(ScorerPress):
             query_states = module.q_proj(hidden_states[:, -window_size:])
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
-
         query_states = query_states.view(bsz, window_size, num_heads, head_dim).transpose(1, 2)
 
         # Support for Qwen3 and Gemma3 QK norm
@@ -81,7 +80,7 @@ class SnapKVPress(ScorerPress):
         kwargs,
     ) -> torch.Tensor:
 
-        bsz, num_key_value_heads, _, _ = keys.shape
+        bsz, num_key_value_heads, k_len, _ = keys.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
         q_len = hidden_states.shape[1]
@@ -99,7 +98,7 @@ class SnapKVPress(ScorerPress):
         scores = F.avg_pool1d(scores, kernel_size=self.kernel_size, padding=self.kernel_size // 2, stride=1)
 
         # Average per group (https://github.com/FasterDecoding/SnapKV/issues/22)
-        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len - self.window_size)
+        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, k_len - self.window_size)
         scores = scores.mean(2)
 
         # Add back the observation window. Use max score to make sure the window is not pruned.

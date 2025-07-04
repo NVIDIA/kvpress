@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 
 import torch
@@ -89,7 +90,7 @@ class DecodingPress(BasePress):
         # Buffer to store hidden states during decoding
         assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = []
-        self.layer_step_counts = {}  # Track step count per layer
+        self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
     def _find_target_compression_ratio(self, q_len: int, target_tokens: int) -> float:
         """
@@ -206,8 +207,6 @@ class DecodingPress(BasePress):
 
         # Get current step count for this layer
         layer_idx = module.layer_idx
-        if layer_idx not in self.layer_step_counts:
-            self.layer_step_counts[layer_idx] = 0
         self.layer_step_counts[layer_idx] += 1
 
         # Apply compression if we've reached the compression step threshold
@@ -240,12 +239,12 @@ class DecodingPress(BasePress):
                 cache.value_cache[layer_idx] = values
 
             # Clear buffer after compression
-            self.hidden_states_buffer.clear()
-            self.layer_step_counts[layer_idx] = 0
+            self.hidden_states_buffer = []
+            self.layer_step_counts = defaultdict(int)
 
         return output
 
     def reset(self):
         """Reset the decoding press state."""
-        self.hidden_states_buffer.clear()
-        self.layer_step_counts = {}
+        self.hidden_states_buffer = []
+        self.layer_step_counts = defaultdict(int)

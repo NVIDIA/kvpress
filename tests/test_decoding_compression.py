@@ -239,12 +239,12 @@ def test_all_presses_work_with_decoding_press(press_config):
     if not isinstance(base_press, ScorerPress):
         logger.info(f"Press {press_cls.__name__} is not a ScorerPress, skipping test")
         return
-    if isinstance(base_press, (SnapKVPress, QFilterPress, PyramidKVPress)):
+    if isinstance(base_press, (QFilterPress, PyramidKVPress)):
         # Qfilter: __post_init__ not called
-        # snapkv: hidden_states[:, -window_size:] may be an issue?
-        #
+        # PyramidKVPress -> Pyramid shape, not compatible with token_buffer_size=48
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
-        #return
+        return
+
 
     # Create DecodingPress with this base press
     decoding_press = DecodingPress(
