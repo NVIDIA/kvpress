@@ -11,6 +11,7 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
+from kvpress import DecodingPress, PrefillDecodingPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
@@ -158,6 +159,10 @@ class KVPressTextGenerationPipeline(Pipeline):
         list[str]
             A list of generated answers.
         """
+        if isinstance(press, (DecodingPress, PrefillDecodingPress)) and len(input_tensors["questions_ids"]) > 1:
+            raise ValueError(
+                "DecodingPress is not compatible with multiple questions. Please specify a single question."
+            )
 
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
@@ -183,14 +188,13 @@ class KVPressTextGenerationPipeline(Pipeline):
                 if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
                     context_length = cache.get_seq_length()
 
-                answer = self.generate_answer(
-                    question_ids=question_ids.to(self.model.device),
-                    cache=cache,
-                    context_length=context_length,
-                    max_new_tokens=max_new_tokens,
-                )
-                answers.append(answer)
+                cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+                answer = self.generate_answer(question_ids=question_ids.to(self.model.device), cache=cache,
+                                              context_length=context_length, max_new_tokens=max_new_tokens)
+                if len(input_tensors["questions_ids"]) > 1:
+                    self.remove_answer_from_cache(cache, cache_seq_lengths)
 
+                answers.append(answer)
         return answers
 
     def output_attentions(self, press: BasePress):
@@ -207,9 +211,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             return {"answer": model_outputs[0]}
         return {"answers": model_outputs}
 
-    def generate_answer(
-        self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
-    ) -> str:
+    def generate_answer(self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int) -> str:
         """
         Generate an answer to a question using greedy decoding.
 
@@ -230,7 +232,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             The generated answer.
         """
 
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -263,8 +264,14 @@ class KVPressTextGenerationPipeline(Pipeline):
                     
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
 
-        # Remove the generated tokens from the cache
-        # This is needed if multiple answers are generated, as the cache is shared between the forward passes
+        return answer
+
+    def remove_answer_from_cache(self, cache, cache_seq_lengths):
+        """
+        Remove the generated tokens from the cache
+        This is needed if multiple answers are generated
+        as the cache is shared between the forward passes
+        """
         cache.key_cache = [
             cache.key_cache[layer_idx][:, :, :sequence_length]
             for layer_idx, sequence_length in enumerate(cache_seq_lengths)
@@ -282,8 +289,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 cache._quantized_value_cache[layer_idx][:, :, :sequence_length]
                 for layer_idx, sequence_length in enumerate(cache_seq_lengths)
             ]
-
-        return answer
 
 
 PIPELINE_REGISTRY.register_pipeline(

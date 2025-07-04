@@ -184,6 +184,8 @@ class DecodingPress(BasePress):
             keys, values = self.compress(module,
                                          torch.cat(self.hidden_states_buffer, dim=1), keys, values, attentions,
                                          kwargs)
+            logger.debug(f"Applied decoding compression at step {self.step_count}. "
+                         f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
