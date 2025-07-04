@@ -89,7 +89,7 @@ class DecodingPress(BasePress):
         # Buffer to store hidden states during decoding
         assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = []
-        self.step_count = 0
+        self.layer_step_counts = {}  # Track step count per layer
 
     def compress(
             self,
@@ -161,27 +161,26 @@ class DecodingPress(BasePress):
             # We're still in prefilling phase, don't do anything
             return output
 
-        # Get current cache size for this layer
-        if isinstance(cache, QuantizedCache):
-            current_cache_size = cache._quantized_key_cache[module.layer_idx].shape[2]
-        else:
-            current_cache_size = cache.key_cache[module.layer_idx].shape[2]
-
         # Add current hidden states to buffer
         self.hidden_states_buffer.append(hidden_states.detach().clone())
-        self.step_count += 1
 
-        # Apply compression if cache size exceeds token_buffer_size
-        if current_cache_size > self.token_buffer_size:
-            logger.debug(f"Applying decoding compression: cache_size={current_cache_size} > token_buffer_size={self.token_buffer_size}")
+        # Get current step count for this layer
+        layer_idx = module.layer_idx
+        if layer_idx not in self.layer_step_counts:
+            self.layer_step_counts[layer_idx] = 0
+        self.layer_step_counts[layer_idx] += 1
+
+        # Apply compression if we've reached the compression step threshold
+        if self.layer_step_counts[layer_idx] >= self.compression_steps:
+            logger.debug(f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}")
 
             # Get keys and values from cache
             if isinstance(cache, QuantizedCache):
-                keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-                values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+                keys = cache._dequantize(cache._quantized_key_cache[layer_idx])
+                values = cache._dequantize(cache._quantized_value_cache[layer_idx])
             else:
-                keys = cache.key_cache[module.layer_idx]
-                values = cache.value_cache[module.layer_idx]
+                keys = cache.key_cache[layer_idx]
+                values = cache.value_cache[layer_idx]
 
             # Get attention weights from output
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
@@ -194,19 +193,19 @@ class DecodingPress(BasePress):
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
-                cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=-1)
-                cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=-1)
+                cache._quantized_key_cache[layer_idx] = cache._quantize(keys, axis=-1)
+                cache._quantized_value_cache[layer_idx] = cache._quantize(values, axis=-1)
             else:
-                cache.key_cache[module.layer_idx] = keys
-                cache.value_cache[module.layer_idx] = values
+                cache.key_cache[layer_idx] = keys
+                cache.value_cache[layer_idx] = values
 
             # Clear buffer after compression
             self.hidden_states_buffer.clear()
-            self.step_count = 0
+            self.layer_step_counts[layer_idx] = 0
 
         return output
 
     def reset(self):
         """Reset the decoding press state."""
         self.hidden_states_buffer.clear()
-        self.step_count = 0
+        self.layer_step_counts = {}
