@@ -238,7 +238,7 @@ class DecodingPress(BasePress):
                 cache.key_cache[layer_idx] = keys
                 cache.value_cache[layer_idx] = values
 
-            # Clear buffer and reset step count for this layer only
+            # Clear buffer and reset step count for this layer
             self.hidden_states_buffer[layer_idx] = []
             self.layer_step_counts[layer_idx] = 0
 
