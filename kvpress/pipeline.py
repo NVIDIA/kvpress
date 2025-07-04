@@ -270,7 +270,9 @@ class KVPressTextGenerationPipeline(Pipeline):
         """
         Remove the generated tokens from the cache
         This is needed if multiple answers are generated
-        as the cache is shared between the forward passes
+        as the cache is shared between the forward passes.
+        Note that for compression during decoding, we do not allow multiple questions;
+        thus this method is not called
         """
         cache.key_cache = [
             cache.key_cache[layer_idx][:, :, :sequence_length]
