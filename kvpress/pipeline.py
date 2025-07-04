@@ -11,7 +11,8 @@ from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
-from kvpress import DecodingPress, PrefillDecodingPress
+from kvpress.presses.generation.decoding_press import DecodingPress
+from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
