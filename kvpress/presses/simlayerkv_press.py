@@ -16,20 +16,27 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SimLayerKVPress(BasePress):
     """
-    SimLayerKV (https://arxiv.org/abs/2410.13846) uses a layer-wise approach to compression:
-        - layers identified as lazy use the Streaming LLM approach (only initial and recent KV pairs are kept)
-        - other layers use the full KV cache
+    SimLayerKV: Similarity-based layer-wise KV cache compression.
 
-    To identify lazy layers, the last attention weights are used. If the sum of attention weights of the last tokens
-    over the initial and recent tokens is above the lazy_threshold, the layer is considered lazy.
+    Uses layer-wise approach to compression by identifying "lazy" layers that can
+    work effectively with reduced KV cache sizes. Dynamically determines which
+    layers need full context and which can use streaming-style compression.
+    Based on SimLayerKV (https://arxiv.org/abs/2410.13846).
 
-    Recommended values for lazy_threshold from the official repository:
-        - llama3: 0.9
-        - llama2: 0.65
-        - mistral: 0.8
-        - qwen: 0.85
-    By default, lazy_threshold is set to 1.0 (no compression)
-    (Source: https://github.com/sail-sg/SimLayerKV/blob/main/LongBench/pred.py#L167)
+    Recommended lazy_threshold values: Llama3 (0.9), Llama2 (0.65), Mistral (0.8), Qwen (0.85).
+
+    Parameters
+    ----------
+    lazy_threshold : float, default=1.0
+        Threshold for identifying lazy layers based on attention concentration.
+        Layer is lazy if sum(attention_weights[last_tokens -> initial+recent]) > threshold.
+        Lower values identify more layers as lazy (more aggressive compression).
+    n_last : int, default=1
+        Number of last tokens to analyze for lazy layer identification.
+    n_recent : int, default=1024
+        Number of recent tokens to preserve in lazy layers.
+    n_initial : int, default=4
+        Number of initial tokens to preserve in lazy layers (sink tokens).
     """
 
     lazy_threshold: float = 1.0

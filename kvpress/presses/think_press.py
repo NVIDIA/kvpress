@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import rotate_half
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.base_press import BasePress
 
@@ -17,15 +17,18 @@ from kvpress.presses.base_press import BasePress
 @dataclass
 class ThinKPress(BasePress):
     """
-    ThinK (https://arxiv.org/pdf/2407.21018) compresses the dimensions of the keys, and not the sequence length.
-    Hence it can be combined with any other press that compresses the sequence length, e.g.
-    press = ComposedPress([SnapKVPress(0.5), ThinKPress(0.5)])
+    ThinK: Channel-wise key compression for transformer attention.
 
-    Here, we zero out the pruned dimensions resulting in no memory gain (the shape of the keys remains the same).
-    To achieve memory savings, several options can be considered (see https://github.com/NVIDIA/kvpress/pull/18/),
-    we might implement them in the future, especially if other similar presses are requested.
+    Compresses key dimensions rather than sequence length by zeroing out
+    less important channels. Based on ThinK (https://arxiv.org/pdf/2407.21018).
+    Can be combined with sequence compression methods.
 
-    This press has been reviewed by Yuhui Xu, first author of the ThinK paper.
+    Parameters
+    ----------
+    key_channel_compression_ratio : float, default=0.0
+        Fraction of key channels (dimensions) to remove during compression.
+    window_size : int, default=32
+        Number of recent tokens to use for computing key channel importance.
     """
 
     key_channel_compression_ratio: float = 0.0
@@ -41,11 +44,11 @@ class ThinKPress(BasePress):
 
         # Get last self.window_size queries
         if isinstance(module, Phi3Attention):
-            qkv = module.qkv_proj(hidden_states[:, -self.window_size:])
+            qkv = module.qkv_proj(hidden_states[:, -self.window_size :])
             query_states = qkv[..., : num_heads * head_dim]
         elif hasattr(module, "q_proj"):
             # Assume Llama-like attention layer
-            query_states = module.q_proj(hidden_states[:, -self.window_size:])
+            query_states = module.q_proj(hidden_states[:, -self.window_size :])
         else:
             raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
 

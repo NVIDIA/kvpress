@@ -18,6 +18,25 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PerLayerCompressionPress(BasePress):
+    """
+    Per-layer compression: Apply different compression ratios to different layers.
+
+    Wrapper that applies layer-specific compression ratios using any underlying
+    ScorerPress method. Different layers may have different importance patterns,
+    so layer-specific compression can improve quality-efficiency trade-offs.
+
+    **Important**: Experimental feature that only works with flash attention.
+
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method to apply with layer-specific compression ratios.
+    compression_ratios : List[float]
+        List of compression ratios to apply to each layer.
+        Length should match number of model layers. Each value between 0.0-1.0
+        represents fraction of tokens to remove for that layer.
+    """
+
     press: ScorerPress
     compression_ratios: List[float]
 

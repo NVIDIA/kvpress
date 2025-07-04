@@ -6,17 +6,17 @@ import numpy as np
 from kvpress import (
     DuoAttentionPress,
     ExpectedAttentionPress,
+    KeyDiffPress,
     KnormPress,
+    LagKVPress,
+    PyramidKVPress,
+    QFilterPress,
     RandomPress,
     SimLayerKVPress,
     SnapKVPress,
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
-    QFilterPress,
-    PyramidKVPress,
-    LagKVPress,
-    KeyDiffPress,
 )
 
 
@@ -63,7 +63,7 @@ default_presses = [
         "cls": LagKVPress,
         "kwargs": [
             {"compression_ratio": 0.5, "n_sink": 16, "lag_size": 128},
-            {"compression_ratio": 0.8, "n_sink": 16, "lag_size": 128}
+            {"compression_ratio": 0.8, "n_sink": 16, "lag_size": 128},
         ],
     },
     {"cls": KeyDiffPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},

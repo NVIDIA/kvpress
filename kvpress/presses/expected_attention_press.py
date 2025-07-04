@@ -8,10 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import repeat_kv
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
 
@@ -19,14 +19,39 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class ExpectedAttentionPress(ScorerPress):
     """
-    Compute scores based on the expected attention on next positions. To do so
+    Expected attention-based KV cache compression.
+
+    Computes importance scores based on expected attention that future queries
+    will pay to current key-value pairs. Uses statistical modeling of query
+    patterns and RoPE rotation matrices to predict future attention.
+    In particular:
         1. Compute the mean and covariance matrix of the queries before RoPE.
         2. Compute the RoPE rotation matrix R on next n_future_positions and average it
         3. Apply R to the mean and covariance matrice of the queries.
         4. As attention A = exp(Q @ K / sqrt(d)), we compute the expected attention
         E(A) = exp(K @ mean.T / sqrt(d) + 1/2 K @ cov @ K.T / d)
         5. Rescale the scores using (scores + epsilon) * ||V||_2
-    The first n_sink tokens are removed from calculations (sink attention phenomenon).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    n_future_positions : int, default=512
+        Number of future positions to consider when computing expected attention.
+    n_sink : int, default=4
+        Number of initial tokens to exclude from compression (sink tokens).
+        Preserves first few tokens due to "sink attention" phenomenon where models
+        assign high attention to early tokens regardless of semantic importance.
+    use_covariance : bool, default=True
+        Whether to include covariance information in expected attention computation.
+        When True, uses both mean and covariance of query distributions for more
+        accurate but computationally expensive scoring. When False, uses only mean.
+    use_vnorm : bool, default=True
+        Whether to rescale scores using value vector norms.
+        Rescales expected attention scores by L2 norm of corresponding value vectors:
+        (scores + epsilon) * ||V||₂. Accounts for magnitude of attended information.
+    epsilon : float, default=0.0
+        Small constant added to scores before value norm rescaling for numerical stability.
     """
 
     compression_ratio: float = 0.0

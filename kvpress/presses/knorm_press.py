@@ -12,7 +12,13 @@ from kvpress.presses.scorer_press import ScorerPress
 
 @dataclass
 class KnormPress(ScorerPress):
-    """Prune KV pairs with highest L2 norm of keys (https://arxiv.org/pdf/2406.11430)"""
+    """
+    Key norm-based KV cache compression.
+
+    Prunes key-value pairs based on L2 norm of key vectors.
+    Simple, efficient method requiring only norm calculation.
+    Based on https://arxiv.org/pdf/2406.11430.
+    """
 
     def score(
         self,
