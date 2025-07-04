@@ -87,9 +87,9 @@ class DecodingPress(BasePress):
     token_buffer_size: int = 1024
 
     def __post_init__(self):
-        # Buffer to store hidden states during decoding
+        # Buffer to store hidden states during decoding (per layer)
         assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
-        self.hidden_states_buffer = []
+        self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
     def _find_target_compression_ratio(self, q_len: int, target_tokens: int) -> float:
@@ -202,8 +202,8 @@ class DecodingPress(BasePress):
             # We're still in prefilling phase, don't do anything
             return output
 
-        # Add current hidden states to buffer
-        self.hidden_states_buffer.append(hidden_states.detach().clone())
+        # Add current hidden states to buffer for this layer
+        self.hidden_states_buffer[module.layer_idx].append(hidden_states.detach().clone())
 
         # Get current step count for this layer
         layer_idx = module.layer_idx
@@ -224,8 +224,8 @@ class DecodingPress(BasePress):
             # Get attention weights from output
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
 
-            # Apply compression using buffered hidden states
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer, dim=1)
+            # Apply compression using buffered hidden states for this layer
+            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
             logger.debug(f"Applied decoding compression: "
                          f"keys.shape: {keys.shape}, values.shape: {values.shape}")
@@ -238,13 +238,13 @@ class DecodingPress(BasePress):
                 cache.key_cache[layer_idx] = keys
                 cache.value_cache[layer_idx] = values
 
-            # Clear buffer after compression
-            self.hidden_states_buffer = []
-            self.layer_step_counts = defaultdict(int)
+            # Clear buffer and reset step count for this layer only
+            self.hidden_states_buffer[layer_idx] = []
+            self.layer_step_counts[layer_idx] = 0
 
         return output
 
     def reset(self):
         """Reset the decoding press state."""
-        self.hidden_states_buffer = []
+        self.hidden_states_buffer = defaultdict(list)
         self.layer_step_counts = defaultdict(int)
