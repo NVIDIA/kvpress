@@ -34,7 +34,7 @@ class SnapKVPress(ScorerPress):
         Compute the last window_size queries and associated attention weights for the first q_len - window_size keys.
         """
 
-        bsz, q_len, _ = hidden_states.shape
+        bsz, _, q_len, _ = keys.shape
         num_heads = module.config.num_attention_heads
         head_dim = module.head_dim
         num_key_value_groups = num_heads // module.config.num_key_value_heads
@@ -81,10 +81,12 @@ class SnapKVPress(ScorerPress):
         kwargs,
     ) -> torch.Tensor:
 
-        bsz, num_key_value_heads, q_len, _ = keys.shape
+        bsz, num_key_value_heads, _, _ = keys.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
-        assert q_len > self.window_size, "Query length should be greater than the window size"
+        q_len = hidden_states.shape[1]
+        assert q_len > self.window_size, \
+            f"Query length {q_len} should be greater than the window size {self.window_size}"
 
         if attentions is not None:
             attn_weights = attentions[..., -self.window_size :, : -self.window_size]
