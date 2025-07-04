@@ -4,6 +4,7 @@
 import logging
 from typing import Optional
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 import torch
 import torch.nn as nn
@@ -75,6 +76,7 @@ class PrefillDecodingPress(BasePress):
         # No hook applied
         return output
 
+    @contextmanager
     def __call__(self, model: PreTrainedModel):
         try:
             with super().__call__(model):

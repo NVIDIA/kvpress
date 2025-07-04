@@ -91,6 +91,49 @@ class DecodingPress(BasePress):
         self.hidden_states_buffer = []
         self.layer_step_counts = {}  # Track step count per layer
 
+    def _find_target_compression_ratio(self, q_len: int, target_tokens: int) -> float:
+        """
+        Find the compression ratio that results in exactly target_tokens after int() rounding.
+        
+        Args:
+            q_len: Current sequence length
+            target_tokens: Desired number of tokens after compression
+            
+        Returns:
+            Compression ratio that gives exactly target_tokens
+        """
+        if q_len <= target_tokens:
+            return 0.0
+            
+        # Start with theoretical ratio
+        ratio = 1.0 - (target_tokens / q_len)
+        
+        # Binary search to handle int() rounding
+        low, high = 0.0, 1.0
+        max_iterations = 20
+        iteration = 0
+        
+        while iteration < max_iterations:
+            n_kept = int(q_len * (1 - ratio))
+            if n_kept == target_tokens:
+                break
+            elif n_kept > target_tokens:
+                # Need more compression
+                low = ratio
+                ratio = (ratio + high) / 2
+            else:
+                # Need less compression
+                high = ratio
+                ratio = (low + ratio) / 2
+            iteration += 1
+            
+        # Debug: verify final result
+        final_n_kept = int(q_len * (1 - ratio))
+        if final_n_kept != target_tokens:
+            logger.warning(f"Binary search failed: q_len={q_len}, target={target_tokens}, got={final_n_kept}, ratio={ratio}")
+            
+        return ratio
+
     def compress(
             self,
             module: nn.Module,
@@ -126,12 +169,9 @@ class DecodingPress(BasePress):
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
         """
         q_len = keys.shape[2]
-        # compression_ratio = fraction of tokens to remove
-        # n_kept = q_len * (1 - compression_ratio) = token_buffer_size
-        # So: compression_ratio = 1 - (token_buffer_size / q_len)
-        target_compression_ratio = max(0.0, 1.0 - (self.token_buffer_size / q_len))
-        logger.debug(f"Compressing {q_len} with compression ratio {target_compression_ratio}")
-
+        target_compression_ratio = self._find_target_compression_ratio(q_len, self.token_buffer_size)
+        logger.debug(f"Compressing {q_len} to {self.token_buffer_size} with ratio {target_compression_ratio}")
+        
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio
         try:
