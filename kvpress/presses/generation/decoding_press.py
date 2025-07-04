@@ -28,13 +28,12 @@ class DecodingPress(BasePress):
     
     1. **AdaKVPress and CriticalAdaKVPress**: These presses use attention masking via 
        `module.masked_key_indices` which requires eager attention mode and conflicts with 
-       the decoding compression approach. They also assume `q_len = hidden_states.shape[1]` 
-       which is incorrect during decoding (should be `q_len = keys.shape[2]`).
+       the decoding compression approach.
     
     2. **DuoAttentionPress**: Uses attention masking and streaming patterns that are 
        incompatible with iterative decoding compression.
     
-    3. **KeyRerotationPress and FinchPress**: These require `position_embeddings` from kwargs
+    3. **FinchPress**: These require `position_embeddings` from kwargs
        and perform RoPE operations that assume the full sequence context. During decoding,
        position embeddings may not be available or may be inconsistent with the compressed cache.
     
@@ -99,6 +98,31 @@ class DecodingPress(BasePress):
             attentions: torch.Tensor,
             kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Delegate compression to the base press during decoding phase.
+        
+        Args:
+            module: The transformer module being compressed
+            hidden_states: Buffered hidden states from recent decoding steps (shape: [batch, buffer_len, hidden_dim])
+            keys: Key cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
+            values: Value cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
+            attentions: Attention weights (shape varies by implementation)
+            kwargs: Additional keyword arguments
+            
+        Returns:
+            tuple[torch.Tensor, torch.Tensor]: Compressed (keys, values) tensors
+            
+        Note:
+            **Sequence length alignment**: During decoding compression, `hidden_states` contains the 
+            buffered hidden states from recent decoding steps (buffer_len tokens), while `keys` and 
+            `values` contain the full sequence history (seq_len tokens). The base press implementation
+            should use keys.shape[2] for full sequence length calculations. The buffered hidden_states
+            provide context for the most recent tokens when computing compression scores.
+            
+        Performance Note:
+            It would be possible to speed up compression during decoding for certain scorer presses by
+            storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
+        """
         return self.base_press.compress(
             module, hidden_states, keys, values, attentions, kwargs
         )
@@ -122,8 +146,6 @@ class DecodingPress(BasePress):
             # We're still in prefilling phase, don't do anything
             return output
 
-        # We're in decoding phase
-
         # Add current hidden states to buffer
         self.hidden_states_buffer.append(hidden_states.detach().clone())
         self.step_count += 1
@@ -144,7 +166,9 @@ class DecodingPress(BasePress):
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
 
             # Apply compression
-            keys, values = self.compress(module, hidden_states, keys, values, attentions, kwargs)
+            keys, values = self.compress(module,
+                                         torch.cat(self.hidden_states_buffer, dim=1), keys, values, attentions,
+                                         kwargs)
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
