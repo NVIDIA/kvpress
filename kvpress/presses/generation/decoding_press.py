@@ -130,7 +130,8 @@ class DecodingPress(BasePress):
         # n_kept = q_len * (1 - compression_ratio) = token_buffer_size
         # So: compression_ratio = 1 - (token_buffer_size / q_len)
         target_compression_ratio = max(0.0, 1.0 - (self.token_buffer_size / q_len))
-        
+        logger.debug(f"Compressing {q_len} with compression ratio {target_compression_ratio}")
+
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio
         try:
