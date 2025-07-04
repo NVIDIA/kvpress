@@ -76,16 +76,18 @@ class DecodingPress(BasePress):
         scorer that doesn't depend on position embeddings or attention patterns.
     compression_steps : int, default=10
         Number of decoding steps between compression operations
-    compression_ratio : float, default=0.5
-        Fraction of tokens to remove during compression (0.0-1.0)
+    token_buffer_size : int, default=1024
+        Target number of tokens to keep after compression. Dynamically calculates 
+        compression_ratio to achieve this buffer size.
     """
 
-    base_press: BasePress
+    base_press: ScorerPress
     compression_steps: int = 10
-    compression_ratio: float = 0.5
+    token_buffer_size: int = 1024
 
     def __post_init__(self):
         # Buffer to store hidden states during decoding
+        assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = []
         self.step_count = 0
 
@@ -123,9 +125,21 @@ class DecodingPress(BasePress):
             It would be possible to speed up compression during decoding for certain scorer presses by
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
         """
-        return self.base_press.compress(
-            module, hidden_states, keys, values, attentions, kwargs
-        )
+        q_len = keys.shape[2]
+        # compression_ratio = fraction of tokens to remove
+        # n_kept = q_len * (1 - compression_ratio) = token_buffer_size
+        # So: compression_ratio = 1 - (token_buffer_size / q_len)
+        target_compression_ratio = max(0.0, 1.0 - (self.token_buffer_size / q_len))
+        
+        original_compression_ratio = self.base_press.compression_ratio
+        self.base_press.compression_ratio = target_compression_ratio
+        try:
+            result = self.base_press.compress(
+                module, hidden_states, keys, values, attentions, kwargs
+            )
+            return result
+        finally:
+            self.base_press.compression_ratio = original_compression_ratio
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
