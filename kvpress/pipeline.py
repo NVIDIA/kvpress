@@ -25,14 +25,13 @@ class KVPressTextGenerationPipeline(Pipeline):
     Pipeline for key-value cache compression in causal language models.
 
     Enables efficient processing of long contexts by applying KV cache compression
-    during pre-filling, then generating answers using greedy decoding. Particularly
-    useful for question-answering tasks over long documents.
+    during pre-filling, then generating answers using greedy decoding.
 
     Example:
     ```python
     pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)
     press = SnapKVPress(compression_ratio=0.5)
-    result = pipeline(context="Long text...", question="What?", press=press)
+    result = pipeline(context="Long text...", question="A question about the long context.", press=press)
     ```
     """
 
