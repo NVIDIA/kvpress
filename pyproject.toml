@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kvpress"
-authors = ["Simon Jegou", "Maximilian Jeblick", "Jiwei Liu", "David Austin"]
+authors = ["Simon Jegou", "Maximilian Jeblick", "Alessio Devoto", "Jiwei Liu", "David Austin"]
 description = "Efficiently compress the KV cache of any pretrained transformer"
 version = "0.2.7"
 readme = "README.md"
