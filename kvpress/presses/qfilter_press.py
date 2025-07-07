@@ -23,9 +23,8 @@ class QFilterPress(ScorerPress):
     Q-Filter: Learned filter-based KV cache compression.
 
     This method uses pre-trained learned filters (Q-filters) to score and compress
-    key-value pairs. Unlike heuristic-based methods, Q-filters are neural network
-    parameters that have been trained to identify important tokens for specific
-    model architectures.
+    key-value pairs. Unlike heuristic-based methods,
+    Q-filters are vectors that identify important tokens for specific model architectures.
 
     The method works by:
     1. Loading pre-trained Q-filter parameters for the specific model

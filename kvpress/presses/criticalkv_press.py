@@ -44,8 +44,8 @@ class CriticalKVPress(ScorerPress):
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
             logger.warning("use_vnorm should be disabled for CriticalKVPress")
 
-    @property
-    def compression_ratio(self):
+    @property  # type: ignore[misc]
+    def compression_ratio(self):  #
         return self.press.compression_ratio
 
     @compression_ratio.setter
@@ -106,7 +106,7 @@ class CriticalAdaKVPress(BasePress):
     press : ScorerPress
         The underlying scoring method used to evaluate token importance.
     alpha_safeguard : float, default=0.20
-        Minimum fraction of KV pairs that each head must retain.
+        Minimum fraction of KV pairs that each head must retain. (see AdaKVPress)
     epsilon : float, default=1e-4
         Small value for numerical stability in score rescaling.
     first_stage_ratio : float, default=0.5

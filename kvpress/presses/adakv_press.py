@@ -24,7 +24,7 @@ class AdaKVPress(BasePress):
     Parameters
     ----------
     press : ScorerPress
-        The underlying scoring method used to evaluate token importance.
+        AdaKVPress and ObservedAttention are currently not supported.
     alpha_safeguard : float, default=0.20
         Minimum fraction of KV pairs that each head must retain.
         Ensures no attention head is compressed too aggressively. Even if tokens
