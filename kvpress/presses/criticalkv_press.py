@@ -14,23 +14,38 @@ from kvpress.presses.scorer_press import ScorerPress
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class CriticalKVPress(ScorerPress):
     """
-    CriticalKV (https://arxiv.org/abs/2502.03805) rescales the scores of a ScorerPress by
-    the L1 norm of Wo @ values
+    CriticalKV: Two-stage compression with output projection weighting.
+
+    Enhances existing scoring methods by rescaling scores using the L1 norm
+    of output projection applied to values (Wo @ values).
+
+    Based on CriticalKV (https://arxiv.org/abs/2502.03805).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        Base scoring method to enhance with output projection weighting.
+    epsilon : float, default=1e-4
+        Small value for numerical stability in score rescaling.
+    first_stage_ratio : float, default=0.5
+        Fraction of compression budget allocated to first stage selection.
+        Remaining budget used in second stage with output projection weighting.
     """
 
-    def __init__(self, press: ScorerPress, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
-        self.press = press
-        self.epsilon = epsilon
-        self.first_stage_ratio = first_stage_ratio
+    press: ScorerPress = None
+    epsilon: float = 1e-4
+    first_stage_ratio: float = 0.5
 
-        assert isinstance(self.press, ScorerPress), "CriticalAdaKVPress requires a ScorerPress as input"
+    def __post_init__(self):
+        assert isinstance(self.press, ScorerPress), "CriticalKVPress requires a ScorerPress as input"
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
-            logger.warning("use_vnorm should be disabled for CriticalAdaKVPress")
+            logger.warning("use_vnorm should be disabled for CriticalKVPress")
 
-    @property
-    def compression_ratio(self):
+    @property  # type: ignore[misc]
+    def compression_ratio(self):  #
         return self.press.compression_ratio
 
     @compression_ratio.setter
@@ -78,11 +93,27 @@ class CriticalKVPress(ScorerPress):
 @dataclass
 class CriticalAdaKVPress(BasePress):
     """
-    CriticalAdaKV (https://arxiv.org/abs/2502.03805) rescales the scores of a ScorerPress by
-    the L1 norm of Wo @ values and combines it with AdaKV (https://arxiv.org/abs/2407.11550).
+    CriticalAdaKV: Combined two-stage compression with adaptive head-wise selection.
+
+    Combines output projection weighting from CriticalKV with adaptive head-wise
+    compression from AdaKV. Provides both accurate importance estimation and
+    head-specific compression adaptation.
+
+    Based on CriticalAdaKV (https://arxiv.org/abs/2502.03805).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method used to evaluate token importance.
+    alpha_safeguard : float, default=0.20
+        Minimum fraction of KV pairs that each head must retain. (see AdaKVPress)
+    epsilon : float, default=1e-4
+        Small value for numerical stability in score rescaling.
+    first_stage_ratio : float, default=0.5
+        Fraction of compression budget allocated to first stage selection.
     """
 
-    press: ScorerPress
+    press: ScorerPress = None
     alpha_safeguard: float = 0.20
     epsilon: float = 1e-4
     first_stage_ratio: float = 0.5

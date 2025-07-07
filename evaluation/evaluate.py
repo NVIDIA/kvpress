@@ -285,7 +285,7 @@ class EvaluationRunner:
             str(data_dir) if data_dir else "",
             model_name.replace("/", "--"),
             press_name,
-            f"{compression_ratio:.2f}".replace(".", "_"),
+            f"{compression_ratio:.2f}",
         ]
 
         if fraction < 1.0:

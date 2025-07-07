@@ -16,10 +16,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScorerPress(BasePress):
     """
-    Default press method for using a score method.
-    Any ScorerPress subclass must implement the `score` method that computes a tensor of scores for each key-value pair
-    The KV pairs with the lowest scores will be pruned in the `compress` method.
-    The cache is uniformly pruned across all heads and layers using the compression_ratio parameter.
+    Base class for score-based KV cache compression methods.
+
+    This class assigns scores to key-value pairs and prune those with the lowest scores.
+    Subclasses then implement the `score` method to define how importance is calculated.
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
     """
 
     compression_ratio: float = 0.0
@@ -37,8 +42,34 @@ class ScorerPress(BasePress):
         kwargs,
     ) -> torch.Tensor:
         """
-        Compute a tensor of scores with shape (bsz, num_key_value_heads, q_len)
-        The KV pairs with lowest scores will be pruned in the `compress` method.
+        Compute importance scores for each key-value pair.
+
+        This method must be implemented by subclasses to define how the importance
+        of each token position is calculated. Higher scores indicate more important
+        tokens that should be kept during compression.
+
+        Parameters
+        ----------
+        module : nn.Module
+            The transformer attention layer where scoring is applied.
+        hidden_states : torch.Tensor
+            Input embeddings with shape (batch_size, seq_len, hidden_dim).
+        keys : torch.Tensor
+            Key tensors with shape (batch_size, num_kv_heads, seq_len, head_dim).
+        values : torch.Tensor
+            Value tensors with shape (batch_size, num_kv_heads, seq_len, head_dim).
+        attentions : torch.Tensor
+            Attention weights with shape (batch_size, num_heads, seq_len, seq_len).
+            May be None if not computed or needed by the scoring method.
+        kwargs : dict
+            Additional arguments from the forward pass, including cache and position info.
+
+        Returns
+        -------
+        torch.Tensor
+            Importance scores with shape (batch_size, num_kv_heads, seq_len).
+            Higher scores indicate more important tokens. The tokens with the
+            lowest scores will be pruned during compression.
         """
         raise NotImplementedError
 

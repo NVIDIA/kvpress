@@ -13,7 +13,19 @@ from kvpress.presses.scorer_press import ScorerPress
 
 @dataclass
 class RandomPress(ScorerPress):
-    """Randomly prune KV pairs"""
+    """
+    Random KV cache compression for baseline comparison.
+
+    Randomly selects which key-value pairs to prune. Useful for establishing baseline
+    performance metrics and validating other compression methods.
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    seed : int, optional
+        Random seed for reproducible compression results.
+    """
 
     compression_ratio: float = 0.0
     seed: Optional[int] = None
@@ -27,6 +39,8 @@ class RandomPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
+        generator = None
         if self.seed is not None:
-            torch.manual_seed(self.seed)
-        return torch.rand(*keys.shape[:-1]).to(keys.device, keys.dtype)
+            generator = torch.Generator()
+            generator.manual_seed(self.seed)
+        return torch.rand(*keys.shape[:-1], generator=generator, device=keys.device, dtype=keys.dtype)
