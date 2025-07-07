@@ -84,13 +84,11 @@ class DecodingPress(BasePress):
 
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio
-        try:
-            result = self.base_press.compress(
-                module, hidden_states, keys, values, attentions, kwargs
-            )
-            return result
-        finally:
-            self.base_press.compression_ratio = original_compression_ratio
+        result = self.base_press.compress(
+            module, hidden_states, keys, values, attentions, kwargs
+        )
+        self.base_press.compression_ratio = original_compression_ratio
+        return result
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
