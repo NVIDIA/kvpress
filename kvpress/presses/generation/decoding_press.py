@@ -143,12 +143,7 @@ class DecodingPress(BasePress):
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
 
             # Apply compression using buffered hidden states for this layer
-            if self.hidden_states_buffer_size == 0:
-                # Use only current hidden state
-                buffered_hidden_states = hidden_states
-            else:
-                # Use all buffered hidden states
-                buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
+            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
             logger.debug(f"Applied decoding compression: "
                          f"keys.shape: {keys.shape}, values.shape: {values.shape}")
