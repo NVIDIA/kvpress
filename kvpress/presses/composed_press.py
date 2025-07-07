@@ -25,7 +25,7 @@ class ComposedPress(BasePress):
     ])
     ```
 
-    Cannot include ObservedAttentionPress or AdaKVPress due to implementation constraints.
+    ObservedAttentionPress or AdaKVPress are currently not supported.
 
     Parameters
     ----------
