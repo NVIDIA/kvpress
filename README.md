@@ -99,11 +99,11 @@ We provide wrapper presses that can be combined with other presses:
 
 We provide experimental presses that can compress the KV cache during token generation, enabling memory-efficient long-form text generation:
 
-- `DecodingPress` ([source](kvpress/presses/generation/decoding_press.py)): compresses the KV cache periodically during token generation by maintaining a buffer of recent hidden states. Only operates during decoding phase and applies compression every N steps using any ScorerPress.
+- `DecodingPress` ([source](kvpress/presses/generation/decoding_press.py)): compresses the KV cache periodically during token generation by maintaining a buffer of recent hidden states. Only operates during decoding phase and applies compression every `compression_steps` using any ScorerPress.
 - `PrefillDecodingPress` ([source](kvpress/presses/generation/prefill_decoding_press.py)): combines separate presses for prefilling and decoding phases, allowing different compression strategies for each phase.
 
 These presses maintain a target cache size during generation through configurable compression frequency and buffer size.
-Unlike standard presses that use `compression_ratio`, generation presses use `token_buffer_size` to specify the exact number of tokens to keep after compression.
+Unlike context compression presses that use `compression_ratio`, generation presses use `token_buffer_size` to specify the exact number of tokens to keep after compression.
 They are compatible with most ScorerPress implementations and allow separate compression strategies for prefill vs. decoding phases.
 
 **Example Usage:**
@@ -112,7 +112,7 @@ from kvpress import DecodingPress, KnormPress
 
 # Compress every 128 steps during decoding, keeping 1024 tokens
 decoding_press = DecodingPress(
-    base_press=KnormPress(compression_ratio=0.5),
+    base_press=KnormPress(),  # No need to specify compression_ratio, will be derived from token_buffer_size
     compression_steps=128,
     token_buffer_size=1024,
     hidden_states_buffer_size=128
