@@ -23,63 +23,15 @@ class DecodingPress(BasePress):
     This press accumulates hidden states during decoding and applies compression every N steps
     using a scorer press to determine which tokens to keep.
     
-    **COMPATIBILITY ISSUES AND LIMITATIONS:**
-    
-    **Presses that will NOT work with DecodingPress:**
-    
-    1. **AdaKVPress and CriticalAdaKVPress**: These presses use attention masking via 
-       `module.masked_key_indices` which requires eager attention mode and conflicts with 
-       the decoding compression approach.
-    
-    2. **DuoAttentionPress**: Uses attention masking and streaming patterns that are 
-       incompatible with iterative decoding compression.
-    
-    3. **FinchPress**: These require `position_embeddings` from kwargs
-       and perform RoPE operations that assume the full sequence context. During decoding,
-       position embeddings may not be available or may be inconsistent with the compressed cache.
-    
-    4. **SnapKVPress, TOVAPress, ThinKPress**: These compute attention weights using 
-       `compute_window_attention()` which requires position embeddings and assumes specific
-       sequence structures that may be disrupted during iterative decoding compression.
-    
-    5. **SimLayerKVPress**: Uses lazy evaluation based on position embeddings and sequence
-       patterns that may not work correctly with decoding compression.
-    
-    **Presses that SHOULD work with DecodingPress:**
-    
-    1. **ScorerPress with simple scorers**: Basic scoring functions like:
-       - `expected_attention`: Uses hidden states only
-       - `random`: No dependencies on sequence structure
-    
-    2. **KnormPress**: Only uses key norms, no position dependencies
-    
-    3. **StreamingLLMPress**: Simple sink-based scoring
-    
-    **Key Issues:**
-    
-    - **q_len mismatch**: Many presses use `q_len = hidden_states.shape[1]` but during 
-      decoding, `hidden_states.shape[1] = 1` while the actual sequence length is 
-      `keys.shape[2]`. To handle this, use `q_len = keys.shape[2]` during decoding.
-    
-    - **Position embeddings**: Presses requiring `kwargs["position_embeddings"]` may fail
-      during decoding as position embeddings might not be available or consistent.
-    
-    - **Attention masking**: Presses that set `module.masked_key_indices` for attention
-      masking are incompatible with the gather-based compression used in decoding.
-    
-    - **Sequence assumptions**: Presses that assume specific sequence structures or
-      windowing patterns may break when applied iteratively during decoding.
-    
+
     Parameters
     ----------
     base_press : ScorerPress
-        The scorer press used to compute importance scores for tokens. Should use a simple
-        scorer that doesn't depend on position embeddings or attention patterns.
+        The scorer press used to compute importance scores for tokens.
     compression_steps : int, default=10
         Number of decoding steps between compression operations
     token_buffer_size : int, default=1024
-        Target number of tokens to keep after compression. Dynamically calculates 
-        compression_ratio to achieve this buffer size.
+        Target number of tokens to keep after compression.
     """
 
     base_press: ScorerPress
@@ -92,49 +44,6 @@ class DecodingPress(BasePress):
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
-    def _find_target_compression_ratio(self, q_len: int, target_tokens: int) -> float:
-        """
-        Find the compression ratio that results in exactly target_tokens after int() rounding.
-        
-        Args:
-            q_len: Current sequence length
-            target_tokens: Desired number of tokens after compression
-            
-        Returns:
-            Compression ratio that gives exactly target_tokens
-        """
-        if q_len <= target_tokens:
-            return 0.0
-            
-        # Start with theoretical ratio
-        ratio = 1.0 - (target_tokens / q_len)
-        
-        # Binary search to handle int() rounding
-        low, high = 0.0, 1.0
-        max_iterations = 20
-        iteration = 0
-        
-        while iteration < max_iterations:
-            n_kept = int(q_len * (1 - ratio))
-            if n_kept == target_tokens:
-                break
-            elif n_kept > target_tokens:
-                # Need more compression
-                low = ratio
-                ratio = (ratio + high) / 2
-            else:
-                # Need less compression
-                high = ratio
-                ratio = (low + ratio) / 2
-            iteration += 1
-            
-        # Debug: verify final result
-        final_n_kept = int(q_len * (1 - ratio))
-        if final_n_kept != target_tokens:
-            logger.warning(f"Binary search failed: q_len={q_len}, target={target_tokens}, got={final_n_kept}, ratio={ratio}")
-            
-        return ratio
-
     def compress(
             self,
             module: nn.Module,
@@ -146,7 +55,7 @@ class DecodingPress(BasePress):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Delegate compression to the base press during decoding phase.
-        
+
         Args:
             module: The transformer module being compressed
             hidden_states: Buffered hidden states from recent decoding steps (shape: [batch, buffer_len, hidden_dim])
@@ -154,17 +63,17 @@ class DecodingPress(BasePress):
             values: Value cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
             attentions: Attention weights (shape varies by implementation)
             kwargs: Additional keyword arguments
-            
+
         Returns:
             tuple[torch.Tensor, torch.Tensor]: Compressed (keys, values) tensors
-            
+
         Note:
-            **Sequence length alignment**: During decoding compression, `hidden_states` contains the 
-            buffered hidden states from recent decoding steps (buffer_len tokens), while `keys` and 
+            **Sequence length alignment**: During decoding compression, `hidden_states` contains the
+            buffered hidden states from recent decoding steps (buffer_len tokens), while `keys` and
             `values` contain the full sequence history (seq_len tokens). The base press implementation
             should use keys.shape[2] for full sequence length calculations. The buffered hidden_states
             provide context for the most recent tokens when computing compression scores.
-            
+
         Performance Note:
             It would be possible to speed up compression during decoding for certain scorer presses by
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
@@ -172,7 +81,7 @@ class DecodingPress(BasePress):
         q_len = keys.shape[2]
         target_compression_ratio = self._find_target_compression_ratio(q_len, self.token_buffer_size)
         logger.debug(f"Compressing {q_len} to {self.token_buffer_size} with ratio {target_compression_ratio}")
-        
+
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio
         try:
@@ -186,7 +95,7 @@ class DecodingPress(BasePress):
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
         Forward hook that manages decoding-specific compression logic.
-        
+
         This hook:
         1. Detects when we're in decoding phase (not prefilling)
         2. Accumulates hidden states in a buffer
@@ -248,3 +157,45 @@ class DecodingPress(BasePress):
         """Reset the decoding press state."""
         self.hidden_states_buffer = defaultdict(list)
         self.layer_step_counts = defaultdict(int)
+
+    def _find_target_compression_ratio(self, q_len: int, target_tokens: int) -> float:
+        """
+        Find the compression ratio that results in exactly target_tokens after int() rounding.
+
+        Args:
+            q_len: Current sequence length
+            target_tokens: Desired number of tokens after compression
+
+        Returns:
+            Compression ratio that gives exactly target_tokens
+        """
+        if q_len <= target_tokens:
+            return 0.0
+
+        # Start with theoretical ratio
+        ratio = 1.0 - (target_tokens / q_len)
+
+        # Binary search to handle int() rounding
+        low, high = 0.0, 1.0
+        max_iterations = 20
+        iteration = 0
+
+        while iteration < max_iterations:
+            n_kept = int(q_len * (1 - ratio))
+            if n_kept == target_tokens:
+                break
+            elif n_kept > target_tokens:
+                # Need more compression
+                low = ratio
+                ratio = (ratio + high) / 2
+            else:
+                # Need less compression
+                high = ratio
+                ratio = (low + ratio) / 2
+            iteration += 1
+
+        final_n_kept = int(q_len * (1 - ratio))
+        if final_n_kept != target_tokens:
+            logger.warning(f"Binary search failed: q_len={q_len}, target={target_tokens}, got={final_n_kept}, ratio={ratio}")
+
+        return ratio
