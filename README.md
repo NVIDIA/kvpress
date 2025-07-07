@@ -85,7 +85,7 @@ Some presses rely on a different logic:
 - `DuoAttentionPress` ([source](kvpress/presses/duo_attention_press.py), [paper](https://arxiv.org/abs/2410.10819)): split heads into retrieval heads (no compression) and streaming heads (StreamingLLM approach)
 - `FinchPress` ([source](kvpress/presses/finch_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): similar to SnapKV with a dynamic window size and key value re-rotation
 
-Finally we provide wrapper presses that can be combined with other presses:
+We provide wrapper presses that can be combined with other presses:
 - `AdaKVPress` ([source](kvpress/presses/adakv_press.py), [paper](https://arxiv.org/abs/2407.11550)): prune bottom scores of any `ScorerPress` but across all heads, achieving head-wise compressions 
 - `PerLayerCompressionPress` ([source](kvpress/presses/per_layer_compression_press.py)): compress each layer with a different compression ratio (experimental)
 - `ComposedPress` ([source](kvpress/presses/composed_press.py)): compose multiple presses together by chaining their forward hooks
@@ -94,6 +94,34 @@ Finally we provide wrapper presses that can be combined with other presses:
 - `ChunkPress` ([source](kvpress/presses/chunk_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): compress the KV cache on each sequence chunk separately. This can yield to more uniform compression across long sequences
 - `CriticalKVPress` and `CriticalAdaKVPress` ([source](kvpress/presses/criticalkv_press.py), [paper](https://arxiv.org/abs/2502.03805)): refine the scores using the L1 norm of Wo @ values, coupled with a two-stage selection.
 - `BlockPress` ([source](kvpress/presses/keydiff_press.py), [paper](https://arxiv.org/abs/2504.15364)): segments input sequence into non-overlapping blocks and compresses iteratively.
+
+### Generation Presses (Experimental)
+
+We provide experimental presses that can compress the KV cache during token generation, enabling memory-efficient long-form text generation:
+
+- `DecodingPress` ([source](kvpress/presses/generation/decoding_press.py)): compresses the KV cache periodically during token generation by maintaining a buffer of recent hidden states. Only operates during decoding phase and applies compression every N steps using any ScorerPress.
+- `PrefillDecodingPress` ([source](kvpress/presses/generation/prefill_decoding_press.py)): combines separate presses for prefilling and decoding phases, allowing different compression strategies for each phase.
+
+These presses maintain a target cache size during generation through configurable compression frequency and buffer size.
+Unlike standard presses that use `compression_ratio`, generation presses use `token_buffer_size` to specify the exact number of tokens to keep after compression.
+They are compatible with most ScorerPress implementations and allow separate compression strategies for prefill vs. decoding phases.
+
+**Example Usage:**
+```python
+from kvpress import DecodingPress, KnormPress
+
+# Compress every 128 steps during decoding, keeping 1024 tokens
+decoding_press = DecodingPress(
+    base_press=KnormPress(compression_ratio=0.5),
+    compression_steps=128,
+    token_buffer_size=1024,
+    hidden_states_buffer_size=128
+)
+
+response = pipe("Generate a long story...", press=decoding_press)
+```
+
+For detailed documentation and compatibility notes, see [generation presses README](kvpress/presses/generation/README.md).
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
