@@ -22,9 +22,17 @@ logger = logging.getLogger(__name__)
 
 class KVPressTextGenerationPipeline(Pipeline):
     """
-    Pipeline for key-value compression in causal language models.
-    This pipeline allows you to compress a long prompt using a key-value press
-    and then generate answers using greedy decoding.
+    Pipeline for key-value cache compression in causal language models.
+
+    Enables efficient processing of long contexts by applying KV cache compression
+    during pre-filling, then generating answers using greedy decoding.
+
+    Example:
+    ```python
+    pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)
+    press = SnapKVPress(compression_ratio=0.5)
+    result = pipeline(context="Long text...", question="A question about the long context.", press=press)
+    ```
     """
 
     def _sanitize_parameters(
@@ -51,7 +59,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         answer_prefix : str, optional
             The prefix to be added to the generated answer.
         press : BasePress, optional
-            The key-value press to use for compression.
+            The key-value cache compression method to apply during pre-filling.
+
+            Accepts any KVPress compression method (SnapKVPress, KnormPress,
+            ExpectedAttentionPress, BlockPress, AdaKVPress, ComposedPress, etc.).
+            If None, no compression is applied.
         max_new_tokens : int, optional
             The maximum number of new tokens to generate for each answer.
         max_context_length : int, optional
@@ -92,13 +104,27 @@ class KVPressTextGenerationPipeline(Pipeline):
         max_context_length: int,
     ):
         """
-        Apply the chat template to the triplet (context, questions, answer_prefix) and tokenize it.
+        Apply chat template and tokenize the context and questions.
+
+        Prepares input text for KV cache compression and generation by applying
+        appropriate chat templates and tokenizing. Handles models with and without
+        chat templates.
+
+        Parameters
+        ----------
+        context : str
+            Long context text to be compressed using the press method.
+        questions : list[str]
+            Questions to be asked about the context.
+        answer_prefix : str
+            Optional prefix for generated answers.
+        max_context_length : int
+            Maximum tokens allowed in context (truncated if exceeded).
 
         Returns
         -------
         dict[str, GenericTensor]
-            A dictionary containing the tokenized context (key: "context_ids") and questions (key: "questions_ids").
-
+            Dictionary with "context_ids" and "questions_ids" tensors.
         """
 
         # Apply chat template if available
@@ -140,25 +166,27 @@ class KVPressTextGenerationPipeline(Pipeline):
         cache: Optional[Cache] = None,
     ):
         """
-        Forward pass of the kv-press pipeline.
+        Execute KV cache compression and text generation pipeline.
+
+        Performs context compression using the press method during pre-filling,
+        then generates answers using greedy decoding.
 
         Parameters
         ----------
         input_tensors : dict[str, GenericTensor]
-            A dictionary containing the tokenized context and questions.
-        max_new_tokens : int, optional
-            The maximum number of new tokens to generate for each answer. Defaults to 50.
+            Tokenized inputs with "context_ids" and "questions_ids".
+        max_new_tokens : int, default=50
+            Maximum tokens to generate for each answer.
         press : BasePress, optional
-            The key-value press to use for compression. Defaults to None.
+            Compression method for context pre-filling. If None, no compression.
         cache : Cache, optional
-            The cache to use for the forward pass. Defaults to None (DynamicCache).
+            Cache object for forward pass. If None, creates new DynamicCache.
 
         Returns
         -------
         list[str]
-            A list of generated answers.
+            Generated answers for each input question.
         """
-
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
 

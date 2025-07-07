@@ -13,9 +13,20 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class BlockPress(BasePress):
     """
-    Simulates block prompt processing described in the KeyDiff (https://arxiv.org/abs/2504.15364).
-    Segments input sequence into non-overlapping blocks and compresses iteratively.
-    Keeps limited memory overhead for long context inference.
+    BlockPress: Block-wise iterative KV cache compression.
+
+    Applies compression in fixed-size blocks. Iteratively scores and prunes tokens block by block, maintaining
+    a buffer of previously kept tokens for context. Mathematically equivalent
+    to global compression when scoring uses only local information.
+
+    Based on BlockPress (https://arxiv.org/abs/2504.15364).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method used to evaluate token importance within each block.
+    block_size : int, default=128
+        Size of each block for iterative compression.
     """
 
     press: ScorerPress

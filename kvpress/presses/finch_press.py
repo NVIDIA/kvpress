@@ -16,26 +16,41 @@ from kvpress.presses.key_rerotation_press import KeyRerotationPress
 @dataclass
 class FinchPress(BasePress):
     """
-    Implementation of Finch (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)
-    without chunked prefilling.
+    FINCH: Prompt-guided Key-Value Cache Compression.
 
-    Finch starts with SnapKV-style compression, but the window size is not fixed. Instead, the user must provide
-    a delimiter token between the context and the window (input = context + delimiter_token + question).
-    The delimiter token is set by the user via the update_model_and_tokenizer method.
+    SnapKV-style compression with dynamic window sizing based on delimiter tokens.
+    Requires input format: `context + delimiter_token + question`. The delimiter
+    separates context from query, allowing dynamic window size determination.
+
+    Use `update_model_and_tokenizer` method to set delimiter token before use.
 
 
-    The options are also available
-    - normalizing scores using the number of non-zero attention weights in the window
-    - compressing by chunks
-    - rerotating keys after compression (similar to KeyRerotationPress)
+    Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    chunk_length : int, optional
+        Length of chunks for optional chunked compression. None processes entire context at once.
+    normalize_scores : bool, default=True
+        Whether to normalize attention scores by number of non-zero weights.
+    rerotate_keys : bool, default=True
+        Whether to rerotate keys after compression using RoPE for proper positional encoding.
+    delimiter_token : str
+        Delimiter token string separating context from query (set automatically).
+    delimiter_token_id : int
+        Token ID for delimiter token (set automatically).
+    window_size : int
+        Dynamically determined window size based on delimiter position (set automatically).
     """
 
     compression_ratio: float = 0.0
     chunk_length: int = None
     normalize_scores: bool = True
     rerotate_keys: bool = True
-    delimiter_token: str = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
-    delimiter_token_id: int = field(default=None, init=False)  # To be set by the update_model_and_tokenizer method
+    delimiter_token: str = field(default=None, init=False)
+    delimiter_token_id: int = field(default=None, init=False)
     window_size: int = field(default=None, init=False)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
@@ -121,7 +136,7 @@ class FinchPress(BasePress):
             output = output[:, ~delim_tokens]
         return output
 
-    def update_model_and_tokenizer(self, model, tokenizer, delimiter_token : str = "<|finch_sep|>"):
+    def update_model_and_tokenizer(self, model, tokenizer, delimiter_token: str = "<|finch_sep|>"):
         """
         Set the delimiter token and update the tokenizer accordingly.
         This method should be called before calling the press.
@@ -138,8 +153,10 @@ class FinchPress(BasePress):
     def __call__(self, model):
         # The user should set the delimiter_token_id before calling the press.
         if self.delimiter_token_id is None:
-            raise ValueError("""No delimiter token ID provided.
-                             Use the update_model_and_tokenizer method before calling the press.""")
+            raise ValueError(
+                """No delimiter token ID provided.
+                             Use the update_model_and_tokenizer method before calling the press."""
+            )
 
         with super().__call__(model):
             try:

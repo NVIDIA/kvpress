@@ -15,14 +15,20 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class KeyRerotationPress(BasePress):
     """
-    Rerotate keys to have a uniform RoPE representation of keys after pruning.
+    Key Rerotation: RoPE-aware compression wrapper for maintaining positional encoding.
+
+    Enhances any ScorerPress by applying key rerotation after compression to maintain
+    proper RoPE (Rotary Position Embedding) representations. When tokens are pruned,
+    remaining tokens need positional encodings adjusted for their new positions.
     This method is used in several key-value cache compression methods, such as
     - SinkCache implementation in Hugging Face's transformers library
     - FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
+
     Parameters
     ----------
     press : ScorerPress
-        The press object to apply per-layer compression to.
+        The underlying scoring method to enhance with key rerotation.
+        Rerotation is applied after the press determines which tokens to keep.
     """
 
     press: ScorerPress
