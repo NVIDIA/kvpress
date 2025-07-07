@@ -20,7 +20,7 @@ class ChunkPress(BasePress):
     may concentrate selection in high-importance regions, ChunkPress ensures
     uniform compression across the entire context by processing each chunk separately.
 
-    This approach was proposed in FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)
+    Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
 
     Parameters
     ----------

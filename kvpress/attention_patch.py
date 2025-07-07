@@ -99,7 +99,7 @@ def patch_attention_functions():
     Notes
     -----
     This function modifies the global attention functions in the transformers
-    library. The modifications do affect models that don't use head-wise compression (i.e. don't have
+    library. The modifications do not affect models that don't use head-wise compression (i.e. don't have
     module.masked_key_indices).
     """
     for name, func in ALL_ATTENTION_FUNCTIONS.items():

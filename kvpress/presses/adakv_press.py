@@ -17,7 +17,9 @@ class AdaKVPress(BasePress):
 
     Performs head-specific compression by selecting top-k tokens across all heads
     based on importance scores. Applies safeguards to ensure each head retains
-    a minimum fraction of tokens. Based on AdaKV (https://arxiv.org/abs/2407.11550).
+    a minimum fraction of tokens.
+
+    Based on AdaKV (https://arxiv.org/abs/2407.11550).
 
     Parameters
     ----------

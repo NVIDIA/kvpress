@@ -17,7 +17,13 @@ class KnormPress(ScorerPress):
 
     Prunes key-value pairs based on L2 norm of key vectors.
     Simple, efficient method requiring only norm calculation.
+
     Based on https://arxiv.org/pdf/2406.11430.
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
     """
 
     def score(

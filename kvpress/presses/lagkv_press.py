@@ -18,6 +18,7 @@ class LagKVPress(ScorerPress):
     Compresses KV cache by leveraging lag-relative information between sequence
     partitions. Divides sequence into partitions and uses subsequent partitions
     as references for scoring tokens in prior partitions.
+
     Based on LagKV (https://arxiv.org/abs/2504.04704).
 
     Parameters

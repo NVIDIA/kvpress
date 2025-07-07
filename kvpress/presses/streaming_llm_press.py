@@ -16,10 +16,10 @@ class StreamingLLMPress(ScorerPress):
     StreamingLLM: Window-based KV cache compression with sink tokens.
 
     Implements sliding window approach preserving first few tokens (sink tokens)
-    and most recent tokens, while pruning middle tokens. Based on StreamingLLM
-    (https://arxiv.org/abs/2309.17453).
-
+    and most recent tokens, while pruning middle tokens.
     Note: For full StreamingLLM behavior, combine with KeyRerotationPress.
+
+    Based on StreamingLLM (https://arxiv.org/abs/2309.17453).
 
     Parameters
     ----------

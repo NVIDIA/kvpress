@@ -20,8 +20,9 @@ class ThinKPress(BasePress):
     ThinK: Channel-wise key compression for transformer attention.
 
     Compresses key dimensions rather than sequence length by zeroing out
-    less important channels. Based on ThinK (https://arxiv.org/pdf/2407.21018).
-    Can be combined with sequence compression methods.
+    less important channels. Can be combined with sequence compression methods.
+
+    Based on ThinK (https://arxiv.org/pdf/2407.21018).
 
     Parameters
     ----------

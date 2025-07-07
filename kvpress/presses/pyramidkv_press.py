@@ -21,7 +21,9 @@ class PyramidKVPress(SnapKVPress):
     Dynamically adjusts KV cache sizes across transformer layers, allocating
     more tokens to lower layers and fewer to higher layers. Based on the
     observation that lower layers need more context while higher layers
-    can work with less. Based on PyramidKV (https://arxiv.org/abs/2406.02069).
+    can work with less.
+
+    Based on PyramidKV (https://arxiv.org/abs/2406.02069).
 
     Parameters
     ----------

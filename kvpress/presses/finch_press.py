@@ -21,9 +21,11 @@ class FinchPress(BasePress):
     SnapKV-style compression with dynamic window sizing based on delimiter tokens.
     Requires input format: `context + delimiter_token + question`. The delimiter
     separates context from query, allowing dynamic window size determination.
-    Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
 
     Use `update_model_and_tokenizer` method to set delimiter token before use.
+
+
+    Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
 
     Parameters
     ----------

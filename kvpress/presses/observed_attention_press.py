@@ -20,9 +20,11 @@ class ObservedAttentionPress(ScorerPress):
 
     Computes importance scores based on actual attention weights observed during
     forward pass. Score for each key-value pair is the average attention weight
-    it receives from all query tokens. Related to H2O (https://arxiv.org/abs/2306.14048).
+    it receives from all query tokens.
 
     Requires: output_attentions=True and attn_implementation="eager".
+
+    Related to H2O (https://arxiv.org/abs/2306.14048).
 
     Parameters
     ----------

@@ -41,6 +41,13 @@ class QFilterPress(ScorerPress):
 
     The Q-filters are automatically loaded based on the model name and are
     expected to be available in a Hugging Face model collection.
+
+    Based on Q-Filter (https://arxiv.org/abs/2503.02812).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
     """
 
     def __post_init_from_model__(self, model):

@@ -21,6 +21,7 @@ class CriticalKVPress(ScorerPress):
 
     Enhances existing scoring methods by rescaling scores using the L1 norm
     of output projection applied to values (Wo @ values).
+
     Based on CriticalKV (https://arxiv.org/abs/2502.03805).
 
     Parameters
@@ -97,6 +98,7 @@ class CriticalAdaKVPress(BasePress):
     Combines output projection weighting from CriticalKV with adaptive head-wise
     compression from AdaKV. Provides both accurate importance estimation and
     head-specific compression adaptation.
+
     Based on CriticalAdaKV (https://arxiv.org/abs/2502.03805).
 
     Parameters

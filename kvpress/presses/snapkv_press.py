@@ -22,7 +22,9 @@ class SnapKVPress(ScorerPress):
     SnapKV: Attention-based KV cache compression using recent token patterns.
 
     Uses attention patterns of the most recent tokens to estimate importance
-    of previous key-value pairs. Based on SnapKV (https://arxiv.org/abs/2404.14469).
+    of previous key-value pairs.
+
+    Based on SnapKV (https://arxiv.org/abs/2404.14469).
 
     Parameters
     ----------

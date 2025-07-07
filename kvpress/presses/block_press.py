@@ -19,6 +19,8 @@ class BlockPress(BasePress):
     a buffer of previously kept tokens for context. Mathematically equivalent
     to global compression when scoring uses only local information.
 
+    Based on BlockPress (https://arxiv.org/abs/2504.15364).
+
     Parameters
     ----------
     press : ScorerPress

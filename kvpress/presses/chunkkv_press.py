@@ -18,6 +18,7 @@ class ChunkKVPress(BasePress):
     Enhances any ScorerPress by applying chunk-wise token selection instead of
     global selection. Computes global importance scores, then selects tokens
     chunk by chunk to preserve semantic coherence within local contexts.
+
     Based on ChunkKV (https://arxiv.org/abs/2502.00299).
 
     Parameters
