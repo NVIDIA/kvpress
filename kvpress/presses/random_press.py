@@ -16,8 +16,7 @@ class RandomPress(ScorerPress):
     """
     Random KV cache compression for baseline comparison.
 
-    Randomly selects which key-value pairs to prune, without considering
-    importance or attention patterns. Useful for establishing baseline
+    Randomly selects which key-value pairs to prune. Useful for establishing baseline
     performance metrics and validating other compression methods.
 
     Parameters

@@ -22,6 +22,7 @@ class TOVAPress(ScorerPress):
     provides a good indicator of which historical tokens are important.
 
     Based on TOVA (https://arxiv.org/abs/2401.06104).
+    Official implementation can be found here: https://github.com/schwartz-lab-NLP/TOVA/blob/main/src/tova_cache.py
 
     Parameters
     ----------

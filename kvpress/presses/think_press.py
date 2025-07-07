@@ -19,8 +19,15 @@ class ThinKPress(BasePress):
     """
     ThinK: Channel-wise key compression for transformer attention.
 
-    Compresses key dimensions rather than sequence length by zeroing out
-    less important channels. Can be combined with sequence compression methods.
+    ThinK compresses the dimensions of the keys, and not the sequence length.
+    Hence it can be combined with any other press that compresses the sequence length, e.g.
+    press = ComposedPress([SnapKVPress(0.5), ThinKPress(0.5)])
+
+    Here, we zero out the pruned dimensions resulting in no memory gain (the shape of the keys remains the same).
+    To achieve memory savings, several options can be considered (see https://github.com/NVIDIA/kvpress/pull/18/),
+    we might implement them in the future, especially if other similar presses are requested.
+
+    This press has been reviewed by Yuhui Xu, first author of the ThinK paper.
 
     Based on ThinK (https://arxiv.org/pdf/2407.21018).
 

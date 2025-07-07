@@ -18,23 +18,16 @@ class ScorerPress(BasePress):
     """
     Base class for score-based KV cache compression methods.
 
-    This class provides a framework for compression methods that assign importance scores
-    to key-value pairs and prune those with the lowest scores. Subclasses must implement
-    the `score` method to define how importance is calculated.
+    This class assigns scores to key-value pairs and prune those with the lowest scores.
+    Subclasses then implement the `score` method to define how importance is calculated.
 
-    The compression is applied uniformly across all heads and layers based on the
-    compression_ratio parameter, which determines what fraction of tokens to remove.
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
     """
 
     compression_ratio: float = 0.0
-    """
-    Fraction of key-value pairs to remove during compression.
-    Must be between 0.0 and 1.0, e.g.
-    - 0.0: No compression (keep all tokens)
-    - 0.8: Remove 80% of tokens (keep 20%)
-    - 1.0: Remove all tokens (not practical)
-    Higher values result in more aggressive compression but may degrade model performance.
-    """
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"

@@ -18,9 +18,9 @@ class SimLayerKVPress(BasePress):
     """
     SimLayerKV: Similarity-based layer-wise KV cache compression.
 
-    Uses layer-wise approach to compression by identifying "lazy" layers that can
-    work effectively with reduced KV cache sizes. Dynamically determines which
-    layers need full context and which can use streaming-style compression.
+    Identifies "lazy" layers that can work effectively with reduced KV cache sizes.
+    If a layer is considered "lazy", we only keep the initial and recent KV pairs.
+    Otherwise, we keep all KV pairs.
 
     Recommended lazy_threshold values: Llama3 (0.9), Llama2 (0.65), Mistral (0.8), Qwen (0.85).
 
