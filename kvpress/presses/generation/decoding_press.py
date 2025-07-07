@@ -158,6 +158,8 @@ class DecodingPress(BasePress):
 
             # Reset step count and clear buffer for this layer
             self.layer_step_counts[layer_idx] = 0
+            # Always clear the buffer after compression - otherwise there's a mismatch between
+            # hidden states buffer and kv cache
             self.hidden_states_buffer[layer_idx] = []
 
         self.hidden_states_buffer[layer_idx] = self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size:]
