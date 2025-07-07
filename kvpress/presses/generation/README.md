@@ -54,32 +54,46 @@ Combines separate presses for prefilling and decoding phases.
 ### Basic Decoding Compression
 
 ```python
-from kvpress import KVPressTextGenerationPipeline
-from kvpress.presses import KNormPress
-from kvpress.presses.generation import DecodingPress
+from transformers import pipeline
+from kvpress import KnormPress
+from kvpress import DecodingPress
+
+# Initialize the pipeline
+device = "cuda:0"
+model = "meta-llama/Llama-3.1-8B-Instruct"
+model_kwargs = {"attn_implementation": "flash_attention_2"}
+pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
 # Create a decoding press that compresses every 10 steps to 512 tokens
 decoding_press = DecodingPress(
-    base_press=KNormPress(compression_ratio=0.5),
+    base_press=KnormPress(),
     compression_steps=10,
     token_buffer_size=512
 )
 
 # Use with pipeline
-pipeline = KVPressTextGenerationPipeline(model, tokenizer, press=decoding_press)
-response = pipeline.generate_answer("Tell me a long story about...")
+context = "A very long text you want to compress during generation"
+question = "Tell me a long story about this context"
+response = pipe(context, question=question, press=decoding_press)["answer"]
 ```
 
 ### Combined Prefill + Decoding Compression
 
 ```python
-from kvpress.presses import CriticalKVPress
-from kvpress.presses.generation import DecodingPress, PrefillDecodingPress
+from transformers import pipeline
+from kvpress import CriticalKVPress, KnormPress
+from kvpress import DecodingPress, PrefillDecodingPress
+
+# Initialize the pipeline
+device = "cuda:0"
+model = "meta-llama/Llama-3.1-8B-Instruct"
+model_kwargs = {"attn_implementation": "flash_attention_2"}
+pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
 # Different strategies for prefill vs decoding
-prefill_press = CriticalKVPress(compression_ratio=0.3)
+prefill_press = CriticalKVPress(KnormPress())
 decoding_press = DecodingPress(
-    base_press=KNormPress(compression_ratio=0.4),
+    base_press=KnormPress(compression_ratio=0.2),
     compression_steps=5,
     token_buffer_size=256
 )
@@ -90,44 +104,7 @@ combined_press = PrefillDecodingPress(
     decoding_press=decoding_press
 )
 
-pipeline = KVPressTextGenerationPipeline(model, tokenizer, press=combined_press)
+context = "A very long context that will be compressed during prefill"
+question = "Generate a detailed analysis that will be compressed during decoding"
+response = pipe(context, question=question, press=combined_press)["answer"]
 ```
-
-### Memory-Efficient Long Generation
-
-```python
-# For very long generation with tight memory constraints
-decoding_press = DecodingPress(
-    base_press=CriticalKVPress(compression_ratio=0.6),
-    compression_steps=3,  # Compress more frequently
-    token_buffer_size=128  # Keep cache very small
-)
-
-pipeline = KVPressTextGenerationPipeline(model, tokenizer, press=decoding_press)
-long_response = pipeline.generate_answer(
-    "Write a detailed analysis...",
-    max_new_tokens=2000
-)
-```
-
-## How It Works
-
-1. **Prefill Phase**: Standard KV cache compression (if using PrefillDecodingPress)
-2. **Decoding Phase**: 
-   - Buffer hidden states from recent tokens
-   - Every N steps, compress the entire cache using buffered states for context
-   - Maintain target cache size throughout generation
-   - Continue generating with compressed cache
-
-## Performance Notes
-
-- Compression frequency vs. quality tradeoff: more frequent compression (lower `compression_steps`) uses more compute but maintains smaller cache
-- The `token_buffer_size` should be chosen based on available memory and desired context retention
-- Some scorer presses could be optimized for decoding by caching intermediate scores
-
-## Limitations
-
-- **Experimental**: API may change in future versions
-- Currently supports scorer-based presses only
-- Compression overhead increases with frequency
-- May affect generation quality depending on compression aggressiveness
