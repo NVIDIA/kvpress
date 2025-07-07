@@ -113,9 +113,9 @@ from kvpress import DecodingPress, KnormPress
 # Compress every 128 steps during decoding, keeping 1024 tokens
 decoding_press = DecodingPress(
     base_press=KnormPress(),  # No need to specify compression_ratio, will be derived from token_buffer_size
-    compression_steps=128,
-    token_buffer_size=1024,
-    hidden_states_buffer_size=128
+    compression_steps=128,  # Compress every at every 128 generated tokens
+    token_buffer_size=1024, # Keep 1024 tokens after compression. Note there's no compression before the first 1024 generated tokens (even if tf the context is long).
+    hidden_states_buffer_size=0 # Don't buffer hidden states as a running buffer (as we are using KnormPress). For some presses, having a large enough buffer will benefit compression.
 )
 
 response = pipe("Generate a long story...", press=decoding_press)
