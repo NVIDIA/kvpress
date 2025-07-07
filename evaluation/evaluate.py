@@ -4,7 +4,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 import torch
 from datasets import load_dataset
@@ -103,6 +103,8 @@ def evaluate(
     max_context_length: Optional[int] = None,
     compress_questions: bool = False,
     key_channel_compression_ratio: float = 0.5,
+    rope_scaling: Optional[dict] = None,
+    max_position_embeddings: Optional[int] = None,
 ):
     """
     Evaluate a model on a dataset using a press and save the results
@@ -131,6 +133,14 @@ def evaluate(
         Whether to compress the questions as well, by default False
     key_channel_compression_ratio : float, optional
         key Channel Compression ratio for the channel press, by default 0.5
+    rope_scaling : dict, optional
+        RoPE-scaling configuration dictionary passed to
+        model config's `rope_scaling field.
+        (e.g. {"type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768});
+        by default None.  If set, you **must** also provide ``max_position_embeddings``.
+    max_position_embeddings : int, optional
+        The value to set for ``max_position_embeddings`` in the model config when ``rope_scaling`` is used.
+        Required if ``rope_scaling`` is not ``None``; ignored otherwise.
     """
 
     assert dataset in DATASET_DICT, f"No dataset found for {dataset}"
@@ -184,7 +194,7 @@ def evaluate(
         press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
 
     # Initialize pipeline with the correct attention implementation
-    model_kwargs = {"torch_dtype": "auto"}
+    model_kwargs: dict[str, Any] = {"torch_dtype": "auto"}
     if isinstance(press, ObservedAttentionPress):
         model_kwargs["attn_implementation"] = "eager"
     else:
@@ -194,6 +204,16 @@ def evaluate(
             model_kwargs["attn_implementation"] = "flash_attention_2"
         except ImportError:
             pass
+    if rope_scaling is not None:
+        if max_position_embeddings is None:
+            raise ValueError("max_position_embeddings must be given when rope_scaling is used")
+
+        model_kwargs.update(
+            {
+                "max_position_embeddings": max_position_embeddings,
+                "rope_scaling": rope_scaling,
+            }
+        )
 
     if device == "auto":
         pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
