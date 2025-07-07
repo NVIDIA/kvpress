@@ -32,17 +32,28 @@ class DecodingPress(BasePress):
         Number of decoding steps between compression operations
     token_buffer_size : int, default=1024
         Target number of tokens to keep after compression.
+    hidden_states_buffer_size : int, default=128
+        Maximum number of hidden states to keep before compression. Larger values use more GPU memory.
+        NoteSome presses don't need buffered hidden states and can set this to 0 to use only the
+        current hidden state for compression scoring.
     """
 
     base_press: ScorerPress
-    compression_steps: int = 10
+    compression_steps: int = 128
     token_buffer_size: int = 1024
+    hidden_states_buffer_size: int = 128
 
     def __post_init__(self):
         # Buffer to store hidden states during decoding (per layer)
         assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
+        
+        # Warn if compression happens before buffer is fully utilized
+        # TODO: would it make sense to not reset the buffer?
+        if self.hidden_states_buffer_size > 0 and self.compression_steps < self.hidden_states_buffer_size:
+            logger.warning(f"compression_steps ({self.compression_steps}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "
+                          f"Buffer will be reset before reaching full capacity, potentially reducing compression quality.")
 
     def compress(
             self,
@@ -103,6 +114,8 @@ class DecodingPress(BasePress):
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_value"]
         q_len = hidden_states.shape[1]
+        layer_idx = module.layer_idx
+
 
         # Only operate during decoding phase (after prefilling)
         if kwargs["cache_position"][-1] <= q_len:
@@ -110,10 +123,8 @@ class DecodingPress(BasePress):
             return output
 
         # Add current hidden states to buffer for this layer
-        self.hidden_states_buffer[module.layer_idx].append(hidden_states.detach().clone())
+        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
 
-        # Get current step count for this layer
-        layer_idx = module.layer_idx
         self.layer_step_counts[layer_idx] += 1
 
         # Apply compression if we've reached the compression step threshold
@@ -132,7 +143,12 @@ class DecodingPress(BasePress):
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
 
             # Apply compression using buffered hidden states for this layer
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
+            if self.hidden_states_buffer_size == 0:
+                # Use only current hidden state
+                buffered_hidden_states = hidden_states
+            else:
+                # Use all buffered hidden states
+                buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
             logger.debug(f"Applied decoding compression: "
                          f"keys.shape: {keys.shape}, values.shape: {values.shape}")
@@ -145,10 +161,11 @@ class DecodingPress(BasePress):
                 cache.key_cache[layer_idx] = keys
                 cache.value_cache[layer_idx] = values
 
-            # Clear buffer and reset step count for this layer
-            self.hidden_states_buffer[layer_idx] = []
+            # Reset step count and clear buffer for this layer
             self.layer_step_counts[layer_idx] = 0
+            self.hidden_states_buffer[layer_idx] = []
 
+        self.hidden_states_buffer[layer_idx] = self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size:]
         return output
 
     def reset(self):

@@ -23,23 +23,25 @@ Compresses the KV cache periodically during token generation by maintaining a bu
 When compression is triggered, the scorer press receives:
 - `keys`: Current key cache `[batch_size, n_heads, seq_len, head_dim]` (potentially already compressed from previous steps)
 - `values`: Current value cache `[batch_size, n_heads, seq_len, head_dim]` (potentially already compressed from previous steps)
-- `hidden_states`: Buffered hidden states `[batch_size, compression_steps, hidden_dim]` from recent decoding steps
+- `hidden_states`: Buffered hidden states `[batch_size, buffer_len, hidden_dim]` from recent decoding steps (where `buffer_len` is determined by `hidden_states_buffer_size`)
 - `attentions`: Attention weights (from current forward pass, may be None if `output_attentions` is not set explicitly)
 
-Note that `hidden_states` contains only the recent `compression_steps` tokens, while `keys`/`values` contain the full sequence history (potentially already compressed from previous steps).
+Note that `hidden_states` contains only recent tokens (up to `hidden_states_buffer_size`), while `keys`/`values` contain the full sequence history (potentially already compressed from previous steps). If `hidden_states_buffer_size` is 0, only the current hidden state is used for compression scoring.
 
 **Press Compatibility:**
 
 Not all existing presses are fully compatible with DecodingPress due to fundamental differences in how compression works during decoding versus prefilling. 
-In particular, DecodingPress provides buffered `hidden_states` containing only recent tokens (equal to `compression_steps`), while the `keys` and `values` contain the full sequence history.
+In particular, DecodingPress provides buffered `hidden_states` containing only recent tokens (up to `hidden_states_buffer_size`), while the `keys` and `values` contain the full sequence history.
 Some presses may work reasonably well with this setup. For example, presses like `KNormPress` or `QFilterPress` that compute scores based solely on the `keys` or `values` tensors don't rely on sequence length alignment between `hidden_states` and the cache tensors.
 Other presses can be used but may not provide optimal results. Presses such as `ExpectedAttentionPress` were specifically designed for prefilling scenarios where `hidden_states` represents the full input sequence. 
 They may still be used for decoding. Future work may include revisiting these presses and adapt them specifically for the decoding phase.
+The buffer size can be configured via the `hidden_states_buffer_size` parameter, allowing for more flexibility in compatibility with different presses.
 
 **Parameters:**
 - `base_press`: Any ScorerPress (e.g., `KNormPress`, `CriticalKVPress`)
 - `compression_steps`: Steps between compressions (default: 10)
 - `token_buffer_size`: Target cache size after compression (default: 1024)
+- `hidden_states_buffer_size`: Number of hidden states to buffer before compression (default: 128). Larger values use more GPU memory. Some presses don't need buffered hidden states and can set this to 0 to use only the current hidden state for compression scoring.
 
 ### PrefillDecodingPress
 
@@ -107,4 +109,3 @@ combined_press = PrefillDecodingPress(
 context = "A very long context that will be compressed during prefill"
 question = "Generate a detailed analysis that will be compressed during decoding"
 response = pipe(context, question=question, press=combined_press)["answer"]
-```
