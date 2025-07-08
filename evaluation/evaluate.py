@@ -24,8 +24,6 @@ from evaluate_registry import DATASET_REGISTRY, SCORER_REGISTRY, PRESS_REGISTRY
 logger = logging.getLogger(__name__)
 
 
-
-
 def load_config(config_path: Path, cli_args: Dict[str, Any]) -> Dict[str, Any]:
     """
     Loads configuration from a YAML file and overrides with command-line arguments.
