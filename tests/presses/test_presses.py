@@ -65,20 +65,22 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
         press = cls(**kwargs)
-        if wrapper_press is not None and issubclass(wrapper_press, ComposedPress):
-            press = ComposedPress(presses=[press])
-        if wrapper_press is not None and issubclass(wrapper_press, KeyRerotationPress):
-            if isinstance(press, ScorerPress):
-                press = KeyRerotationPress(press=press)
-            else:
+        if wrapper_press is not None:
+            if hasattr(press, "__post_init_from_model__"):
+                # TODO: Handle __post_init_from_model__ in wrapper presses
                 return
-        if wrapper_press is not None and issubclass(wrapper_press, (AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
-            if isinstance(press, ScorerPress):
+            if issubclass(wrapper_press, ComposedPress):
+                press = ComposedPress(presses=[press])
+            elif not isinstance(press, ScorerPress):  # remaining wrapper presses only support ScorerPress
+                return
+            elif issubclass(wrapper_press, (KeyRerotationPress, AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
                 press = wrapper_press(press=press)
-            else:
-                return
-        if wrapper_press is not None and issubclass(wrapper_press, ChunkPress):
-            press = ChunkPress(press=press, chunk_length=2)
+            elif issubclass(wrapper_press, ChunkPress):
+                press = ChunkPress(press=press, chunk_length=24)
+
+        # TODO: Handle __post_init_from_model__ differently
+        if hasattr(press, "__post_init_from_model__"):
+            press.__post_init_from_model__(unit_test_model)
         with press(unit_test_model):
             input_ids = torch.randint(0, 1024, (1, 128))
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
@@ -101,13 +103,13 @@ class StoreKnormPress(ScorerPress):
         self.scores = []
 
     def score(
-        self,
-        module: nn.Module,
-        hidden_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-        attentions: torch.Tensor,
-        kwargs,
+            self,
+            module: nn.Module,
+            hidden_states: torch.Tensor,
+            keys: torch.Tensor,
+            values: torch.Tensor,
+            attentions: torch.Tensor,
+            kwargs,
     ) -> torch.Tensor:
         scores = -keys.norm(dim=-1)
         self.scores.append(scores)
@@ -130,6 +132,6 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
             for batch_idx in range(scores.shape[0]):
                 for head_idx in range(scores.shape[1]):
                     assert torch.allclose(
-                        scores[batch_idx, head_idx].sort().values[-max_scores.shape[-1] :],
+                        scores[batch_idx, head_idx].sort().values[-max_scores.shape[-1]:],
                         max_scores[batch_idx, head_idx].sort().values,
                     )
