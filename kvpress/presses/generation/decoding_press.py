@@ -128,7 +128,7 @@ class DecodingPress(BasePress):
         self.layer_step_counts[layer_idx] += 1
 
         # Apply compression if we've reached the compression step threshold
-        if self.layer_step_counts[layer_idx] >= self.compression_steps:
+        if (self.layer_step_counts[layer_idx] >= self.compression_steps) or (q_len >= self.token_buffer_size):
             logger.debug(f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}")
 
             # Get keys and values from cache
