@@ -6,7 +6,6 @@ from benchmarks.loogle.calculate_metrics import calculate_metrics as loogle_scor
 from benchmarks.ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
-# Import KVPress implementations
 from kvpress import (
     AdaKVPress,
     ChunkKVPress,
@@ -30,8 +29,7 @@ from kvpress import (
 )
 
 
-# These dictionaries define the available datasets, scorers, and KVPress methods for the evaluation.
-
+# These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
 DATASET_REGISTRY = {
     "loogle": "simonjegou/loogle",
     "ruler": "simonjegou/ruler",
@@ -41,7 +39,6 @@ DATASET_REGISTRY = {
     "longbench-e": "Xnhyacinth/LongBench",
     "longbench-v2": "Xnhyacinth/LongBench-v2",
 }
-
 
 SCORER_REGISTRY = {
     "loogle": loogle_scorer,

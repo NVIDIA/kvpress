@@ -48,7 +48,7 @@ def load_config(config_path: Path, cli_args: Dict[str, Any]) -> Dict[str, Any]:
     else:
         with open(config_path, 'r') as f:
             base_config = yaml.safe_load(f) or {}
-
+    
     # Override config values with non-None command-line arguments
     for key, value in cli_args.items():
         if value is not None:
@@ -186,7 +186,7 @@ class EvaluationRunner:
             device = "cuda:0" if torch.cuda.is_available() else "cpu"
             logger.info(f"No device specified, auto-detected device: {device}")
 
-        model_kwargs = {"torch_dtype": "auto"}
+        model_kwargs = self.config["model_kwargs"] or {}
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
@@ -199,7 +199,7 @@ class EvaluationRunner:
                 logger.info("Flash Attention 2 not available, using default attn_implementation.")
                 pass 
 
-        logger.info(f"Loading model pipeline for: {model_name} on device: {device}")
+        logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
         if device == "auto":
             self.pipeline = pipeline("kv-press-text-generation", model=model_name, device_map="auto", model_kwargs=model_kwargs)
         else:
@@ -270,7 +270,7 @@ class EvaluationRunner:
         Generates the unique save filename based on configuration parameters.
         """
         dataset_name = self.config["dataset"]
-        data_dir = self.config["data_dir"]
+        data_dir = str(self.config["data_dir"]) if self.config["data_dir"] else ""
         model_name = self.config["model"]
         press_name = self.config["press_name"]
         compression_ratio = self.config["compression_ratio"]
@@ -282,7 +282,7 @@ class EvaluationRunner:
         # Build filename components
         components = [
             dataset_name,
-            str(data_dir) if data_dir else "",
+            data_dir,
             model_name.replace("/", "--"),
             press_name,
             f"{compression_ratio:.2f}",
@@ -425,7 +425,6 @@ def evaluate_cli(
     """
     # Collect all CLI arguments that are not None
     cli_args = {k: v for k, v in locals().items() if v is not None and k != "config_path"}
-
     full_config = load_config(Path(config_path), cli_args)
 
     runner = EvaluationRunner(full_config)
