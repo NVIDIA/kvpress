@@ -31,6 +31,7 @@ from kvpress import (
     FinchPress,
     KeyDiffPress,
     KnormPress,
+    KVzipPress,
     ObservedAttentionPress,
     PyramidKVPress,
     QFilterPress,
@@ -88,13 +89,14 @@ PRESS_DICT = {
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
     "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
+    "kvzip": KVzipPress(),
 }
 
 
 def evaluate(
     dataset: str,
     data_dir: Optional[str] = None,
-    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    model: str = "meta-llama/Llama-3.1-8B-Instruct",
     device: Optional[str] = None,
     press_name: str = "expected_attention",
     compression_ratio: float = 0.1,
@@ -116,7 +118,7 @@ def evaluate(
     data_dir : str, optional
         Subdirectory of the dataset to evaluate, by default None
     model : str, optional
-        Model to use, by default "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        Model to use, by default "meta-llama/Llama-3.1-8B-Instruct"
     device : str, optional
         Model device, by default cuda:0 if available else cpu. For multi-GPU use "auto"
     press_name : str, optional
