@@ -39,9 +39,9 @@ class CriticalKVPress(ScorerPress):
         self.epsilon = epsilon
         self.first_stage_ratio = first_stage_ratio
 
-        assert isinstance(self.press, ScorerPress), "CriticalAdaKVPress requires a ScorerPress as input"
+        assert isinstance(self.press, ScorerPress), "CriticalKVPress requires a ScorerPress as input"
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
-            logger.warning("use_vnorm should be disabled for CriticalAdaKVPress")
+            logger.warning("use_vnorm should be disabled for CriticalKVPress")
 
     @property  # type: ignore[misc]
     def compression_ratio(self):  #
