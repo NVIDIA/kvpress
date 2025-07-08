@@ -4,7 +4,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 import torch
 from datasets import load_dataset
