@@ -19,27 +19,40 @@ from kvpress.presses.base_press import BasePress
 @dataclass
 class KVzipPress(BasePress):
     """
-    KVzip identifies the importance of KV pairs through context reconstruction, enabling effective query-agnostic KV cache compression.
-    In this code, we implement KVzip with minimal changes to this repository.
-    
-    For a fully optimized implementation with actual compression, please refer to the original repository. 
-    The original repository also provides a version without runtime compression overhead (at the cost of performance).
+    KVzip identifies the importance of KV pairs through context reconstruction, 
+    enabling effective query-agnostic KV cache compression.
 
-    Original repo: https://github.com/snu-mllab/KVzip 
-    Paper: https://arxiv.org/abs/2505.23416    
+    In this code, we implement KVzip with minimal changes to this repository.    
+    For a fully optimized implementation with actual compression, 
+    please refer to the original repository, 
+    which also provides a version without runtime compression overhead (at the cost of performance).
+    Original repo (https://github.com/snu-mllab/KVzip). 
+
+    Based on KVzip (https://arxiv.org/abs/2505.23416).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    layerwise : bool, default=False
+        Whether to enable uniform compression ratios across layers.
+        When False, while the overall KV cache compression ratio is maintained, 
+        each layer has a different compression ratio.
+    n_sink : int, default=4
+        Number of initial tokens to preserve as attention sinks.
     """
 
     compression_ratio: float = 0.0
-    layerwise: bool = False  # True sets uniform compression ratios across layers 
+    layerwise: bool = False  
     n_sink: int = 4  
     
+    # The following variables are automatically set in pipeline.py    
     do_compress: bool = False
     context: str = None
     suffix: str = None    
     context_length: int = 0
     start_idx: int = 0    
     end_idx: int = 0    
-
     score_val: torch.Tensor = None
     causal_mask_score: torch.Tensor = None
         

@@ -1,32 +1,73 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
+#
+# Extended to test both the *default* and the *YaRN-scaled* rotary-embedding
+# variants with the smallest possible code changes.
 
 import inspect
 from dataclasses import dataclass
+from copy import deepcopy
 
 import pytest
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, rotate_half
+from transformers.models.llama.modeling_llama import (
+    LlamaAttention,
+    LlamaForCausalLM,
+    LlamaRotaryEmbedding,
+    rotate_half,
+)
+from transformers import Gemma3ForCausalLM
 
 from kvpress import KeyRerotationPress, ScorerPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
+@pytest.mark.parametrize("rope_variant", ["default", "yarn"])
 @pytest.mark.parametrize("precision", ["full", "half"])
-def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: LlamaForCausalLM, precision):  # noqa: F811
+def test_rerotate_keys_is_matches_reference_implementation(
+    unit_test_model: LlamaForCausalLM,  # noqa: F811
+    rope_variant,
+    precision,
+):
     """
-    Compare KeyRerotationPress' rerotation of keys with the reference implementation.
-    In the reference implementation, we are computing
+    Compare KeyRerotationPress' rerotation of keys with the reference
+    implementation.
+
+    Reference path:
       1. keys = W_k * hidden_states
       2. keys_pruned = prune(keys)
       3. keys = RoPE(keys_pruned)
+
+    Press path:
+      1. keys = W_k * hidden_states
+      2. keys = RoPE(keys)
+      3. keys_pruned = KeyRerotationPress.rerotate_keys(...)
     """
+    if rope_variant == "yarn":
+        layer0 = unit_test_model.model.layers[0]
+        cfg = deepcopy(layer0.self_attn.config)
+        cfg.rope_scaling = {
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+            "rope_type": "yarn",
+        }
+        cfg.max_position_embeddings = 131072
+        try:
+            unit_test_model.model.rotary_emb = LlamaRotaryEmbedding(cfg, device=unit_test_model.device)
+        except KeyError:
+            pytest.skip("YaRN rotary-embedding not available in this transformers version.")
+
+    for layer in unit_test_model.model.layers:
+        if isinstance(unit_test_model, Gemma3ForCausalLM) and layer.is_sliding:
+            # Skip layers with sliding window attention, only for Gemma3
+            continue
+        layer.self_attn.rotary_emb = unit_test_model.model.rotary_emb
+
     if precision == "half" and torch.cuda.is_available():
         unit_test_model = unit_test_model.cuda().half()
-    elif precision == "half" and not torch.cuda.is_available():
-        pytest.skip("Half precision test is skipped because CUDA is not available.")
+    elif precision == "half":
+        pytest.skip("Half-precision test skipped because CUDA is not available.")
 
     original_press = RandomPressStoreIndices(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
@@ -47,7 +88,7 @@ def test_rerotate_keys_is_matches_reference_implementation(unit_test_model: Llam
             keys,
             values,
             attentions=None,
-            kwargs={"position_embeddings": get_rope_embeddings(module, keys)},
+            kwargs={},
         )
 
         indices = original_press.indices

@@ -8,10 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
 
@@ -19,9 +19,21 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class SnapKVPress(ScorerPress):
     """
-    SnapKV (https://arxiv.org/abs/2404.14469) use the attention of the latest window_size tokens to estimate the
-    importance of the previous KV pairs. We use the default settings from:
-    https://github.com/FasterDecoding/SnapKV/blob/main/snapkv/monkeypatch/snapkv_utils.py#L24
+    SnapKV: Attention-based KV cache compression using recent token patterns.
+
+    Uses attention patterns of the most recent tokens to estimate importance
+    of previous key-value pairs.
+
+    Based on SnapKV (https://arxiv.org/abs/2404.14469).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    window_size : int, default=64
+        Number of recent tokens to use for computing attention-based importance scores.
+    kernel_size : int, default=5
+        Size of the pooling kernel applied to attention weights for smoothing.
     """
 
     compression_ratio: float = 0.0

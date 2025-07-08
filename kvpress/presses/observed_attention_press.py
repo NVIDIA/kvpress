@@ -16,9 +16,25 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ObservedAttentionPress(ScorerPress):
     """
-    The observed attention score is defined as the average attention weight over all prompt tokens
-    Requires output_attentions=True and attn_implementation="eager" to have access to attentions
-    This approach is related to H2O (https://arxiv.org/abs/2306.14048).
+    Observed attention-based KV cache compression.
+
+    Computes importance scores based on actual attention weights observed during
+    forward pass. Score for each key-value pair is the average attention weight
+    it receives from all query tokens.
+
+    Requires: output_attentions=True and attn_implementation="eager".
+
+    Related to H2O (https://arxiv.org/abs/2306.14048).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    output_attentions : bool, default=False
+        Whether to return attention weights in model output.
+        Controls whether attention weights are included in output after compression.
+        Attention weights are always needed internally for scoring but can be removed
+        from output to save memory.
     """
 
     compression_ratio: float = 0.0

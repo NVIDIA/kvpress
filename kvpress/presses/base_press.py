@@ -10,6 +10,7 @@ from typing import Generator
 import torch
 from torch import nn
 from transformers import (
+    Gemma3ForCausalLM,
     LlamaForCausalLM,
     MistralForCausalLM,
     Phi3ForCausalLM,
@@ -17,7 +18,6 @@ from transformers import (
     QuantizedCache,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
-    Gemma3ForCausalLM,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,12 @@ SUPPORTED_MODELS = (
 class BasePress:
     """
     Base class for all KV cache compression methods.
-    The `forward_hook` method is called after the forward pass of an attention layer to update the cache.
+
+    This class provides the foundation for implementing various key-value cache compression
+    techniques. Subclasses must implement the `compress` method to define their specific
+    compression logic.
+
+    The compression is applied only during pre-filling (not during generation).
     """
 
     def compress(
@@ -53,23 +58,28 @@ class BasePress:
 
         Parameters
         ----------
-        module :
-            Transformer layer, see `hook` method for more details
-        hidden_states :
-            Hidden states of the layer
-        keys :
-            Keys of the cache (unquantized)
-        values :
-            Values of the cache (unquantized)
-        attentions :
-            Attention weights of the layer
-        kwargs :
-            Keyword arguments, as given to the forward pass of the layer
+        module : nn.Module
+            The transformer attention layer where compression is applied.
+        hidden_states : torch.Tensor
+            Hidden states of the current layer with shape (batch_size, seq_len, hidden_dim).
+            These represent the input to the attention layer.
+        keys : torch.Tensor
+            Key tensors from the KV cache with shape (batch_size, num_kv_heads, seq_len, head_dim).
+            These are keys ready for compression.
+        values : torch.Tensor
+            Value tensors from the KV cache with shape (batch_size, num_kv_heads, seq_len, head_dim).
+            These are values ready for compression.
+        attentions : torch.Tensor
+            Attention weights from the layer with shape (batch_size, num_heads, seq_len, seq_len).
+            May be None if attention weights are not computed or needed.
+        kwargs : dict
+            Additional keyword arguments from the forward pass.
 
         Returns
         -------
         tuple[torch.Tensor, torch.Tensor]
-            Updated keys and values
+            A tuple containing the compressed keys and values tensors. The returned tensors
+            should have reduced sequence length dimension compared to the input tensors.
         """
 
         raise NotImplementedError("compress method must be implemented in subclass")
@@ -77,25 +87,39 @@ class BasePress:
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
         Default forward hook called after the forward pass of an attention layer.
-        The hook calls the compress method to compress the KV cache while ensuring:
-            - compression is only applied only during the pre-filling phase
-            - KV cache quantization is handled correctly
+
+        This hook automatically applies compression during the pre-filling phase by:
+        1. Checking if we're still in pre-filling (not generation) phase
+        2. Extracting keys and values from the cache (handling quantization)
+        3. Calling the compress method to reduce the cache size
+        4. Updating the cache with compressed keys and values
+
+        The hook ensures compression is only applied during pre-filling and correctly
+        handles both quantized and unquantized caches.
 
         Parameters
         ----------
-        module :
-            Transformer attention layer.
-        input :
-            Input to the hook. This is the input to the forward pass of the layer.
-        kwargs :
-            Keyword arguments, as given to the forward pass of the layer.
-        output :
-            Output of the hook. This is the original output of the forward pass of the layer.
+        module : nn.Module
+            The transformer attention layer.
+        input : list[torch.Tensor]
+            Input tensors to the forward pass of the attention layer. This parameter
+            is provided by PyTorch's hook mechanism but not used in the default implementation.
+        kwargs : dict
+            Keyword arguments passed to the attention layer's forward method, including:
+            - hidden_states: Input embeddings to the attention layer
+            - past_key_value: The KV cache object being modified
+            - cache_position: Position indices indicating where we are in the sequence
+            - position_embeddings: RoPE embeddings if applicable
+        output : list
+            Output from the attention layer's forward pass. Contains:
+            - [0]: Hidden states output
+            - [1]: Attention weights (may be None)
 
         Returns
         -------
-            Modified output of the forward pass of the layer.
-
+        list
+            The potentially modified output from the forward pass. This
+            is the same as the input output, but the underlying cache has been compressed in-place.
         """
 
         hidden_states = kwargs["hidden_states"]
@@ -131,12 +155,25 @@ class BasePress:
     def __call__(self, model: PreTrainedModel) -> Generator:
         """
         Context manager to apply a compression method to a model.
+
+        This method registers forward hooks on all attention layers of the model to enable
+        automatic KV cache compression during the pre-filling phase. The hooks are automatically
+        removed when exiting the context manager.
+
         Apply this context manager during the pre-filling phase to compress the context.
 
         Parameters
         ----------
         model : PreTrainedModel
-            Model to apply the compression method to
+            The transformer model to apply compression to.
+
+        Examples
+        --------
+        >>> from kvpress import KnormPress
+        >>> press = KnormPress(compression_ratio=0.5)
+        >>> with press(model):
+        ...     # Forward pass with compression applied
+        ...     outputs = model(input_ids, past_key_values=cache)
         """
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")

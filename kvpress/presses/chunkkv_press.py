@@ -13,12 +13,22 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class ChunkKVPress(BasePress):
     """
-    Wrapper class for any ScorerPress.
-    First calculates global scores using the ScorerPress,
-    then selects tokens chunk by chunk based on these global scores.
-    This method was proposed in
-    ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference
-    https://arxiv.org/abs/2502.00299
+    ChunkKV: Semantic-preserving compression with chunk-wise token selection.
+
+    Enhances any ScorerPress by applying chunk-wise token selection instead of
+    global selection. Computes global importance scores, then selects tokens
+    chunk by chunk to preserve semantic coherence within local contexts.
+
+    Based on ChunkKV (https://arxiv.org/abs/2502.00299).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method used to compute global importance scores.
+    chunk_length : int, default=20
+        Length of each chunk for token selection.
+        Sequence is divided into chunks of this size, with tokens selected
+        proportionally from each chunk based on global importance scores.
     """
 
     press: ScorerPress
