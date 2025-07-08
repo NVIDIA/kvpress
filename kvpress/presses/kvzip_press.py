@@ -136,7 +136,7 @@ class KVzipPress(BasePress):
             keys = cache.key_cache[module.layer_idx]
             values = cache.value_cache[module.layer_idx]
 
-        # Only do scoring. Compression is done afterward by press.compress(self.model) in pipeline.py.
+        # Only do scoring. Compression is done afterward by press.compress_post(self.model) in pipeline.py.
         keys, values = self.score(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
