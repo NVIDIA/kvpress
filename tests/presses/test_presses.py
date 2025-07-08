@@ -77,7 +77,7 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
         if wrapper_press is not None and issubclass(wrapper_press, ChunkPress):
             press = ChunkPress(press=press, chunk_length=2)
         with press(unit_test_model):
-            input_ids = unit_test_model.dummy_inputs["input_ids"]
+            input_ids = torch.randint(0, 1024, (1, 128))
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
         # Check that the press has a compression_ratio attribute
         assert hasattr(press, "compression_ratio")
