@@ -17,6 +17,7 @@ from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.keydiff_press import KeyDiffPress
 from kvpress.presses.knorm_press import KnormPress
+from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.lagkv_press import LagKVPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
@@ -29,7 +30,6 @@ from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
 from kvpress.presses.tova_press import TOVAPress
-from kvpress.presses.kvzip_press import KVzipPress
 
 # Patch the attention functions to support head-wise compression
 patch_attention_functions()

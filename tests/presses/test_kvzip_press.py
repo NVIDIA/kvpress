@@ -1,19 +1,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
+import random
+
+from transformers import AutoTokenizer, DynamicCache
 
 from kvpress import KVzipPress
 from tests.fixtures import unit_test_model  # noqa: F401
-
-from transformers import DynamicCache, AutoTokenizer
-import random
 
 
 def test_kvzip_press(unit_test_model):  # noqa: F811
     tokenizer = AutoTokenizer.from_pretrained("MaxJeblick/llama2-0b-unit-test")
     compression_ratio = 0.7
-    
+
     for press in [
         KVzipPress(compression_ratio),
         KVzipPress(compression_ratio, layerwise=True),  # uniform compression ratios across layers
@@ -37,40 +36,41 @@ def test_kvzip_press(unit_test_model):  # noqa: F811
             )
 
         # Test scoring
-        press.do_compress = True            
+        press.do_compress = True
         with press(unit_test_model):
             input_ids = press.prepare(unit_test_model, tokenizer, context_length)  # chunkes of the repeated context
             for prefill_ids, repeat_ids in input_ids:
-                press.end_idx = press.start_idx + prefill_ids.shape[1]                     
+                press.end_idx = press.start_idx + prefill_ids.shape[1]
                 unit_test_model(
                     input_ids=repeat_ids.to(unit_test_model.device),
                     past_key_values=cache,
                     num_logits_to_keep=1,
-                )  
+                )
                 press.start_idx = press.end_idx
         assert press.end_idx == context_length, print("tokenization is not consistent")
 
         # Test compression
-        press.compress(unit_test_model)
+        press.compress_post(unit_test_model)
         press.do_compress = False
 
         n_kv_full = 0
         for keys in cache.key_cache:
             n_kv_full += keys[..., 0].numel()  # head_dim dimension
-            
-        assert cache.key_cache[0].shape[-2] == context_length, \
-            print("cache seq_length does not match the original context_length")
+
+        assert cache.key_cache[0].shape[-2] == context_length, print(
+            "cache seq_length does not match the original context_length"
+        )
 
         n_pruned = 0
         for layer in unit_test_model.model.layers:
             module = layer.self_attn
-            batch_indices, head_indices, seq_indices = module.masked_key_indices            
+            batch_indices, head_indices, seq_indices = module.masked_key_indices
             n_pruned += len(seq_indices)
-        
+
         pruned_ratio = n_pruned / n_kv_full
 
         # Allow up to 0.1% error
         tolerance = 0.001  # 0.1%
-        assert abs(pruned_ratio - compression_ratio) <= tolerance, \
-            f"pruned: {pruned_ratio:.3f}, setting: {compression_ratio:.3f}"
-            
+        assert (
+            abs(pruned_ratio - compression_ratio) <= tolerance
+        ), f"pruned: {pruned_ratio:.3f}, setting: {compression_ratio:.3f}"

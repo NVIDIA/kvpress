@@ -14,9 +14,9 @@ from transformers.pipelines.base import GenericTensor
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
+from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
-from kvpress.presses.kvzip_press import KVzipPress
 
 logger = logging.getLogger(__name__)
 
@@ -129,10 +129,10 @@ class KVPressTextGenerationPipeline(Pipeline):
         dict[str, GenericTensor]
             Dictionary with "context_ids" and "questions_ids" tensors.
         """
-        
+
         if isinstance(press, KVzipPress):
             press.context = context
-            
+
         # Apply chat template if available
         if self.tokenizer.chat_template is None:
             bos_token = getattr(self.tokenizer, "bos_token", "")
@@ -211,14 +211,14 @@ class KVPressTextGenerationPipeline(Pipeline):
                 num_logits_to_keep=1,
             )
 
-        # The original KVzip performs scoring and compression after the initial prefilling. 
+        # The original KVzip performs scoring and compression after the initial prefilling.
         # Note: the algorithm can also be interleaved with prefilling.
         if isinstance(press, KVzipPress):
-            press.do_compress = True            
+            press.do_compress = True
             with press(self.model):
                 input_ids = press.prepare(self.model, self.tokenizer, context_length)  # chunks of the repeated context
                 for prefill_ids, repeat_ids in input_ids:
-                    press.end_idx = press.start_idx + prefill_ids.shape[1]                     
+                    press.end_idx = press.start_idx + prefill_ids.shape[1]
                     self.model(
                         input_ids=repeat_ids.to(self.model.device),
                         past_key_values=cache,
@@ -226,10 +226,10 @@ class KVPressTextGenerationPipeline(Pipeline):
                     )  # scoring
                     press.start_idx = press.end_idx
 
-            # becomes problematic if the tokens corresponding to the context do not match between 
+            # becomes problematic if the tokens corresponding to the context do not match between
             # (1) tokenization of the system prompt + context together and (2) tokenization of the context alone.
             assert press.end_idx == context_length, print("tokenization is not consistent")
-            press.compress(self.model)  # compression
+            press.compress_post(self.model)  # compression
             press.do_compress = False
 
         logger.debug(f"Context Length: {context_length}")

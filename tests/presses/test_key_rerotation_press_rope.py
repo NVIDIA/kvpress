@@ -5,19 +5,14 @@
 # variants with the smallest possible code changes.
 
 import inspect
-from dataclasses import dataclass
 from copy import deepcopy
+from dataclasses import dataclass
 
 import pytest
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import (
-    LlamaAttention,
-    LlamaForCausalLM,
-    LlamaRotaryEmbedding,
-    rotate_half,
-)
 from transformers import Gemma3ForCausalLM
+from transformers.models.llama.modeling_llama import LlamaAttention, LlamaForCausalLM, LlamaRotaryEmbedding, rotate_half
 
 from kvpress import KeyRerotationPress, ScorerPress
 from tests.fixtures import unit_test_model  # noqa: F401
