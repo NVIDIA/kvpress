@@ -36,6 +36,14 @@ class KeyRerotationPress(BasePress):
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress)
 
+    @property
+    def compression_ratio(self):
+        return self.press.compression_ratio
+
+    @compression_ratio.setter
+    def compression_ratio(self, value):
+        self.press.compression_ratio = value
+
     @staticmethod
     def _rerotate_cos_sin(x, inv_freq, selected_positions):
         """
@@ -108,9 +116,7 @@ class KeyRerotationPress(BasePress):
             The rerotated keys tensor of shape
             ``(bsz, num_heads, n_kept, d)``.
         """
-        new_cos, new_sin = KeyRerotationPress._rerotate_cos_sin(keys,
-                                                                module.rotary_emb.inv_freq,
-                                                                indices)
+        new_cos, new_sin = KeyRerotationPress._rerotate_cos_sin(keys, module.rotary_emb.inv_freq, indices)
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
         keys = keys.gather(2, indices).contiguous()
         return (keys * new_cos) + (rotate_half(keys) * new_sin)

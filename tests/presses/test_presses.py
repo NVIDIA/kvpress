@@ -65,19 +65,24 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
         press = cls(**kwargs)
-        if isinstance(wrapper_press, ComposedPress):
-            press = ComposedPress(presses=[press])
-        if isinstance(wrapper_press, KeyRerotationPress):
-            press = KeyRerotationPress(press=press)
-        if isinstance(wrapper_press, (AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
-            if isinstance(press, ScorerPress):
-                press = wrapper_press(press=press)
-            else:
+        if wrapper_press is not None:
+            if hasattr(press, "__post_init_from_model__"):
+                # TODO: Handle __post_init_from_model__ in wrapper presses
                 return
-        if isinstance(wrapper_press, ChunkPress):
-            press = ChunkPress(press=press, chunk_length=2)
+            if issubclass(wrapper_press, ComposedPress):
+                press = ComposedPress(presses=[press])
+            elif not isinstance(press, ScorerPress):  # remaining wrapper presses only support ScorerPress
+                return
+            elif issubclass(wrapper_press, (KeyRerotationPress, AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
+                press = wrapper_press(press=press)
+            elif issubclass(wrapper_press, ChunkPress):
+                press = ChunkPress(press=press, chunk_length=24)
+
+        # TODO: Handle __post_init_from_model__ differently
+        if hasattr(press, "__post_init_from_model__"):
+            press.__post_init_from_model__(unit_test_model)
         with press(unit_test_model):
-            input_ids = unit_test_model.dummy_inputs["input_ids"]
+            input_ids = torch.randint(0, 1024, (1, 128))
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
         # Check that the press has a compression_ratio attribute
         assert hasattr(press, "compression_ratio")

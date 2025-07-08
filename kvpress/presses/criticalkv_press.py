@@ -14,7 +14,6 @@ from kvpress.presses.scorer_press import ScorerPress
 logger = logging.getLogger(__name__)
 
 
-@dataclass
 class CriticalKVPress(ScorerPress):
     """
     CriticalKV: Two-stage compression with output projection weighting.
@@ -35,11 +34,11 @@ class CriticalKVPress(ScorerPress):
         Remaining budget used in second stage with output projection weighting.
     """
 
-    press: ScorerPress = None
-    epsilon: float = 1e-4
-    first_stage_ratio: float = 0.5
+    def __init__(self, press: ScorerPress, epsilon: float = 1e-4, first_stage_ratio: float = 0.5):
+        self.press = press
+        self.epsilon = epsilon
+        self.first_stage_ratio = first_stage_ratio
 
-    def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "CriticalKVPress requires a ScorerPress as input"
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
             logger.warning("use_vnorm should be disabled for CriticalKVPress")
