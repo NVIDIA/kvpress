@@ -9,8 +9,8 @@ import torch
 from torch.nn import functional as F
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
+from kvpress.presses.snapkv_press import SnapKVPress
 
 
 @dataclass

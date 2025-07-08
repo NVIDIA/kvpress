@@ -103,13 +103,13 @@ class StoreKnormPress(ScorerPress):
         self.scores = []
 
     def score(
-            self,
-            module: nn.Module,
-            hidden_states: torch.Tensor,
-            keys: torch.Tensor,
-            values: torch.Tensor,
-            attentions: torch.Tensor,
-            kwargs,
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs,
     ) -> torch.Tensor:
         scores = -keys.norm(dim=-1)
         self.scores.append(scores)
@@ -132,6 +132,6 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
             for batch_idx in range(scores.shape[0]):
                 for head_idx in range(scores.shape[1]):
                     assert torch.allclose(
-                        scores[batch_idx, head_idx].sort().values[-max_scores.shape[-1]:],
+                        scores[batch_idx, head_idx].sort().values[-max_scores.shape[-1] :],
                         max_scores[batch_idx, head_idx].sort().values,
                     )
