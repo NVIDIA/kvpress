@@ -65,16 +65,16 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
         press = cls(**kwargs)
-        if isinstance(wrapper_press, ComposedPress):
+        if wrapper_press is not None and issubclass(wrapper_press, ComposedPress):
             press = ComposedPress(presses=[press])
-        if isinstance(wrapper_press, KeyRerotationPress):
+        if wrapper_press is not None and issubclass(wrapper_press, KeyRerotationPress):
             press = KeyRerotationPress(press=press)
-        if isinstance(wrapper_press, (AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
+        if wrapper_press is not None and issubclass(wrapper_press, (AdaKVPress, CriticalKVPress, CriticalAdaKVPress)):
             if isinstance(press, ScorerPress):
                 press = wrapper_press(press=press)
             else:
                 return
-        if isinstance(wrapper_press, ChunkPress):
+        if wrapper_press is not None and issubclass(wrapper_press, ChunkPress):
             press = ChunkPress(press=press, chunk_length=2)
         with press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]
