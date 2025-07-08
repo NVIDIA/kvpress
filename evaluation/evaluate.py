@@ -37,6 +37,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    KVzipPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,13 +85,14 @@ PRESS_DICT = {
     "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
     "pyramidkv": PyramidKVPress(),
     "finch": FinchPress(),
+    "kvzip": KVzipPress(),
 }
 
 
 def evaluate(
     dataset: str,
     data_dir: Optional[str] = None,
-    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    model: str = "meta-llama/Llama-3.1-8B-Instruct",
     device: Optional[str] = None,
     press_name: str = "expected_attention",
     compression_ratio: float = 0.1,
@@ -110,7 +112,7 @@ def evaluate(
     data_dir : str, optional
         Subdirectory of the dataset to evaluate, by default None
     model : str, optional
-        Model to use, by default "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        Model to use, by default "meta-llama/Llama-3.1-8B-Instruct"
     device : str, optional
         Model device, by default cuda:0 if available else cpu. For multi-GPU use "auto"
     press_name : str, optional

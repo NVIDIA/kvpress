@@ -16,6 +16,7 @@ from kvpress import (
     QFilterPress,
     PyramidKVPress,
     LagKVPress,
+    KVzipPress,
 )
 
 
@@ -63,6 +64,13 @@ default_presses = [
         "kwargs": [
             {"compression_ratio": 0.5, "n_sink": 16, "lag_size": 128},
             {"compression_ratio": 0.8, "n_sink": 16, "lag_size": 128}
+        ],
+    },
+    {
+        "cls": KVzipPress,
+        "kwargs": [
+            {"compression_ratio": 0.5},
+            {"compression_ratio": 0.8}
         ],
     },
 ]
