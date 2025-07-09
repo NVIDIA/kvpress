@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from cachetools import cached, LRUCache  # type: ignore[import-untyped]
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
@@ -9,11 +8,12 @@ from io import StringIO
 import numpy as np
 import requests  # type: ignore[import-untyped]
 import torch
+from cachetools import LRUCache, cached  # type: ignore[import-untyped]
 from datasets import load_dataset
 from transformers import AutoTokenizer
+from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 
 from kvpress.presses.base_press import BasePress
 
@@ -32,16 +32,35 @@ cache = LRUCache(maxsize=128)
 @dataclass
 class DuoAttentionPress(BasePress):
     """
-    Implements DuoAttention (https://arxiv.org/abs/2410.10819)
+    DuoAttention: Hybrid attention with retrieval and streaming heads.
 
     Splits attention heads into two types:
-    - Retrieval heads: use the full KV cache
-    - Streaming heads: use only sink and recent tokens.
-    The higher the head_compression_ratio, the more streaming heads are used.
+        - retrieval heads (use full KV cache) and
+        - streaming heads (use only sink + recent tokens).
+    Different heads have different attention patterns - some benefit from full context while others work well with
+    limited context.
 
-    Head classification is based on scores.
-    - If on_the_fly_scoring=False, scores are loaded from https://github.com/mit-han-lab/duo-attention/
-    - (experimental) If on_the_fly_scoring=True, scores are computed using duo_attention_on_the_fly
+    Uses pre-computed attention patterns for supported models, falls back to
+    on-the-fly computation for unsupported models.
+
+    Based on DuoAttention (https://arxiv.org/abs/2410.10819).
+
+    Parameters
+    ----------
+    head_compression_ratio : float, default=0.0
+        Fraction of attention heads to convert to streaming heads.
+        Controls balance between retrieval (full cache) and streaming (limited cache) heads.
+    on_the_fly_scoring : bool, default=False
+        Whether to compute attention patterns on-the-fly using random samples.
+        If True, computes patterns instead of loading pre-computed ones.
+    compression_ratio_ : float
+        Actual compression ratio achieved (computed during forward pass).
+    recent_size : int
+        Size of recent token window for streaming heads (determined automatically).
+    sink_size : int
+        Number of initial tokens preserved for streaming heads (determined automatically).
+    streaming_mask : torch.Tensor
+        Binary mask indicating which heads are streaming heads.
     """
 
     head_compression_ratio: float = 0.0

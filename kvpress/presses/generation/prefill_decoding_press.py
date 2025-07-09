@@ -2,15 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from typing import Optional
-from dataclasses import dataclass
 from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Optional
 
 import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
 
 from kvpress.presses.base_press import BasePress
+
 from .decoding_press import DecodingPress
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,11 @@ logger = logging.getLogger(__name__)
 class PrefillDecodingPress(BasePress):
     """
     A wrapper press that combines separate prefilling and decoding compression strategies.
-    
+
     This press acts as a single press interface but internally delegates to different
     presses based on the current phase (prefilling vs decoding). During prefilling,
     it uses the prefilling_press. During decoding, it uses the decoding_press.
-    
+
     Parameters
     ----------
     prefilling_press : BasePress, optional
@@ -37,25 +38,21 @@ class PrefillDecodingPress(BasePress):
     decoding_press: Optional[DecodingPress] = None
 
     def compress(
-            self,
-            module: nn.Module,
-            hidden_states: torch.Tensor,
-            keys: torch.Tensor,
-            values: torch.Tensor,
-            attentions: torch.Tensor,
-            kwargs: dict,
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         q_len = hidden_states.shape[1]
 
         # Determine if we're in prefilling or decoding phase
         if kwargs["cache_position"][-1] <= q_len and self.prefilling_press is not None:
-            return self.prefilling_press.compress(
-                module, hidden_states, keys, values, attentions, kwargs
-            )
+            return self.prefilling_press.compress(module, hidden_states, keys, values, attentions, kwargs)
         elif self.decoding_press is not None:
-            return self.decoding_press.compress(
-                module, hidden_states, keys, values, attentions, kwargs
-            )
+            return self.decoding_press.compress(module, hidden_states, keys, values, attentions, kwargs)
 
         # No compression applied
         return keys, values

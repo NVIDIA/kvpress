@@ -13,10 +13,23 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class AdaKVPress(BasePress):
     """
-    AdaKV (https://arxiv.org/abs/2407.11550) selects the top-k keys and values among all heads in a layer
-    based on the scores, achieving head-specific compression.
-    A safeguard is applied to ensure a minimum fraction of KV pairs per head (alpha_safeguard parameter)
-    This press has been reviewed by Yuan Feng, first author of AdaKV.
+    AdaKV: Adaptive head-wise KV cache compression.
+
+    Performs head-specific compression by selecting top-k tokens across all heads
+    based on importance scores. Applies safeguards to ensure each head retains
+    a minimum fraction of tokens.
+
+    Based on AdaKV (https://arxiv.org/abs/2407.11550).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        AdaKVPress and ObservedAttention are currently not supported.
+    alpha_safeguard : float, default=0.20
+        Minimum fraction of KV pairs that each head must retain.
+        Ensures no attention head is compressed too aggressively. Even if tokens
+        receive low global importance scores, each head retains at least this
+        fraction of its original tokens.
     """
 
     press: ScorerPress

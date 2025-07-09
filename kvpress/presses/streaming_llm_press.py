@@ -13,13 +13,22 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class StreamingLLMPress(ScorerPress):
     """
-    Prune a fixed number of KV pairs at the beginning and end of the sequence (https://arxiv.org/abs/2309.17453)
-    We keep the first n_sink tokens and the last n_local tokens.
-    n_local is computed using the compression ratio.
+    StreamingLLM: Window-based KV cache compression with sink tokens.
 
-    Note that the original implementation https://github.com/mit-han-lab/streaming-llm additionally rerotates keys.
-    This can be achieved by using
-    press = KeyRerotationPress(press=StreamingLLMPress(compression_ratio, n_sink))
+    Implements sliding window approach preserving first few tokens (sink tokens)
+    and most recent tokens, while pruning middle tokens.
+
+    Based on StreamingLLM (https://arxiv.org/abs/2309.17453).
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    n_sink : int, default=4
+        Number of initial tokens to always preserve (sink tokens).
+        These tokens are never pruned and serve as "attention sinks" that help
+        maintain model stability. Language models often assign high attention
+        weights to early tokens regardless of semantic content.
     """
 
     compression_ratio: float = 0.0

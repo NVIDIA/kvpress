@@ -11,7 +11,28 @@ from kvpress.presses.observed_attention_press import ObservedAttentionPress
 @dataclass
 class ComposedPress(BasePress):
     """
-    Chain multiple presses together to create a composed press
+    Composed compression: Chain multiple compression methods sequentially.
+
+    Applies multiple compression methods in sequence, with each method operating
+    on the output of the previous one. Useful for combining complementary approaches
+    like sequence + dimension compression.
+
+    Example:
+    ```python
+    press = ComposedPress([
+        SnapKVPress(compression_ratio=0.3),
+        ThinKPress(key_channel_compression_ratio=0.2)
+    ])
+    ```
+
+    ObservedAttentionPress or AdaKVPress are currently not supported.
+
+    Parameters
+    ----------
+    presses : list[BasePress]
+        List of compression methods to apply sequentially.
+        Methods are applied in order, with each operating on the compressed output
+        of the previous method. Final compression ratio is the product of all ratios.
     """
 
     presses: list[BasePress]

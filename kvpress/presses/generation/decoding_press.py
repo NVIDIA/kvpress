@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 class DecodingPress(BasePress):
     """
     A press that only operates during decoding phase and maintains a running buffer of hidden states.
-    
+
     This press accumulates hidden states during decoding and applies compression every N steps
     using a scorer press to determine which tokens to keep.
-    
+
 
     Parameters
     ----------
@@ -48,21 +48,23 @@ class DecodingPress(BasePress):
         assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
-        
+
         # Warn if compression happens before buffer is fully utilized
         # TODO: would it make sense to not reset the buffer?
         if self.hidden_states_buffer_size > 0 and self.compression_steps < self.hidden_states_buffer_size:
-            logger.warning(f"compression_steps ({self.compression_steps}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "
-                          f"Buffer will be reset before reaching full capacity, potentially reducing compression quality.")
+            logger.warning(
+                f"compression_steps ({self.compression_steps}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "
+                f"Buffer will be reset before reaching full capacity, potentially reducing compression quality."
+            )
 
     def compress(
-            self,
-            module: nn.Module,
-            hidden_states: torch.Tensor,
-            keys: torch.Tensor,
-            values: torch.Tensor,
-            attentions: torch.Tensor,
-            kwargs: dict,
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Delegate compression to the base press during decoding phase.
@@ -95,9 +97,7 @@ class DecodingPress(BasePress):
 
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio
-        result = self.base_press.compress(
-            module, hidden_states, keys, values, attentions, kwargs
-        )
+        result = self.base_press.compress(module, hidden_states, keys, values, attentions, kwargs)
         self.base_press.compression_ratio = original_compression_ratio
         return result
 
@@ -116,7 +116,6 @@ class DecodingPress(BasePress):
         q_len = hidden_states.shape[1]
         layer_idx = module.layer_idx
 
-
         # Only operate during decoding phase (after prefilling)
         if kwargs["cache_position"][-1] <= q_len:
             # We're still in prefilling phase, don't do anything
@@ -129,7 +128,9 @@ class DecodingPress(BasePress):
 
         # Apply compression if we've reached the compression step threshold
         if (self.layer_step_counts[layer_idx] >= self.compression_steps) or (q_len >= self.token_buffer_size):
-            logger.debug(f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}")
+            logger.debug(
+                f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}"
+            )
 
             # Get keys and values from cache
             if isinstance(cache, QuantizedCache):
@@ -145,8 +146,7 @@ class DecodingPress(BasePress):
             # Apply compression using buffered hidden states for this layer
             buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
-            logger.debug(f"Applied decoding compression: "
-                         f"keys.shape: {keys.shape}, values.shape: {values.shape}")
+            logger.debug(f"Applied decoding compression: " f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
@@ -162,7 +162,7 @@ class DecodingPress(BasePress):
             # hidden states buffer and kv cache
             self.hidden_states_buffer[layer_idx] = []
 
-        self.hidden_states_buffer[layer_idx] = self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size:]
+        self.hidden_states_buffer[layer_idx] = self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size :]
         return output
 
     def reset(self):
@@ -208,6 +208,8 @@ class DecodingPress(BasePress):
 
         final_n_kept = int(q_len * (1 - ratio))
         if final_n_kept != target_tokens:
-            logger.warning(f"Binary search failed: q_len={q_len}, target={target_tokens}, got={final_n_kept}, ratio={ratio}")
+            logger.warning(
+                f"Binary search failed: q_len={q_len}, target={target_tokens}, got={final_n_kept}, ratio={ratio}"
+            )
 
         return ratio

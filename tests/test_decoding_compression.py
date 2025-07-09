@@ -9,7 +9,7 @@ import pytest
 import torch
 from transformers import DynamicCache, pipeline
 
-from kvpress import ScorerPress, SnapKVPress, QFilterPress, PyramidKVPress
+from kvpress import PyramidKVPress, QFilterPress, ScorerPress, SnapKVPress
 from kvpress.presses.generation.decoding_press import DecodingPress
 from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.knorm_press import KnormPress
@@ -23,15 +23,13 @@ def test_decoding_compression(token_buffer_size):
     """Test that DecodingPress compresses the cache during decoding."""
 
     # Initialize pipeline with a small model
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create a DecodingPress with KnormPress
     press = DecodingPress(
         base_press=KnormPress(compression_ratio=0.5),  # Remove 50% of tokens
         compression_steps=4,  # Compress every 4 tokens
-        token_buffer_size=token_buffer_size
+        token_buffer_size=token_buffer_size,
     )
 
     # Create cache
@@ -42,13 +40,7 @@ def test_decoding_compression(token_buffer_size):
     question = "What animal jumps over the dog?"
 
     # Run pipeline
-    result = pipe(
-        context,
-        question=question,
-        press=press,
-        cache=cache,
-        max_new_tokens=20
-    )
+    result = pipe(context, question=question, press=press, cache=cache, max_new_tokens=20)
 
     # Assert that all layers have the expected cache size
     for layer_idx, key_tensor in enumerate(cache.key_cache):
@@ -65,18 +57,12 @@ def test_prefill_decoding_press_calls_both_phases():
     """Test that PrefillDecodingPress calls both prefilling and decoding presses."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create PrefillDecodingPress with both presses
     combined_press = PrefillDecodingPress(
         prefilling_press=KnormPress(compression_ratio=0.6),  # Compress to 60% during prefill
-        decoding_press=DecodingPress(
-            base_press=KnormPress(),
-            compression_steps=3,
-            token_buffer_size=48
-        )
+        decoding_press=DecodingPress(base_press=KnormPress(), compression_steps=3, token_buffer_size=48),
     )
 
     # Test context and question
@@ -105,15 +91,11 @@ def test_decoding_press_without_prefill():
     """Test that DecodingPress works correctly when used standalone (no prefill compression)."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create DecodingPress only
     decoding_press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.4),
-        compression_steps=5,
-        token_buffer_size=64
+        base_press=KnormPress(compression_ratio=0.4), compression_steps=5, token_buffer_size=64
     )
 
     # Test context and question
@@ -141,18 +123,14 @@ def test_prefill_decoding_press_decoding_only():
     """Test PrefillDecodingPress with only decoding press (no prefill compression)."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
         prefilling_press=None,
         decoding_press=DecodingPress(
-            base_press=KnormPress(compression_ratio=0.6),
-            compression_steps=4,
-            token_buffer_size=56
-        )
+            base_press=KnormPress(compression_ratio=0.6), compression_steps=4, token_buffer_size=56
+        ),
     )
 
     # Test context and question
@@ -183,25 +161,19 @@ def test_decoding_press_equivalence():
     torch.manual_seed(42)
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create standalone decoding press
     decoding_press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.5),
-        compression_steps=3,
-        token_buffer_size=52
+        base_press=KnormPress(compression_ratio=0.5), compression_steps=3, token_buffer_size=52
     )
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
         prefilling_press=None,
         decoding_press=DecodingPress(
-            base_press=KnormPress(compression_ratio=0.5),
-            compression_steps=3,
-            token_buffer_size=52
-        )
+            base_press=KnormPress(compression_ratio=0.5), compression_steps=3, token_buffer_size=52
+        ),
     )
 
     # Test context and question
@@ -226,11 +198,12 @@ def test_decoding_press_equivalence():
         )
 
     # Compare generated text results (should be identical)
-    assert result1['answer'] == result2['answer'], (
+    assert result1["answer"] == result2["answer"], (
         f"Generated answers differ:\n"
         f"Standalone decoding: '{result1['answer']}'\n"
         f"Combined press: '{result2['answer']}'"
     )
+
 
 """
 E       AttributeError: 'QFilterPress' object has no attribute 'q_filters'
@@ -238,14 +211,14 @@ E           Failed: DecodingPress failed with SnapKVPress: shape '[1, 2, 2, 6]' 
 >       query_states = query_states.view(bsz, window_size, num_heads, head_dim).transpose(1, 2)
 E       RuntimeError: shape '[1, 2, 2, 6]' is invalid for input of size 12
 """
+
+
 @pytest.mark.parametrize("press_config", default_presses)
 def test_all_presses_work_with_decoding_press(press_config):
     """Test that all default presses work as base presses for DecodingPress."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Get press class and use the first (easier) configuration
     press_cls = press_config["cls"]
@@ -261,13 +234,8 @@ def test_all_presses_work_with_decoding_press(press_config):
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
         return
 
-
     # Create DecodingPress with this base press
-    decoding_press = DecodingPress(
-        base_press=base_press,
-        compression_steps=3,
-        token_buffer_size=48
-    )
+    decoding_press = DecodingPress(base_press=base_press, compression_steps=3, token_buffer_size=48)
 
     # Test context and question
     context = "The quick brown fox jumps over the lazy dog. " * 8
@@ -276,16 +244,10 @@ def test_all_presses_work_with_decoding_press(press_config):
     # Run pipeline
     cache = DynamicCache()
     try:
-        result = pipe(
-            context,
-            question=question,
-            press=decoding_press,
-            cache=cache,
-            max_new_tokens=15
-        )
+        result = pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=15)
 
         # Verify compression worked
-        assert len(result['answer']) > 0, f"No answer generated with {press_cls.__name__}"
+        assert len(result["answer"]) > 0, f"No answer generated with {press_cls.__name__}"
 
         # Check that cache was compressed (allow some tolerance for rounding)
         for layer_idx, key_tensor in enumerate(cache.key_cache):
@@ -294,9 +256,9 @@ def test_all_presses_work_with_decoding_press(press_config):
             target_size = 48
             compression_steps = 3  # from the decoding press configuration
             max_expected_size = target_size + compression_steps - 1
-            assert target_size <= layer_seq_len <= max_expected_size, (
-                f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"
-            )
+            assert (
+                target_size <= layer_seq_len <= max_expected_size
+            ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"
 
     except Exception as e:
         pytest.fail(f"DecodingPress failed with {press_cls.__name__}: {e}")
@@ -305,9 +267,7 @@ def test_all_presses_work_with_decoding_press(press_config):
 def test_compression_actually_reduces_memory():
     """Test that compression actually reduces memory usage compared to no compression."""
 
-    pipe = pipeline("kv-press-text-generation",
-                    model="MaxJeblick/llama2-0b-unit-test",
-                    device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     context = "The quick brown fox jumps over the lazy dog. " * 15  # Long context
     question = "What animal jumps over the dog?"
@@ -320,16 +280,19 @@ def test_compression_actually_reduces_memory():
     press = DecodingPress(
         base_press=KnormPress(compression_ratio=0.3),  # Aggressive compression
         compression_steps=3,
-        token_buffer_size=40
+        token_buffer_size=40,
     )
     cache_compressed = DynamicCache()
     result_compressed = pipe(context, question=question, press=press, cache=cache_compressed, max_new_tokens=25)
 
     # Calculate memory usage (approximate)
-    uncompressed_memory = sum(tensor.numel() * tensor.element_size()
-                              for tensor in cache_uncompressed.key_cache + cache_uncompressed.value_cache)
-    compressed_memory = sum(tensor.numel() * tensor.element_size()
-                            for tensor in cache_compressed.key_cache + cache_compressed.value_cache)
+    uncompressed_memory = sum(
+        tensor.numel() * tensor.element_size()
+        for tensor in cache_uncompressed.key_cache + cache_uncompressed.value_cache
+    )
+    compressed_memory = sum(
+        tensor.numel() * tensor.element_size() for tensor in cache_compressed.key_cache + cache_compressed.value_cache
+    )
 
     # Compression should significantly reduce memory usage
     compression_ratio = compressed_memory / uncompressed_memory
@@ -339,5 +302,5 @@ def test_compression_actually_reduces_memory():
     )
 
     # Both should still generate reasonable answers
-    assert len(result_uncompressed['answer']) > 0
-    assert len(result_compressed['answer']) > 0
+    assert len(result_uncompressed["answer"]) > 0
+    assert len(result_compressed["answer"]) > 0

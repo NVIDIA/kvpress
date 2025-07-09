@@ -13,11 +13,21 @@ from kvpress.presses.scorer_press import ScorerPress
 @dataclass
 class ChunkPress(BasePress):
     """
-    Wrapper class for any ScorerPress.
-    Chunks keys and values into chunks of size chunk_length and compresses each chunk separately.
-    This ensures that the context is compressed uniformly across the entire context.
-    This method was proposed in FINCH: Prompt-guided Key-Value Cache Compression for Large Language Models
-    https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280
+    ChunkPress: Uniform compression through independent chunk processing.
+
+    This wrapper enhances any ScorerPress by applying compression independently
+    to fixed-size chunks of the sequence. Unlike global compression methods that
+    may concentrate selection in high-importance regions, ChunkPress ensures
+    uniform compression across the entire context by processing each chunk separately.
+
+    Based on FINCH (https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280).
+
+    Parameters
+    ----------
+    press : ScorerPress
+        The underlying scoring method to apply to each chunk independently.
+    chunk_length : int, default=1024
+        Length of each chunk for independent compression.
     """
 
     press: ScorerPress
