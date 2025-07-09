@@ -4,7 +4,7 @@ We support evaluation for all the presses implemented in the library, on a varie
 
 ### Quick Start 🚀
 
-Running evaluation is straightforward:
+Running evaluation is straightforward! Make sure you are in the `evaluation` directory, then:
 
 1. **Configure your evaluation** - Edit `evaluate_config.yaml` to specify your *method*, *press*, and *dataset*
 2. **Run the evaluation** - Execute the script: ```python evaluate.py```
@@ -15,13 +15,19 @@ If you want, you can override the settings via command line, for instance:
 ```bash
 python evaluate.py --dataset loogle --data_dir shortdep_qa --model meta-llama/Meta-Llama-3.1-8B-Instruct --press_name expected_attention --compression_ratio 0.5
 ```
+
+or pass a custom configuration file:
+
+```bash
+python evaluate.py --config_path <your_config.yaml>
+```
+
 💡 Results (predictions & metrics) are automatically saved to the `output_dir` directory .
 
 
 ### Configuration 
 
-Customize your evaluation by editing `evaluate_config.yaml`. This allows you to felxibly configure a number of settings, like the fraction of dataset to use (for quick testing) and the model arguments.
-For complete parameter details, see the `evaluation_config.yaml`
+Customize your evaluation by editing `evaluate_config.yaml`. This allows you to flexibly configure a variety of settings, like the `fraction` of dataset to use (for quick testing) and the model arguments (e.g. for scaling RoPE). For complete parameter details, see the `evaluation_config.yaml`
 
 
 ### Available Presses and Datasets 
