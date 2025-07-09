@@ -1,5 +1,5 @@
-# KVPress Evaluation Configuration File
-# This file contains all the configuration options for running evaluations
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 output_dir: "./results"
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 from benchmarks.infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
 from benchmarks.longbench.calculate_metrics import calculate_metrics as longbench_scorer
 from benchmarks.longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
@@ -8,6 +11,7 @@ from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_
 
 from kvpress import (
     AdaKVPress,
+    BlockPress,
     ChunkKVPress,
     ComposedPress,
     CriticalAdaKVPress,
@@ -15,6 +19,7 @@ from kvpress import (
     DuoAttentionPress,
     ExpectedAttentionPress,
     FinchPress,
+    KeyDiffPress,
     KnormPress,
     ObservedAttentionPress,
     PyramidKVPress,
@@ -24,10 +29,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
-    BlockPress,
-    KeyDiffPress,
 )
-
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
 DATASET_REGISTRY = {
