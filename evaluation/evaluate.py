@@ -6,16 +6,16 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import pandas as pd  # Import pandas for DataFrame type hinting
 import torch
-import yaml
+import yaml  # type: ignore[import-untyped]
 from datasets import load_dataset
+from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
 from tqdm import tqdm
-from transformers import pipeline
+from transformers import Pipeline, pipeline
 
 from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ThinKPress
-from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
-
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def load_config(config_path: Path, cli_args: Dict[str, Any]) -> Dict[str, Any]:
     """
     if not config_path.exists():
         logger.warning(f"Config file not found at {config_path}. Using only command-line arguments and defaults.")
-        base_config = {}
+        base_config: Dict[str, Any] = {}
     else:
         with open(config_path, "r") as f:
             base_config = yaml.safe_load(f) or {}
@@ -78,9 +78,9 @@ class EvaluationRunner:
             The configuration dictionary for the evaluation run.
         """
         self.config = config
-        self.pipeline = None
-        self.press = None
-        self.df = None
+        self.pipeline: Optional[Pipeline] = None  # Will be set by _setup_model_pipeline()
+        self.press = None  # Will be set by _setup_press()
+        self.df: Optional[pd.DataFrame] = None  # Will be set by _load_dataset()
         self._setup_logging()
         logger.info(f"Initialized EvaluationRunner with config:\n{json.dumps(self.config, indent=2)}")
 
@@ -144,16 +144,12 @@ class EvaluationRunner:
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
                     ps.key_channel_compression_ratio = key_channel_compression_ratio
-                    logger.info(
-                        f"Set ComposedPress key_channel_compression_ratio to {key_channel_compression_ratio}"
-                    )
+                    logger.info(f"Set ComposedPress key_channel_compression_ratio to {key_channel_compression_ratio}")
                 else:
-                    # type:ignore[attr-defined] is handled by checking if attr exists or using try-except
+                    # Check if compression_ratio attribute exists before setting
                     if hasattr(ps, "compression_ratio"):
                         ps.compression_ratio = compression_ratio
-                        logger.info(
-                            f"Set ComposedPress compression_ratio to {compression_ratio}"
-                        )
+                        logger.info(f"Set ComposedPress compression_ratio to {compression_ratio}")
                     else:
                         logger.warning(
                             f"ComposedPress component {ps.__class__.__name__} has no 'compression_ratio' attribute."
@@ -172,7 +168,6 @@ class EvaluationRunner:
         logger.info(f"KV Press '{press_name}' setup.")
 
     def _setup_model_pipeline(self):
-
         model_name = self.config["model"]
         device = self.config["device"]
 
@@ -218,13 +213,13 @@ class EvaluationRunner:
             # FinchPress uses a delimiter token to separate context and question
             # So we need to update the tokenizer and the model embeddings.
             logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
-            self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)
-            self.df["context"] = self.df["context"] + self.press.delimiter_token
+            self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
+            self.df["context"] = self.df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
 
         if compress_questions:
             logger.info("Compressing questions into context.")
-            self.df["context"] = self.df["context"] + self.df["question"]
-            self.df["question"] = ""
+            self.df["context"] = self.df["context"] + self.df["question"]  # type: ignore[index]
+            self.df["question"] = ""  # type: ignore[index]
 
     def _run_inference(self):
         """
@@ -233,15 +228,14 @@ class EvaluationRunner:
         max_new_tokens_cfg = self.config["max_new_tokens"]
         max_context_length_cfg = self.config["max_context_length"]
 
-        self.df["predicted_answer"] = None
-        # Group by context to avoid reprocessing the same context multiple times if questions differ
-        df_context_grouped = self.df.groupby("context")
+        self.df["predicted_answer"] = None  # type: ignore[index]
+        df_context_grouped = self.df.groupby("context")  # type: ignore[union-attr]
         assert all(
             df_context_grouped["answer_prefix"].nunique() == 1
         ), "Inconsistent 'answer_prefix' within the same context group detected."
 
         logger.info("Starting inference...")
-        for context, df_group in tqdm(df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"):
+        for context, df_group in tqdm(df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"):  # type: ignore[union-attr]
             questions = df_group["question"].to_list()
             # Use max_new_tokens from config, or fallback to dataset's default for the task
             max_new_tokens = (
@@ -249,7 +243,7 @@ class EvaluationRunner:
             )
             answer_prefix = df_group["answer_prefix"].iloc[0]
 
-            output = self.pipeline(
+            output = self.pipeline(  # type: ignore[misc]
                 context,
                 questions=questions,
                 answer_prefix=answer_prefix,
@@ -257,9 +251,9 @@ class EvaluationRunner:
                 max_new_tokens=max_new_tokens,
                 max_context_length=max_context_length_cfg,
             )
-            self.df.loc[df_group.index, "predicted_answer"] = output["answers"]
+            self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
             # Store the actual compression ratio used (if the press has one)
-            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio
+            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio  # type: ignore[union-attr, attr-defined]
             torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
         logger.info("Inference completed.")
@@ -318,7 +312,7 @@ class EvaluationRunner:
         if save_filename.exists():
             logger.warning(f"Results CSV already exists at {save_filename}. Overwriting.")
 
-        self.df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)
+        self.df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)  # type: ignore[index]
         logger.info(f"Results saved to {save_filename}")
 
     def _calculate_and_save_metrics(self, save_filename: Path):
@@ -334,13 +328,13 @@ class EvaluationRunner:
         scorer = SCORER_REGISTRY[dataset_name]
 
         logger.info(f"Calculating metrics for dataset: {dataset_name}")
-        metrics = scorer(self.df)
+        metrics = scorer(self.df)  # type: ignore[call-arg]
 
         with open(str(save_filename), "w") as f:
             json.dump(metrics, f, indent=4)  # Pretty print JSON
 
         logger.info(f"Metrics saved to {save_filename}")
-        logger.info(f"Average compression ratio: {self.df['compression_ratio'].mean():.2f}")
+        logger.info(f"Average compression ratio: {self.df['compression_ratio'].mean():.2f}")  # type: ignore[index]
         logger.info(f"Metrics:\n{json.dumps(metrics, indent=2)}")
 
     def run_evaluation(self):
