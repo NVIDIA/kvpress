@@ -139,7 +139,7 @@ class EvaluationRunner:
         if isinstance(press, DuoAttentionPress):
             press.head_compression_ratio = compression_ratio
             logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
-        elif issubclass(press, ComposedPress):
+        elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
                     ps.key_channel_compression_ratio = key_channel_compression_ratio
