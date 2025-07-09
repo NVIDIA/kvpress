@@ -33,7 +33,7 @@ class EvaluationConfig:
     device: Optional[str] = None
     press_name: str = "knorm"
     compression_ratio: float = 1.0
-    key_channel_compression_ratio: float = 0.5
+    key_channel_compression_ratio: Optional[float] = None
 
     # Dataset and generation parameters
     fraction: float = 1.0
@@ -61,9 +61,12 @@ class EvaluationConfig:
         assert (
             0.0 <= self.compression_ratio <= 1.0
         ), f"compression_ratio must be between 0.0 and 1.0, got {self.compression_ratio}"
-        assert (
-            0.0 <= self.key_channel_compression_ratio <= 1.0
-        ), f"key_channel_compression_ratio must be between 0.0 and 1.0, got {self.key_channel_compression_ratio}"
+        
+        # Only validate key_channel_compression_ratio if it's not None
+        if self.key_channel_compression_ratio is not None:
+            assert (
+                0.0 <= self.key_channel_compression_ratio <= 1.0
+            ), f"key_channel_compression_ratio must be between 0.0 and 1.0, got {self.key_channel_compression_ratio}"
 
         # Validate fraction
         assert 0.0 < self.fraction <= 1.0, f"fraction must be between 0.0 and 1.0, got {self.fraction}"
@@ -72,7 +75,7 @@ class EvaluationConfig:
         if self.model_kwargs is None:
             self.model_kwargs = {}
 
-    def get_results_dir(self, output_dir: Path, press) -> Path:
+    def get_results_dir(self, output_dir: Path) -> Path:
         """
         Generates the unique save directory and filenames based on configuration parameters.
 
@@ -98,17 +101,13 @@ class EvaluationConfig:
         ]
 
         if self.fraction < 1.0:
-            components.append(f"fraction{self.fraction:.3f}".replace(".", "_"))
+            components.append(f"fraction{self.fraction:.3f}")
         if self.max_context_length is not None:
             components.append(f"max_context{self.max_context_length}")
         if self.compress_questions:
             components.append("compressed_questions")
-
-        # Specific handling for ThinKPress or composed presses containing it
-        if isinstance(press, ThinKPress) or (
-            isinstance(press, ComposedPress) and any(isinstance(p, ThinKPress) for p in press.presses)
-        ):
-            components.append(f"channel{self.key_channel_compression_ratio:.2f}".replace(".", "_"))
+        if self.key_channel_compression_ratio is not None:
+            components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
 
         dir_name = "__".join(filter(None, components))  # Filter None/empty strings
         config_dir = output_dir / dir_name
@@ -218,6 +217,7 @@ class EvaluationRunner:
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
+                    assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress in ComposedPress"
                     ps.key_channel_compression_ratio = key_channel_compression_ratio
                     logger.info(f"Set ComposedPress key_channel_compression_ratio to {key_channel_compression_ratio}")
                 else:
@@ -230,6 +230,7 @@ class EvaluationRunner:
                             f"ComposedPress component {ps.__class__.__name__} has no 'compression_ratio' attribute."
                         )
         elif isinstance(press, ThinKPress):
+            assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress"
             press.key_channel_compression_ratio = key_channel_compression_ratio
             logger.info(f"Set ThinKPress key_channel_compression_ratio to {key_channel_compression_ratio}")
         else:
@@ -374,7 +375,7 @@ class EvaluationRunner:
         logger.info("Starting evaluation run...")
         output_dir = self._setup_directories()
 
-        results_dir = self.config.get_results_dir(output_dir, self.press)
+        results_dir = self.config.get_results_dir(output_dir)
         predictions_filename = results_dir / "predictions.csv"
         metrics_filename = results_dir / "metrics.json"
         config_filename = results_dir / "config.yaml"
