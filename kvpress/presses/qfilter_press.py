@@ -58,7 +58,7 @@ class QFilterPress(ScorerPress):
     @cache
     def load_q_filters(model_name):
         try:
-            return QFilters.from_pretrained(f"nthngdy/{model_name}_qfilt").q_filters
+            return QFilters.from_pretrained(f"nthngdy/{model_name.replace('Meta-Llama', 'Llama')}_qfilt").q_filters
         except TypeError:
             raise ValueError(
                 f"Could not load Q-filters for {model_name}. Available models: {QFilterPress.available_qfilters()}"
