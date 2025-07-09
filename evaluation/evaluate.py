@@ -3,267 +3,446 @@
 
 import json
 import logging
+import sys
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
+import pandas as pd  # Import pandas for DataFrame type hinting
 import torch
+import yaml  # type: ignore[import-untyped]
 from datasets import load_dataset
+from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
-from infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
-from longbench.calculate_metrics import calculate_metrics as longbench_scorer
-from longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
-from longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
-from loogle.calculate_metrics import calculate_metrics as loogle_scorer
-from ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from tqdm import tqdm
-from transformers import pipeline
-from zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
+from transformers import Pipeline, pipeline
 
-from kvpress import (
-    AdaKVPress,
-    BlockPress,
-    ChunkKVPress,
-    ComposedPress,
-    CriticalAdaKVPress,
-    CriticalKVPress,
-    DuoAttentionPress,
-    ExpectedAttentionPress,
-    FinchPress,
-    KeyDiffPress,
-    KnormPress,
-    ObservedAttentionPress,
-    PyramidKVPress,
-    QFilterPress,
-    RandomPress,
-    SnapKVPress,
-    StreamingLLMPress,
-    ThinKPress,
-    TOVAPress,
-)
+from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ThinKPress
 
 logger = logging.getLogger(__name__)
 
-DATASET_DICT = {
-    "loogle": "simonjegou/loogle",
-    "ruler": "simonjegou/ruler",
-    "zero_scrolls": "simonjegou/zero_scrolls",
-    "infinitebench": "MaxJeblick/InfiniteBench",
-    "longbench": "Xnhyacinth/LongBench",
-    "longbench-e": "Xnhyacinth/LongBench",
-    "longbench-v2": "Xnhyacinth/LongBench-v2",
-}
 
-SCORER_DICT = {
-    "loogle": loogle_scorer,
-    "ruler": ruler_scorer,
-    "zero_scrolls": zero_scrolls_scorer,
-    "infinitebench": infinite_bench_scorer,
-    "longbench": longbench_scorer,
-    "longbench-e": longbench_scorer_e,
-    "longbench-v2": longbenchv2_scorer,
-}
+@dataclass
+class EvaluationConfig:
+    """Dataclass to handle all the configuration for the evaluation."""
 
-PRESS_DICT = {
-    "criti_adasnapkv": CriticalAdaKVPress(SnapKVPress()),
-    "criti_ada_expected_attention": CriticalAdaKVPress(ExpectedAttentionPress(use_vnorm=False)),
-    "criti_snapkv": CriticalKVPress(SnapKVPress()),
-    "criti_expected_attention": CriticalKVPress(ExpectedAttentionPress(use_vnorm=False)),
-    "adasnapkv": AdaKVPress(SnapKVPress()),
-    "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
-    "expected_attention": ExpectedAttentionPress(),
-    "ada_expected_attention_e2": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
-    "knorm": KnormPress(),
-    "observed_attention": ObservedAttentionPress(),
-    "random": RandomPress(),
-    "snapkv": SnapKVPress(),
-    "streaming_llm": StreamingLLMPress(),
-    "think": ThinKPress(),
-    "tova": TOVAPress(),
-    "duo_attention": DuoAttentionPress(),
-    "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
-    "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
-    "qfilter": QFilterPress(),
-    "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
-    "pyramidkv": PyramidKVPress(),
-    "finch": FinchPress(),
-    "keydiff": KeyDiffPress(),
-    "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
-}
+    # Core evaluation parameters
+    dataset: str = "ruler"
+    data_dir: Optional[str] = None
+    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    device: Optional[str] = None
+    press_name: str = "knorm"
+    compression_ratio: float = 1.0
+    key_channel_compression_ratio: Optional[float] = None
+
+    # Dataset and generation parameters
+    fraction: float = 1.0
+    max_new_tokens: Optional[int] = None
+    max_context_length: Optional[int] = None
+    compress_questions: bool = False
+
+    # Output and logging
+    output_dir: str = "./results"
+    log_level: str = "INFO"
+
+    # Model-specific parameters
+    model_kwargs: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        # Validate dataset
+        assert self.dataset in DATASET_REGISTRY, f"No dataset found for {self.dataset}"
+        assert self.dataset in SCORER_REGISTRY, f"No scorer found for {self.dataset}"
+
+        # Validate press
+        assert self.press_name in PRESS_REGISTRY, f"Press '{self.press_name}' not found in PRESS_REGISTRY"
+
+        # Validate compression ratios
+        assert (
+            0.0 <= self.compression_ratio <= 1.0
+        ), f"compression_ratio must be between 0.0 and 1.0, got {self.compression_ratio}"
+
+        # Only validate key_channel_compression_ratio if it's not None
+        if self.key_channel_compression_ratio is not None:
+            assert (
+                0.0 <= self.key_channel_compression_ratio <= 1.0
+            ), f"key_channel_compression_ratio must be between 0.0 and 1.0, got {self.key_channel_compression_ratio}"
+
+        # Validate fraction
+        assert 0.0 < self.fraction <= 1.0, f"fraction must be between 0.0 and 1.0, got {self.fraction}"
+
+        # Initialize model_kwargs if None
+        if self.model_kwargs is None:
+            self.model_kwargs = {}
+
+    def get_results_dir(self, output_dir: Path) -> Path:
+        """
+        Generates the unique save directory and filenames based on configuration parameters.
+
+        Parameters
+        ----------
+        output_dir : Path
+            The output directory path
+        press
+            The press instance to check for ThinKPress components
+
+        Returns
+        -------
+        Path
+            The path to the results directory
+        """
+        # Build directory name components
+        components = [
+            self.dataset,
+            str(self.data_dir) if self.data_dir else "",
+            self.model.replace("/", "--"),
+            self.press_name,
+            f"{self.compression_ratio:.2f}",
+        ]
+
+        if self.fraction < 1.0:
+            components.append(f"fraction{self.fraction:.3f}")
+        if self.max_context_length is not None:
+            components.append(f"max_context{self.max_context_length}")
+        if self.compress_questions:
+            components.append("compressed_questions")
+        if self.key_channel_compression_ratio is not None:
+            components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
+
+        dir_name = "__".join(filter(None, components))  # Filter None/empty strings
+        config_dir = output_dir / dir_name
+        config_dir.mkdir(parents=True, exist_ok=True)
+        return config_dir
+
+    def save_config(self, config_filename: Path):
+        """
+        Saves the evaluation configuration to a YAML file.
+        """
+        with open(str(config_filename), "w") as f:
+            yaml.dump(asdict(self), f, default_flow_style=False, indent=2, sort_keys=False)
 
 
-def evaluate(
-    dataset: str,
-    data_dir: Optional[str] = None,
-    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    device: Optional[str] = None,
-    press_name: str = "expected_attention",
-    compression_ratio: float = 0.1,
-    fraction: float = 1.0,
-    max_new_tokens: Optional[int] = None,
-    max_context_length: Optional[int] = None,
-    compress_questions: bool = False,
-    key_channel_compression_ratio: float = 0.5,
-    rope_scaling: Optional[dict] = None,
-    max_position_embeddings: Optional[int] = None,
-):
+def _load_yaml_config(path: str | Path) -> dict:
+    """Loads a YAML file. Returns an empty dict if it doesn't exist."""
+    try:
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        logger.warning(f"Config file not found at {path}. Using only command-line arguments and defaults.")
+        return {}
+
+
+class EvaluationRunner:
     """
-    Evaluate a model on a dataset using a press and save the results
+    EvaluationRunner class that orchestrates the entire evaluation process.
 
     Parameters
     ----------
-    dataset : str
-        Dataset to evaluate
-    data_dir : str, optional
-        Subdirectory of the dataset to evaluate, by default None
-    model : str, optional
-        Model to use, by default "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    device : str, optional
-        Model device, by default cuda:0 if available else cpu. For multi-GPU use "auto"
-    press_name : str, optional
-        Press to use (see PRESS_DICT), by default "expected_attention"
-    compression_ratio : float, optional
-        Compression ratio for the press, by default 0.1
-    max_new_tokens : int, optional
-        Maximum number of new tokens to generate, by default use the default for the task (recommended)
-    fraction : float, optional
-        Fraction of the dataset to evaluate, by default 1.0
-    max_context_length : int, optional
-        Maximum number of tokens to use in the context. By default will use the maximum length supported by the model.
-    compress_questions : bool, optional
-        Whether to compress the questions as well, by default False
-    key_channel_compression_ratio : float, optional
-        key Channel Compression ratio for the channel press, by default 0.5
-    rope_scaling : dict, optional
-        RoPE-scaling configuration dictionary passed to
-        model config's `rope_scaling field.
-        (e.g. {"type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768});
-        by default None.  If set, you **must** also provide ``max_position_embeddings``.
-    max_position_embeddings : int, optional
-        The value to set for ``max_position_embeddings`` in the model config when ``rope_scaling`` is used.
-        Required if ``rope_scaling`` is not ``None``; ignored otherwise.
+    config : EvaluationConfig
+        The configuration for the evaluation run.
+
+    The final output will be predictions_<config>.csv and metrics_<config>.json in the output_dir.
+    If the evaluation files already exist, evaluation will be skipped.
+
     """
 
-    assert dataset in DATASET_DICT, f"No dataset found for {dataset}"
-    assert dataset in SCORER_DICT, f"No scorer found for {dataset}"
-    data_dir = str(data_dir) if data_dir else None
+    def __init__(self, config: EvaluationConfig):
+        """
+        Initializes the EvaluationRunner with a given configuration.
 
-    if device is None:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        Parameters
+        ----------
+        config : EvaluationConfig
+            The configuration for the evaluation run.
+        """
+        self.config = config
+        self.pipeline: Optional[Pipeline] = None  # Will be set by _setup_model_pipeline()
+        self.press = None  # Will be set by _setup_press()
+        self.df: Optional[pd.DataFrame] = None  # Will be set by _load_dataset()
+        self._setup_logging()
+        logger.info(f"Initialized EvaluationRunner with config:\n{json.dumps(asdict(self.config), indent=2)}")
 
-    save_dir = Path(__file__).parent / "results"
-    save_dir.mkdir(exist_ok=True)
-    save_filename = save_dir / (
-        "__".join([dataset, data_dir if data_dir else "", model.replace("/", "--"), press_name, str(compression_ratio)])
-        + ".csv"
-    )
-    if save_filename.exists():
-        logger.warning(f"Results already exist at {save_filename}")
+    def _setup_logging(self):
+        """Configures the logging level based on the config."""
+        log_level = self.config.log_level.upper()
+        logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
 
-    # Load dataframe
-    df = load_dataset(DATASET_DICT[dataset], data_dir=data_dir, split="test").to_pandas()
-    if fraction < 1.0:
-        df = df.sample(frac=fraction, random_state=42)
-        save_filename = save_filename.with_name(save_filename.stem + f"__fraction{fraction:.2f}" + save_filename.suffix)
+    def _setup_directories(self) -> Path:
+        """
+        Creates the output directory for saving results if it doesn't exist.
 
-    if max_context_length is not None:
-        save_filename = save_filename.with_name(
-            save_filename.stem + f"__max_context{max_context_length}" + save_filename.suffix
-        )
+        Returns
+        -------
+        Path
+            The path to the output directory.
+        """
+        output_dir = Path(self.config.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output directory set to: {output_dir}")
+        return output_dir
 
-    # Load press
-    assert press_name in PRESS_DICT
-    press = PRESS_DICT[press_name]
+    def _load_dataset(self):
+        """
+        Loads the dataset specified in the config and applies sampling/filtering.
+        """
+        dataset_name = self.config.dataset
+        data_dir = str(self.config.data_dir) if self.config.data_dir else None
+        fraction = self.config.fraction
 
-    if isinstance(press, (DuoAttentionPress)):
-        press.head_compression_ratio = compression_ratio
-    elif isinstance(press, (ComposedPress)):
-        for ps in press.presses:
-            if isinstance(ps, (ThinKPress)):
-                ps.key_channel_compression_ratio = key_channel_compression_ratio
-                save_filename = save_filename.with_name(
-                    save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
-                )
+        logger.info(f"Loading dataset: {DATASET_REGISTRY[dataset_name]} (data_dir: {data_dir})")
+        df = load_dataset(DATASET_REGISTRY[dataset_name], data_dir=data_dir, split="test").to_pandas()
+
+        if fraction < 1.0:
+            original_len = len(df)
+            df = df.sample(frac=fraction, random_state=42)
+            logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
+
+        self.df = df
+        logger.info(f"Dataset loaded with {len(self.df)} entries.")
+
+    def _setup_press(self):
+        """
+        Initializes the KVPress instance and applies compression ratios based on its type.
+        """
+        press_name = self.config.press_name
+        compression_ratio = self.config.compression_ratio
+        key_channel_compression_ratio = self.config.key_channel_compression_ratio
+
+        press = PRESS_REGISTRY[press_name]
+
+        # Apply compression ratios based on press type
+        if isinstance(press, DuoAttentionPress):
+            press.head_compression_ratio = compression_ratio
+            logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
+        elif isinstance(press, ComposedPress):
+            for ps in press.presses:
+                if isinstance(ps, ThinKPress):
+                    assert (
+                        key_channel_compression_ratio is not None
+                    ), "key_channel_compression_ratio must be set for ThinKPress in ComposedPress"
+                    ps.key_channel_compression_ratio = key_channel_compression_ratio
+                    logger.info(f"Set ComposedPress key_channel_compression_ratio to {key_channel_compression_ratio}")
+                else:
+                    # Check if compression_ratio attribute exists before setting
+                    if hasattr(ps, "compression_ratio"):
+                        ps.compression_ratio = compression_ratio
+                        logger.info(f"Set ComposedPress compression_ratio to {compression_ratio}")
+                    else:
+                        logger.warning(
+                            f"ComposedPress component {ps.__class__.__name__} has no 'compression_ratio' attribute."
+                        )
+        elif isinstance(press, ThinKPress):
+            assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress"
+            press.key_channel_compression_ratio = key_channel_compression_ratio
+            logger.info(f"Set ThinKPress key_channel_compression_ratio to {key_channel_compression_ratio}")
+        else:
+            if hasattr(press, "compression_ratio"):
+                press.compression_ratio = compression_ratio
+                logger.info(f"Set {press.__class__.__name__} compression_ratio to {compression_ratio}")
             else:
-                ps.compression_ratio = compression_ratio  # type:ignore[attr-defined]
-    elif isinstance(press, (ThinKPress)):
-        press.key_channel_compression_ratio = key_channel_compression_ratio
-        save_filename = save_filename.with_name(
-            save_filename.stem + f"__channel{key_channel_compression_ratio}" + save_filename.suffix
-        )
-    else:
-        press.compression_ratio = compression_ratio  # type:ignore[attr-defined]
+                logger.warning(f"Press {press.__class__.__name__} has no 'compression_ratio' attribute.")
 
-    # Initialize pipeline with the correct attention implementation
-    model_kwargs: dict[str, Any] = {"torch_dtype": "auto"}
-    if isinstance(press, ObservedAttentionPress):
-        model_kwargs["attn_implementation"] = "eager"
-    else:
+        self.press = press
+        logger.info(f"KV Press '{press_name}' setup.")
+
+    def _setup_model_pipeline(self):
+        model_name = self.config.model
+        device = self.config.device
+
+        if device is None:
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            logger.info(f"No device specified, auto-detected device: {device}")
+
+        model_kwargs = self.config.model_kwargs or {}
+        print(model_kwargs)
+        if isinstance(self.press, ObservedAttentionPress):
+            model_kwargs["attn_implementation"] = "eager"
+            logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
+        else:
+            try:
+                import flash_attn  # noqa: F401
+
+                model_kwargs["attn_implementation"] = "flash_attention_2"
+                logger.info("Flash Attention 2 detected, setting attn_implementation to 'flash_attention_2'.")
+            except ImportError:
+                logger.info("Flash Attention 2 not available, using default attn_implementation.")
+                pass
+
+        logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
+        if device == "auto":
+            self.pipeline = pipeline(
+                "kv-press-text-generation", model=model_name, device_map="auto", model_kwargs=model_kwargs
+            )
+        else:
+            self.pipeline = pipeline(
+                "kv-press-text-generation", model=model_name, device=device, model_kwargs=model_kwargs
+            )
+        logger.info("Model pipeline loaded.")
+
+    def _prepare_data_for_inference(self):
+        """
+        Prepares the dataset for inference, handling `compress_questions` and `FinchPress` specifics.
+        """
+        compress_questions = self.config.compress_questions
+
+        if isinstance(self.press, FinchPress):
+            if not compress_questions:
+                logger.error("FinchPress requires 'compress_questions' to be set to True.")
+                raise ValueError("FinchPress requires compress_questions to be set to True")
+            # FinchPress uses a delimiter token to separate context and question
+            # So we need to update the tokenizer and the model embeddings.
+            logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
+            self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
+            self.df["context"] = self.df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
+
+        if compress_questions:
+            logger.info("Compressing questions into context.")
+            self.df["context"] = self.df["context"] + self.df["question"]  # type: ignore[index]
+            self.df["question"] = ""  # type: ignore[index]
+
+    def _run_inference(self):
+        """
+        Executes the inference process on the prepared dataset using the model pipeline.
+        """
+
+        self.df["predicted_answer"] = None  # type: ignore[index]
+        df_context_grouped = self.df.groupby("context")  # type: ignore[union-attr]
+        assert all(
+            df_context_grouped["answer_prefix"].nunique() == 1
+        ), "Inconsistent 'answer_prefix' within the same context group detected."
+
+        logger.info("Starting inference...")
+        for context, df_group in tqdm(df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"):  # type: ignore[union-attr]
+            questions = df_group["question"].to_list()
+            # Use max_new_tokens from config, or fallback to dataset's default for the task
+            max_new_tokens = self.config.max_new_tokens or df_group["max_new_tokens"].iloc[0]
+            answer_prefix = df_group["answer_prefix"].iloc[0]
+
+            output = self.pipeline(  # type: ignore[misc]
+                context,
+                questions=questions,
+                answer_prefix=answer_prefix,
+                press=self.press,
+                max_new_tokens=max_new_tokens,
+                max_context_length=self.config.max_context_length,
+            )
+            self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
+            # Store the actual compression ratio used (if the press has one)
+            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio  # type: ignore[union-attr, attr-defined]
+            torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
+
+        logger.info("Inference completed.")
+
+    def _save_results(self, save_filename: Path):
+        """
+        Saves the predicted answers and compression ratios to a CSV file.
+
+        Parameters
+        ----------
+        save_filename : Path
+            The full path including filename to save the CSV.
+        """
+        if save_filename.exists():
+            logger.warning(f"Results CSV already exists at {save_filename}. Overwriting.")
+
+        self.df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)  # type: ignore[index]
+        logger.info(f"Results saved to {save_filename}")
+
+    def _calculate_and_save_metrics(self, save_filename: Path):
+        """
+        Calculates evaluation metrics and saves them to a JSON file.
+
+        Parameters
+        ----------
+        save_filename : Path
+            The base filename (e.g., CSV path) to derive the JSON path from.
+        """
+        dataset_name = self.config.dataset
+        scorer = SCORER_REGISTRY[dataset_name]
+
+        logger.info(f"Calculating metrics for dataset: {dataset_name}")
+        metrics = scorer(self.df)  # type: ignore[call-arg]
+
+        with open(str(save_filename), "w") as f:
+            json.dump(metrics, f, indent=4)  # Pretty print JSON
+
+        logger.info(f"Metrics saved to {save_filename}")
+        logger.info(f"Average compression ratio: {self.df['compression_ratio'].mean():.2f}")  # type: ignore[index]
+        logger.info(f"Metrics:\n{json.dumps(metrics, indent=2)}")
+
+    def run_evaluation(self):
+        """
+        Orchestrates the entire evaluation process.
+        """
+        logger.info("Starting evaluation run...")
+        output_dir = self._setup_directories()
+
+        results_dir = self.config.get_results_dir(output_dir)
+        predictions_filename = results_dir / "predictions.csv"
+        metrics_filename = results_dir / "metrics.json"
+        config_filename = results_dir / "config.yaml"
+
+        if predictions_filename.exists() and metrics_filename.exists():
+            logger.info(
+                f"Evaluation files already exist at \n {predictions_filename} \n {metrics_filename}.\nSkipping..."
+            )
+            return
+
+        self._load_dataset()
+        self._setup_press()
+        self._setup_model_pipeline()
+        self._prepare_data_for_inference()
+
+        self._run_inference()
+        self._save_results(predictions_filename)
+        self._calculate_and_save_metrics(metrics_filename)
+        self.config.save_config(config_filename)
+        logger.info("Evaluation run completed successfully.")
+
+
+# --- Command-Line Interface ---
+class CliEntryPoint:
+    """
+    CLI entry point for building configuration and running the evaluation.
+
+    This class provides a command-line interface for running KVPress evaluations.
+    Configuration can be specified via:
+    1. YAML config file (default: "./evaluate_config.yaml")
+    2. Command-line arguments (highest priority)
+    """
+
+    def __call__(self, config_file: Optional[str] = "./evaluate_config.yaml", **cli_overrides):
+        """
+        Builds the configuration and runs the evaluation.
+
+        Configuration is built by layering:
+        1. Default values from EvaluationConfig
+        2. Values from YAML config file
+        3. Command-line arguments (highest priority)
+        """
+        # 1. Start with dataclass defaults.
+        final_args = asdict(EvaluationConfig())
+
+        # 2. Layer YAML values on top.
+        yaml_config = _load_yaml_config(config_file)
+        final_args.update(yaml_config)
+
+        # 3. Layer CLI arguments on top (highest priority).
+        # Filter out None values from CLI overrides
+        cli_args = {k: v for k, v in cli_overrides.items() if v is not None}
+        final_args.update(cli_args)
+
+        # 4. Create and validate the final config object.
         try:
-            import flash_attn  # noqa: F401
+            config = EvaluationConfig(**final_args)
+        except TypeError as e:
+            # Provide a user-friendly error for bad arguments.
+            print(f"Error: Invalid configuration argument provided. {e}", file=sys.stderr)
+            sys.exit(1)
 
-            model_kwargs["attn_implementation"] = "flash_attention_2"
-        except ImportError:
-            pass
-    if rope_scaling is not None:
-        if max_position_embeddings is None:
-            raise ValueError("max_position_embeddings must be given when rope_scaling is used")
-
-        model_kwargs.update(
-            {
-                "max_position_embeddings": max_position_embeddings,
-                "rope_scaling": rope_scaling,
-            }
-        )
-
-    if device == "auto":
-        pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", model_kwargs=model_kwargs)
-    else:
-        pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
-
-    if isinstance(press, FinchPress):
-        assert compress_questions is True, "FinchPress requires compress_questions to be set to True"
-        # FinchPress uses a delimiter token to separate context and question
-        # So we need to update the tokenizer and the model embeddings.
-        press.update_model_and_tokenizer(pipe.model, pipe.tokenizer)
-        df["context"] = df["context"] + press.delimiter_token
-
-    if compress_questions:
-        df["context"] = df["context"] + df["question"]
-        df["question"] = ""
-        save_filename = save_filename.with_name(save_filename.stem + "__compressed_questions" + save_filename.suffix)
-
-    # Run pipeline on each context
-    df["predicted_answer"] = None
-    df_context = df.groupby("context")
-    assert all(df_context["answer_prefix"].nunique() == 1)
-
-    for context, df_ in tqdm(df_context, total=df["context"].nunique()):
-        questions = df_["question"].to_list()
-        max_new_tokens_ = max_new_tokens if max_new_tokens is not None else df_["max_new_tokens"].iloc[0]
-        answer_prefix = df_["answer_prefix"].iloc[0]
-        output = pipe(
-            context,
-            questions=questions,
-            answer_prefix=answer_prefix,
-            press=press,
-            max_new_tokens=max_new_tokens_,
-            max_context_length=max_context_length,
-        )
-        df.loc[df_.index, "predicted_answer"] = output["answers"]
-        df.loc[df_.index, "compression_ratio"] = press.compression_ratio  # type:ignore[attr-defined]
-        torch.cuda.empty_cache()
-
-    # Save answers
-    df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)
-
-    # Calculate metrics
-    scorer = SCORER_DICT[dataset]
-    metrics = scorer(df)
-    with open(str(save_filename).replace(".csv", ".json"), "w") as f:
-        json.dump(metrics, f)
-    print(f"Average compression ratio: {df['compression_ratio'].mean():.2f}")
-    print(metrics)
+        runner = EvaluationRunner(config)
+        runner.run_evaluation()
 
 
 if __name__ == "__main__":
-    Fire(evaluate)
+    Fire(CliEntryPoint)
