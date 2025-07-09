@@ -61,7 +61,7 @@ class EvaluationConfig:
         assert (
             0.0 <= self.compression_ratio <= 1.0
         ), f"compression_ratio must be between 0.0 and 1.0, got {self.compression_ratio}"
-        
+
         # Only validate key_channel_compression_ratio if it's not None
         if self.key_channel_compression_ratio is not None:
             assert (
@@ -217,7 +217,9 @@ class EvaluationRunner:
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
-                    assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress in ComposedPress"
+                    assert (
+                        key_channel_compression_ratio is not None
+                    ), "key_channel_compression_ratio must be set for ThinKPress in ComposedPress"
                     ps.key_channel_compression_ratio = key_channel_compression_ratio
                     logger.info(f"Set ComposedPress key_channel_compression_ratio to {key_channel_compression_ratio}")
                 else:
