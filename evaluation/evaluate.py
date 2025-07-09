@@ -9,12 +9,13 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import yaml
 from datasets import load_dataset
-from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
 from tqdm import tqdm
 from transformers import pipeline
 
 from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ThinKPress
+from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
+
 
 logger = logging.getLogger(__name__)
 
