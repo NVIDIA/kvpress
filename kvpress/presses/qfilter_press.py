@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 
 import torch
@@ -49,6 +49,8 @@ class QFilterPress(ScorerPress):
         Fraction of key-value pairs to remove during compression.
     """
 
+    q_filters: QFilters = field(init=False, default=None)
+
     def __post_init_from_model__(self, model):
         model_name = model.config.name_or_path.split("/")[-1]
         self.q_filters = self.load_q_filters(model_name)
@@ -71,7 +73,11 @@ class QFilterPress(ScorerPress):
         return [x.item_id.split("/")[-1][:-6] for x in collection.items]
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
-        q_filter = self.q_filters[module.layer_idx][None, :, None]
+        if self.q_filters is None:
+            raise ValueError(
+                "Q-filters not loaded. If you are using a wrapper press, make sure to call __post_init_from_model__."
+            )
+        q_filter = self.q_filters[module.layer_idx][None, :, None]  # type: ignore
         q_filter = q_filter.to(keys.device)
         scores = -(q_filter * keys).sum(dim=-1)
         return scores
