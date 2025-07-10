@@ -99,6 +99,10 @@ class DuoAttentionPress(BasePress):
     def compress(self, module, hidden_states, keys, values, attentions, kwargs):
 
         assert module.config._attn_implementation != "eager", "eager mode not supported"
+        if self.streaming_mask is None:
+            raise ValueError(
+                "Streaming mask not initialized. Make sure to call __post_init_from_model__ to initialize this press."
+            )
         q_len = hidden_states.shape[1]
 
         if (self.head_compression_ratio > 0) or (q_len > (self.sink_size + self.recent_size)):
