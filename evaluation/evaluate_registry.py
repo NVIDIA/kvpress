@@ -54,13 +54,13 @@ SCORER_REGISTRY = {
 
 
 PRESS_REGISTRY = {
-    "ada_expected_attention": AdaKVPress(ExpectedAttentionPress()),
-    "ada_expected_attention_e2": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
-    "adasnapkv": AdaKVPress(SnapKVPress()),
+    "adakv_expected_attention": AdaKVPress(ExpectedAttentionPress()),
+    "adakv_expected_attention_e2": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
+    "adakv_snapkv": AdaKVPress(SnapKVPress()),
     "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
-    "criti_ada_expected_attention": CriticalAdaKVPress(ExpectedAttentionPress(use_vnorm=False)),
-    "criti_adasnapkv": CriticalAdaKVPress(SnapKVPress()),
+    "criti_adakv_expected_attention": CriticalAdaKVPress(ExpectedAttentionPress(use_vnorm=False)),
+    "criti_adakv_snapkv": CriticalAdaKVPress(SnapKVPress()),
     "criti_expected_attention": CriticalKVPress(ExpectedAttentionPress(use_vnorm=False)),
     "criti_snapkv": CriticalKVPress(SnapKVPress()),
     "duo_attention": DuoAttentionPress(),
