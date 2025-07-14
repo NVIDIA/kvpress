@@ -1,18 +1,24 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import math
+from contextlib import contextmanager
 from dataclasses import dataclass
+from types import MethodType
+from typing import Generator
 
 import torch
 from torch import nn
-from transformers import Gemma3ForCausalLM, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
+from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -46,14 +52,129 @@ class KVzipPress(BasePress):
     n_sink: int = 4
 
     # The following variables are automatically set in pipeline.py
-    do_compress: bool = False
-    context: str = None
-    suffix: str = None
     context_length: int = 0
-    start_idx: int = 0
-    end_idx: int = 0
     score_val: torch.Tensor = None
     causal_mask_score: torch.Tensor = None
+
+    @contextmanager
+    def __call__(self, model: PreTrainedModel) -> Generator:
+        """
+        Context manager that handles both initial prefilling and KVzip scoring/compression.
+
+        This overrides the base class __call__ method to implement the full KVzip algorithm:
+        1. First yield: allows initial prefilling with context
+        2. After yield: performs KVzip scoring and compression using context reconstruction
+        """
+        if not isinstance(model, SUPPORTED_MODELS):
+            logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
+
+        if isinstance(model, Gemma3ForCausalLM):
+            logger.warning("Compression in Gemma3 is only applied to layer without sliding window attention")
+
+        # Store model reference for later use
+        tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+
+        # Get suffix_ids directly using tokenizer's chat template (do this once, not in hook)
+        if tokenizer.chat_template is None:
+            prefix_text = ""
+            suffix_text = "\n"  # Default suffix for models without chat template
+        else:
+            # Use a dummy context to extract the question suffix from chat template
+            dummy_context = "dummy context"
+            separator = "\n" + "#" * len(dummy_context)
+            temp_context = tokenizer.apply_chat_template(
+                [{"role": "user", "content": dummy_context + separator}], add_generation_prompt=True, tokenize=False
+            )
+            context, suffix_text = temp_context.split(separator)
+            prefix_text = context.split(dummy_context)[0]
+
+        # Tokenize suffix directly to ids
+        self._prefix_len = tokenizer.encode(prefix_text, return_tensors="pt", add_special_tokens=False).shape[-1]
+        self._suffix_ids = tokenizer.encode(suffix_text, return_tensors="pt", add_special_tokens=False)
+
+        # Register hook to store the pointer for past_key_values
+        original_forward = model.forward
+
+        def wrapped_forward(*args, **kwargs):
+            self._context_ids = kwargs.get("input_ids", None)
+            self._cache = kwargs.get("past_key_values", None)
+            return original_forward(**kwargs)
+
+        model.forward = MethodType(wrapped_forward, model)
+
+        hooks = []
+        try:
+            yield
+            model.forward = original_forward  # Restore original
+
+            # After yield: KVzip scoring and compression phase
+            if self.compression_ratio > 0 and self._context_ids is not None:
+                # Now register attention hooks for compression
+                for layer in model.model.layers:
+                    if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
+                        continue
+                    layer.self_attn.rotary_emb = model.model.rotary_emb
+                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
+
+                self._perform_kvzip_compression(model, tokenizer)
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+        """
+        Overwrite the forward_hook of BasePress
+        """
+
+        hidden_states = kwargs["hidden_states"]
+        cache = kwargs["past_key_value"]
+
+        if isinstance(cache, QuantizedCache):
+            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
+            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+        else:
+            keys = cache.key_cache[module.layer_idx]
+            values = cache.value_cache[module.layer_idx]
+
+        # Only do scoring. Compression is done afterward by press.compress_post(self.model) in pipeline.py.
+        keys, values = self.score(module, hidden_states, keys, values, output[1], kwargs)
+
+        if isinstance(cache, QuantizedCache):
+            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
+            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
+            cache.key_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
+            cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
+            cache._seen_tokens = keys.shape[2]
+        else:
+            cache.key_cache[module.layer_idx] = keys
+            cache.value_cache[module.layer_idx] = values
+
+        return output
+
+    def _perform_kvzip_compression(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
+        """
+        Perform the KVzip scoring and compression algorithm.
+        """
+
+        # Prepare chunked inputs for context reconstruction
+        self.context_length = self._context_ids.shape[1]
+        input_ids = self.prepare(model, tokenizer)
+
+        # Perform scoring through context reconstruction
+        # Use the stored cache from the initial forward pass
+        self.start_idx = self._prefix_len
+        for prefill_ids, repeat_ids in input_ids:
+            self.end_idx = self.start_idx + prefill_ids.shape[1]
+            # Pass the cache that was used in the initial forward pass
+            model(
+                input_ids=repeat_ids.to(model.device),
+                past_key_values=self._cache,
+                num_logits_to_keep=1,
+            )
+            self.start_idx = self.end_idx
+
+        # Perform final compression
+        self.compress_post(model)
 
     def _chunk_fn(self, ctx_ids: torch.Tensor, chunk_size: int):
         """Chunk input tokens"""
@@ -78,24 +199,18 @@ class KVzipPress(BasePress):
         self,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
-        full_context_length: int,
         chunk_size: int = 2048,
         prev_postfix_size=8,
     ):
         """Prepare chunked inputs for KV importance scoring with context reconstruction
         return: List[torch.Tensor]
         """
-
-        ctx_ids = tokenizer.encode(self.context, return_tensors="pt", add_special_tokens=False)
-        suffix_ids = tokenizer.encode(self.suffix, return_tensors="pt", add_special_tokens=False)
-
-        self.context_length = full_context_length
-        self.start_idx = full_context_length - ctx_ids.shape[1]  # the length of a system prompt
+        ctx_ids = self._context_ids[:, self._prefix_len :].to("cpu")
 
         # initialize score values
         n_layers, n_kv = model.config.num_hidden_layers, model.config.num_key_value_heads
         self.score_val = torch.zeros(
-            (n_layers, 1, n_kv, full_context_length),  # only support batch size of 1
+            (n_layers, 1, n_kv, self.context_length),  # only support batch size of 1
             dtype=model.dtype,
             device=model.device,
         )
@@ -113,43 +228,9 @@ class KVzipPress(BasePress):
                 postfix_prev = chunked_inputs[i - 1][:, -prev_postfix_size:]
                 q_ids = torch.cat([q_ids, postfix_prev], dim=1)
 
-            input_ids.append((a_ids, torch.cat([q_ids, suffix_ids, a_ids], dim=1)))
+            input_ids.append((a_ids, torch.cat([q_ids, self._suffix_ids, a_ids], dim=1)))
 
         return input_ids
-
-    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        """
-        Overwrite the forward_hook of BasePress
-        """
-
-        hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_value"]
-
-        # Modified condition
-        if not self.do_compress:
-            return output
-
-        if isinstance(cache, QuantizedCache):
-            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
-        else:
-            keys = cache.key_cache[module.layer_idx]
-            values = cache.value_cache[module.layer_idx]
-
-        # Only do scoring. Compression is done afterward by press.compress_post(self.model) in pipeline.py.
-        keys, values = self.score(module, hidden_states, keys, values, output[1], kwargs)
-
-        if isinstance(cache, QuantizedCache):
-            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
-            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
-            cache.key_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache._seen_tokens = keys.shape[2]
-        else:
-            cache.key_cache[module.layer_idx] = keys
-            cache.value_cache[module.layer_idx] = values
-
-        return output
 
     def _make_mask(self, attn_weights: torch.Tensor, window_size: int):
         """

@@ -14,7 +14,6 @@ from transformers.pipelines.base import GenericTensor
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
-from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 
@@ -93,7 +92,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             "questions": questions,
             "answer_prefix": answer_prefix,
             "max_context_length": max_context_length,
-            "press": press,
         }
         forward_kwargs = {"press": press, "max_new_tokens": max_new_tokens, "cache": cache}
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
@@ -104,7 +102,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         questions: list[str],
         answer_prefix: str,
         max_context_length: int,
-        press: Optional[BasePress] = None,
     ):
         """
         Apply chat template and tokenize the context and questions.
@@ -130,9 +127,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             Dictionary with "context_ids" and "questions_ids" tensors.
         """
 
-        if isinstance(press, KVzipPress):
-            press.context = context
-
         # Apply chat template if available
         if self.tokenizer.chat_template is None:
             bos_token = getattr(self.tokenizer, "bos_token", "")
@@ -148,9 +142,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         # Add question_suffix and answer prefix
         # e.g. for llama3.1, question_suffix="<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
         questions = [question + question_suffix + answer_prefix for question in questions]
-
-        if isinstance(press, KVzipPress):
-            press.suffix = question_suffix + answer_prefix
 
         # Tokenize the context and questions
         context_ids = self.tokenizer.encode(context, return_tensors="pt", add_special_tokens=False)
@@ -210,27 +201,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 output_attentions=self.output_attentions(press),
                 num_logits_to_keep=1,
             )
-
-        # The original KVzip performs scoring and compression after the initial prefilling.
-        # Note: the algorithm can also be interleaved with prefilling.
-        if isinstance(press, KVzipPress):
-            press.do_compress = True
-            with press(self.model):
-                input_ids = press.prepare(self.model, self.tokenizer, context_length)  # chunks of the repeated context
-                for prefill_ids, repeat_ids in input_ids:
-                    press.end_idx = press.start_idx + prefill_ids.shape[1]
-                    self.model(
-                        input_ids=repeat_ids.to(self.model.device),
-                        past_key_values=cache,
-                        num_logits_to_keep=1,
-                    )  # scoring
-                    press.start_idx = press.end_idx
-
-            # becomes problematic if the tokens corresponding to the context do not match between
-            # (1) tokenization of the system prompt + context together and (2) tokenization of the context alone.
-            assert press.end_idx == context_length, print("tokenization is not consistent")
-            press.compress_post(self.model)  # compression
-            press.do_compress = False
 
         logger.debug(f"Context Length: {context_length}")
         logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
