@@ -7,16 +7,17 @@ from kvpress import ComposedPress, DuoAttentionPress, QFilterPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
+import pytest
+
 def test_composed_press_qfilter_without_post_init(unit_test_model):  # noqa: F811
     press1 = QFilterPress(compression_ratio=0.2)
     press2 = QFilterPress(compression_ratio=0.2)
     composed_press = ComposedPress([press1, press2])
-    try:
+    with pytest.raises(ValueError, match="post_init_from_model"):
         with composed_press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
-    except ValueError as e:
-        assert "post_init_from_model" in str(e)  # this must be a ValueError because the QFilterPress is not initialized
+
 
 
 def test_composed_press_duo_attention_without_post_init(unit_test_model):  # noqa: F811
@@ -27,14 +28,11 @@ def test_composed_press_duo_attention_without_post_init(unit_test_model):  # noq
     )()
     model.device = "cpu"
     composed_press = ComposedPress([press1, press2])
-    try:
+    with pytest.raises(ValueError, match="post_init_from_model"):
         with composed_press(unit_test_model):
             input_ids = unit_test_model.dummy_inputs["input_ids"]
-            unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
-    except ValueError as e:
-        assert "post_init_from_model" in str(
-            e
-        )  # this must be a ValueError because the DuoAttentionPress is not initialized
+            unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values 
+   
 
 
 def test_composed_qfilter_press_with_post_init(unit_test_model):  # noqa: F811
@@ -51,11 +49,8 @@ def test_composed_qfilter_press_with_post_init(unit_test_model):  # noqa: F811
     composed_press = ComposedPress([press1, press2])
     with composed_press(unit_test_model):
         input_ids = unit_test_model.dummy_inputs["input_ids"]
-        try:
+        with pytest.raises(RuntimeError, match="The size of tensor"):
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
-        except RuntimeError as e:
-            # This must be a RuntimeError because the loaded Q-filters are different from the model
-            assert "The size of tensor" in str(e)
 
 
 def test_composed_duo_attention_press_with_post_init(unit_test_model):  # noqa: F811
