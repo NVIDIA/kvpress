@@ -48,6 +48,9 @@ class EvaluationConfig:
     # Model-specific parameters
     model_kwargs: Optional[Dict[str, Any]] = None
 
+    # Press information (will be set after press setup)
+    press_init_command: Optional[str] = None
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         # Validate dataset
@@ -243,6 +246,8 @@ class EvaluationRunner:
                 logger.warning(f"Press {press.__class__.__name__} has no 'compression_ratio' attribute.")
 
         self.press = press
+        # Set the press info in the config for saving to YAML
+        self.config.press_init_command = str(press)
         logger.info(f"KV Press '{press_name}' setup.")
 
     def _setup_model_pipeline(self):
@@ -271,11 +276,19 @@ class EvaluationRunner:
         logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
         if device == "auto":
             self.pipeline = pipeline(
-                "kv-press-text-generation", model=model_name, device_map="auto", model_kwargs=model_kwargs
+                "kv-press-text-generation",
+                model=model_name,
+                device_map="auto",
+                model_kwargs=model_kwargs,
+                trust_remote_code=True,
             )
         else:
             self.pipeline = pipeline(
-                "kv-press-text-generation", model=model_name, device=device, model_kwargs=model_kwargs
+                "kv-press-text-generation",
+                model=model_name,
+                device=device,
+                model_kwargs=model_kwargs,
+                trust_remote_code=True,
             )
         logger.info("Model pipeline loaded.")
 
