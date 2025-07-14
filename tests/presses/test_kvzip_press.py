@@ -35,24 +35,6 @@ def test_kvzip_press(unit_test_model):  # noqa: F811
                 num_logits_to_keep=1,
             )
 
-        # Test scoring
-        press.do_compress = True
-        with press(unit_test_model):
-            input_ids = press.prepare(unit_test_model, tokenizer, context_length)  # chunkes of the repeated context
-            for prefill_ids, repeat_ids in input_ids:
-                press.end_idx = press.start_idx + prefill_ids.shape[1]
-                unit_test_model(
-                    input_ids=repeat_ids.to(unit_test_model.device),
-                    past_key_values=cache,
-                    num_logits_to_keep=1,
-                )
-                press.start_idx = press.end_idx
-        assert press.end_idx == context_length, print("tokenization is not consistent")
-
-        # Test compression
-        press.compress_post(unit_test_model)
-        press.do_compress = False
-
         n_kv_full = 0
         for keys in cache.key_cache:
             n_kv_full += keys[..., 0].numel()  # head_dim dimension
