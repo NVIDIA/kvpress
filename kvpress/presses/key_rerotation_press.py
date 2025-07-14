@@ -36,6 +36,14 @@ class KeyRerotationPress(BasePress):
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress)
 
+    @property
+    def compression_ratio(self):
+        return self.press.compression_ratio
+
+    @compression_ratio.setter
+    def compression_ratio(self, value):
+        self.press.compression_ratio = value
+
     @staticmethod
     def _rerotate_cos_sin(x, inv_freq, selected_positions):
         """
