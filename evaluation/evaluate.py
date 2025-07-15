@@ -60,6 +60,11 @@ class EvaluationConfig:
         # Validate press
         assert self.press_name in PRESS_REGISTRY, f"Press '{self.press_name}' not found in PRESS_REGISTRY"
 
+        if self.press_name == "no_press" and self.compression_ratio != 0.0:
+            # override compression_ratio to 0.0
+            logger.info("Using 'no_press' configuration. Overriding compression_ratio to 0.0")
+            self.compression_ratio = 0.0
+
         # Validate compression ratios
         assert (
             0.0 <= self.compression_ratio <= 1.0
