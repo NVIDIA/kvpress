@@ -60,7 +60,7 @@ class EvaluationConfig:
         # Validate press
         assert self.press_name in PRESS_REGISTRY, f"Press '{self.press_name}' not found in PRESS_REGISTRY"
 
-        if self.press_name == "no_press" and self.compression_ratio != 0.0:
+        if self.press_name == "no_press":
             # override compression_ratio to 0.0
             logger.info("Using 'no_press' configuration. Overriding compression_ratio to 0.0")
             self.compression_ratio = 0.0
@@ -346,7 +346,7 @@ class EvaluationRunner:
             )
             self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
             # Store the actual compression ratio used (if the press has one)
-            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio  # type: ignore[union-attr, attr-defined]
+            self.df.loc[df_group.index, "compression_ratio"] = getattr(self.press, "compression_ratio", 0.0)  # type: ignore[union-attr, attr-defined]
             torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
         logger.info("Inference completed.")
