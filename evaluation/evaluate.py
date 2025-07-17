@@ -346,7 +346,7 @@ class EvaluationRunner:
             )
             self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
             # Store the actual compression ratio used (if the press has one)
-            self.df.loc[df_group.index, "compression_ratio"] = getattr(self.press, "compression_ratio", 0.0)  # type: ignore[union-attr, attr-defined]
+            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio if self.press is not None else 0.0  # type: ignore[union-attr, attr-defined]
             torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
         logger.info("Inference completed.")
