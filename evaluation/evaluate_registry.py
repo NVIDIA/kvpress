@@ -78,4 +78,5 @@ PRESS_REGISTRY = {
     "streaming_llm": StreamingLLMPress(),
     "think": ThinKPress(),
     "tova": TOVAPress(),
+    "no_press": None,
 }

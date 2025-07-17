@@ -1,3 +1,5 @@
+[![Hugging Face Leaderboard](https://img.shields.io/badge/🤗%20HuggingFace-Leaderboard-orange)](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
+
 # Evaluation
 
 We support evaluation for all the presses implemented in the library, on a variety of popular benchmarks.
@@ -50,6 +52,9 @@ At the moment, we support the following standard popular benchmarks:
 
 ### Multi GPU Evaluation
 Use the provided `evaluate.sh` script to run multiple presses simultaneously across different GPUs with varying compression ratios.
+
+### Leaderboard 🥇
+After evaluating your model, you can easily submit it to the [KVPress Leaderboard](https://huggingface.co/spaces/nvidia/kvpress-leaderboard) on Hugging Face! Just copy the output directory in the huggingface space, and your method will soon be displayed in the leaderboard.
 
 ### Discussion
 The methods benchmarked so far are not able to efficiently compress the KV cache while maintaining performance on several long-context datasets and models.

@@ -3,7 +3,7 @@
 [![Colab example notebook](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1JNvaTKuuAHrl49dYB9-mdEH_y52Ib-NP?usp=drive_link)
 [![Hugging Face Space](https://img.shields.io/badge/🤗%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/nvidia/kvpress)
 [![Blog post](https://img.shields.io/badge/🤗%20Hugging%20Face-Blog-blue)](https://huggingface.co/blog/nvidia/kvpress)
-
+[![Hugging Face Leaderboard](https://img.shields.io/badge/🤗%20HuggingFace-Leaderboard-orange)](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
 
 ![kvpress](kvpress.jpg)
 
@@ -97,17 +97,22 @@ Finally we provide wrapper presses that can be combined with other presses:
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
+
 ## Evaluation
+We provide a simple CLI to evaluate the performance of different presses on several long-context datasets.
 
-The [speed_and_memory.ipynb](notebooks/speed_and_memory.ipynb) notebook can help you to measure peak memory usage and total time gain.
+- Accuracy: Test your method on popular benchmarks directly using our CLI. For a broader comparison, check out our public [Hugging Face Leaderboard](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
+, where you can see how various methods stack up against each other.
 
-![memory](evaluation/assets/peak_memory_consumption_xkcd.png)
+- Speed and Memory: The [speed_and_memory](notebooks/speed_and_memory.ipynb) notebook can help you measure peak memory usage and total time gain.
 
-We provide a simple CLI to evaluate the performance of the different presses on several long-context datasets. Below we report the average performance on the RULER dataset with 4k context length for different presses.
+Please refer to the [evaluation](evaluation/README.md) directory in this repo for more details and results. 
 
-![RULER](evaluation/assets/ruler_llama_xkcd.png)
+Below we report the average performance on the RULER dataset with 4k context length for different presses, from our [![Hugging Face Leaderboard](https://img.shields.io/badge/🤗%20HuggingFace-Leaderboard-orange)](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
 
-Please refer to the [evaluation](evaluation/README.md) directory for more details and results.
+<p>
+  <img src="evaluation/assets/leaderboard_plot_score.png" alt="Leaderboard">
+</p>
 
 ## Quantization
 
