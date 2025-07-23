@@ -6,7 +6,7 @@ import math
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import MethodType
-from typing import Generator
+from typing import Any, Generator, List, cast
 
 import torch
 from torch import nn
@@ -31,7 +31,7 @@ class KVzipPress(BasePress):
     For a fully optimized implementation with actual compression,
     please refer to the original repository,
     which also provides a version without runtime compression overhead (at the cost of performance).
-    Original repo (https://github.com/snu-mllab/KVzip).
+    Original repository (https://github.com/snu-mllab/KVzip).
 
     Based on KVzip (https://arxiv.org/abs/2505.23416).
 
@@ -51,10 +51,28 @@ class KVzipPress(BasePress):
     layerwise: bool = False
     n_sink: int = 4
 
-    # The following variables are automatically set in pipeline.py
-    context_length: int = 0
-    score_val: torch.Tensor = None
-    causal_mask_score: torch.Tensor = None
+    def __post_init__(self):
+        assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
+        logger.warning(
+            "KVzipPress requires multiple forward passes for chunked context reconstruction, "
+            "resulting in a computational overhead of 2–3 times the initial prefilling cost. "
+            "This significantly increases the overall prefilling time compared to other compression methods, "
+            "which is inherent to the KVzip algorithm design."
+        )
+        self._reset_internal_parameters()
+
+    def _reset_internal_parameters(self):
+        self.context_length = 0
+        self.prefix_length = 0
+
+        self._suffix_ids = None
+        self._context_ids = None
+        self._cache = None
+
+        self.score_val = None
+        self.causal_mask_score = None
+        self.start_idx = 0
+        self.end_idx = 0
 
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:
@@ -89,23 +107,23 @@ class KVzipPress(BasePress):
             prefix_text = context.split(dummy_context)[0]
 
         # Tokenize suffix directly to ids
-        self._prefix_len = tokenizer.encode(prefix_text, return_tensors="pt", add_special_tokens=False).shape[-1]
+        self.prefix_length = tokenizer.encode(prefix_text, return_tensors="pt", add_special_tokens=False).shape[-1]
         self._suffix_ids = tokenizer.encode(suffix_text, return_tensors="pt", add_special_tokens=False)
 
         # Register hook to store the pointer for past_key_values
-        original_forward = model.forward
+        original_forward = model.model.forward
 
-        def wrapped_forward(*args, **kwargs):
-            self._context_ids = kwargs.get("input_ids", None)
-            self._cache = kwargs.get("past_key_values", None)
-            return original_forward(**kwargs)
+        def wrapped_forward(model_self, *args, **kwargs):
+            self._context_ids = kwargs["input_ids"]
+            self._cache = kwargs["past_key_values"]
+            return original_forward(*args, **kwargs)
 
-        model.forward = MethodType(wrapped_forward, model)
+        model.model.forward = MethodType(wrapped_forward, model.model)
 
         hooks = []
         try:
             yield
-            model.forward = original_forward  # Restore original
+            model.model.forward = original_forward  # Restore original
 
             # After yield: KVzip scoring and compression phase
             if self.compression_ratio > 0 and self._context_ids is not None:
@@ -120,26 +138,31 @@ class KVzipPress(BasePress):
         finally:
             for hook in hooks:
                 hook.remove()
+            self._reset_internal_parameters()
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
-        Overwrite the forward_hook of BasePress
+        Override the forward_hook of BasePress.
+        During the forward_hook, KVzip only calculates importance scores,
+        aggregates scores across all layers, and then performs compression.
         """
 
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_value"]
 
         if isinstance(cache, QuantizedCache):
-            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])  # type: ignore[attr-defined]
+            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])  # type: ignore[attr-defined]
         else:
             keys = cache.key_cache[module.layer_idx]
             values = cache.value_cache[module.layer_idx]
 
-        # Only do scoring. Compression is done afterward by press.compress_post(self.model) in pipeline.py.
-        keys, values = self.score(module, hidden_states, keys, values, output[1], kwargs)
+        # Compute importance scores for KV pairs in the prefilled context,
+        # retaining only the originally prefilled KV pairs.
+        keys, values = self.score_kvzip(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
+            cache = cast(Any, cache)  # to ignore attr-defined style errors
             cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
             cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
             cache.key_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
@@ -158,12 +181,12 @@ class KVzipPress(BasePress):
 
         # Prepare chunked inputs for context reconstruction
         self.context_length = self._context_ids.shape[1]
-        input_ids = self.prepare(model, tokenizer)
+        chunked_context_pairs = self.prepare(model, tokenizer)
 
         # Perform scoring through context reconstruction
         # Use the stored cache from the initial forward pass
-        self.start_idx = self._prefix_len
-        for prefill_ids, repeat_ids in input_ids:
+        self.start_idx = self.prefix_length
+        for prefill_ids, repeat_ids in chunked_context_pairs:
             self.end_idx = self.start_idx + prefill_ids.shape[1]
             # Pass the cache that was used in the initial forward pass
             model(
@@ -176,24 +199,26 @@ class KVzipPress(BasePress):
         # Perform final compression
         self.compress_post(model)
 
-    def _chunk_fn(self, ctx_ids: torch.Tensor, chunk_size: int):
-        """Chunk input tokens"""
+    def _chunk_fn(self, ctx_ids: torch.Tensor, chunk_size: int) -> List[torch.Tensor]:
+        """
+        Chunk input tokens
+        """
         ctx_len = ctx_ids.shape[1]
         if ctx_len > chunk_size:
             chunk_num = (ctx_len - 1) // chunk_size + 1
 
-            input_ids = []
+            chunked_input_ids = []
             for i in range(chunk_num):
                 start = i * chunk_size
                 end = (i + 1) * chunk_size
                 a_ids = ctx_ids[:, start:end]
                 if a_ids.shape[1] == 0:
                     continue
-                input_ids.append(a_ids)
+                chunked_input_ids.append(a_ids)
         else:
-            input_ids = [ctx_ids]
+            chunked_input_ids = [ctx_ids]
 
-        return input_ids
+        return chunked_input_ids
 
     def prepare(
         self,
@@ -201,36 +226,40 @@ class KVzipPress(BasePress):
         tokenizer: PreTrainedTokenizer,
         chunk_size: int = 2048,
         prev_postfix_size=8,
-    ):
-        """Prepare chunked inputs for KV importance scoring with context reconstruction
-        return: List[torch.Tensor]
+    ) -> List[tuple[torch.Tensor, torch.Tensor]]:
         """
-        ctx_ids = self._context_ids[:, self._prefix_len :].to("cpu")
+        Prepare chunked inputs for KV importance scoring with context reconstruction
+        """
+        ctx_ids = self._context_ids[:, self.prefix_length :].to("cpu")
 
         # initialize score values
-        n_layers, n_kv = model.config.num_hidden_layers, model.config.num_key_value_heads
         self.score_val = torch.zeros(
-            (n_layers, 1, n_kv, self.context_length),  # only support batch size of 1
+            (
+                model.config.num_hidden_layers,
+                1,
+                model.config.num_key_value_heads,
+                self.context_length,
+            ),  # only support batch size of 1
             dtype=model.dtype,
             device=model.device,
         )
         self.score_val[..., : self.n_sink] = 1.0
 
-        input_ids = []
-        chunked_inputs = self._chunk_fn(ctx_ids, chunk_size)
-        for i, a_ids in enumerate(chunked_inputs):
+        chunked_context_pairs = []
+        chunked_input_ids = self._chunk_fn(ctx_ids, chunk_size)
+        for i, a_ids in enumerate(chunked_input_ids):
             if i == 0:
                 prompt = "\n\nRepeat the previous context exactly."
                 q_ids = tokenizer.encode(prompt, return_tensors="pt", add_special_tokens=False)
             else:
                 prompt = "\n\nRepeat the part of the previous context exactly, starting with"
                 q_ids = tokenizer.encode(prompt, return_tensors="pt", add_special_tokens=False)
-                postfix_prev = chunked_inputs[i - 1][:, -prev_postfix_size:]
+                postfix_prev = chunked_input_ids[i - 1][:, -prev_postfix_size:]
                 q_ids = torch.cat([q_ids, postfix_prev], dim=1)
 
-            input_ids.append((a_ids, torch.cat([q_ids, self._suffix_ids, a_ids], dim=1)))
+            chunked_context_pairs.append((a_ids, torch.cat([q_ids, self._suffix_ids, a_ids], dim=1)))
 
-        return input_ids
+        return chunked_context_pairs
 
     def _make_mask(self, attn_weights: torch.Tensor, window_size: int):
         """
@@ -243,7 +272,7 @@ class KVzipPress(BasePress):
 
     def _mask_causal(self, attn_weights: torch.Tensor, window_size: int):
         """
-        Apply causal maksing
+        Apply causal masking
         """
         if self.causal_mask_score is None:
             self._make_mask(attn_weights, window_size)
@@ -252,7 +281,7 @@ class KVzipPress(BasePress):
 
         attn_weights[..., -window_size:, -window_size:] += self.causal_mask_score
 
-    def score(
+    def score_kvzip(
         self,
         module: nn.Module,
         hidden_states: torch.Tensor,
@@ -260,9 +289,12 @@ class KVzipPress(BasePress):
         values: torch.Tensor,
         attentions: torch.Tensor,
         kwargs,
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        Compute the max cross-attention scores during the context reconstruction.
+        Compute the maximum cross-attention scores during context reconstruction,
+        and return slices of the keys and values containing only the originally prefilled KV pairs,
+        i.e., excluding KV pairs from repeated contexts.
+        The computed scores are stored in self.score_val.
         """
 
         bsz, q_len, _ = hidden_states.shape
@@ -278,7 +310,7 @@ class KVzipPress(BasePress):
             # Assume Llama-like attention layer
             queries = module.q_proj(hidden_states)
         else:
-            raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
+            raise NotImplementedError(f"KVzip not yet implemented for {module.__class__}.")
 
         queries = queries.view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
 
@@ -313,13 +345,15 @@ class KVzipPress(BasePress):
         scores = attn_weights.amax(dim=(-3, -2))  # max over group, q
 
         layer_idx = int(module.layer_idx)
-        self.score_val[layer_idx][..., self.start_idx : self.end_idx] = scores
+        self.score_val[layer_idx][..., self.start_idx : self.end_idx] = scores  # update score
 
+        # Retain the originally prefilled context KV pairs and exclude KV pairs from the repeated context
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]
         return keys, values
 
     def compress_post(self, model: PreTrainedModel):
         """
+        Obtain the indices of KV pairs to be evicted.
         Adopted from adakv_press.compress (fake compression). KVzip does not rely on safeguards.
         """
         if self.compression_ratio > 0:

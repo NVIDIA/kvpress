@@ -72,9 +72,5 @@ module = "kvpress.presses.base_press"
 disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
-module = "kvpress.presses.kvzip_press"
-disable_error_code = ["attr-defined"]
-
-[[tool.mypy.overrides]]
 module = "kvpress.pipeline"
 disable_error_code = ["attr-defined", "assignment", "override"]

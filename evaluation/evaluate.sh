@@ -1,8 +1,8 @@
 dataset="ruler"
 data_dir="4096"
-model="meta-llama/Llama-3.1-8B-Instruct"
-compression_ratios=(0.1 0.25 0.5 0.75)
-press_names=("expected_attention" "knorm" "streaming_llm" "snapkv" "kvzip")
+model="meta-llama/Meta-Llama-3.1-8B-Instruct"
+compression_ratios=(0.1 0.25 0.5)
+press_names=("expected_attention" "knorm" "streaming_llm" "snapkv")
 
 # Check if the number of press names is less than or equal to the number of available GPUs
 num_gpus=$(nvidia-smi --list-gpus | wc -l)
