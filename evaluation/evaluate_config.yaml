@@ -3,7 +3,7 @@
 
 output_dir: "./results"
 
-model: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+model: "meta-llama/LLama-3.1-8B-Instruct"
 dataset: "ruler"                                  # see DATASET_REGISTRY in evaluate_registry.py
 data_dir: "4096"                                  # Subdirectory of the dataset (if applicable)
 
