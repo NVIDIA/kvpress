@@ -21,12 +21,12 @@ If possible, install flash attention:
 pip install flash-attn --no-build-isolation
 ```
 
-For a local installation with all dev dependencies, use poetry:
+For a local installation with all dev dependencies, use uv:
 
 ```bash
 git clone https://github.com/NVIDIA/kvpress.git
 cd kvpress
-poetry install --with dev
+uv sync --dev
 ```
 
 ## Usage
