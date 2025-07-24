@@ -25,6 +25,20 @@ from tests.default_presses import default_presses
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
+def compute_masked_percentage(module, batch_size, num_key_value_heads, seq_len):
+    """
+    Compute the percentage of masked indices from module.masked_key_indices.
+    """
+    if module.masked_key_indices is None:
+        return 0.0
+
+    batch_indices, head_indices, seq_indices = module.masked_key_indices
+    num_masked = len(batch_indices)
+    total_positions = batch_size * num_key_value_heads * seq_len
+    masked_percentage = num_masked / total_positions
+    return masked_percentage
+
+
 def test_composed_press(unit_test_model):  # noqa: F811
     press1 = KnormPress(compression_ratio=0.5)
     press2 = ThinKPress(key_channel_compression_ratio=0.5, window_size=2)
@@ -85,6 +99,17 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
         # Check that the press has a compression_ratio attribute
         assert hasattr(press, "compression_ratio")
+
+        # Make sure that head compression is working properly
+        # Only for those presses that use masked_key_indices
+        if unit_test_model.model.layers[0].self_attn.masked_key_indices is not None:
+            headwise_compression_ratio = 0.0
+            for layer in unit_test_model.model.layers:
+                cr = compute_masked_percentage(layer.self_attn, 1, unit_test_model.config.num_key_value_heads, 128)
+                headwise_compression_ratio += cr
+            print(headwise_compression_ratio / len(unit_test_model.model.layers))
+            cumulative_compression_ratio = headwise_compression_ratio / len(unit_test_model.model.layers)
+            assert abs(cumulative_compression_ratio - press.compression_ratio) < 1e-2  # tolerate small differences
 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811
