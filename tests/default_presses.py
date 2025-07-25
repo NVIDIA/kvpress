@@ -8,6 +8,7 @@ from kvpress import (
     ExpectedAttentionPress,
     KeyDiffPress,
     KnormPress,
+    KVzipPress,
     LagKVPress,
     PyramidKVPress,
     QFilterPress,
@@ -67,4 +68,8 @@ default_presses = [
         ],
     },
     {"cls": KeyDiffPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
+    {
+        "cls": KVzipPress,
+        "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}],
+    },
 ]

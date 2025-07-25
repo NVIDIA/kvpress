@@ -29,7 +29,7 @@ class EvaluationConfig:
     # Core evaluation parameters
     dataset: str = "ruler"
     data_dir: Optional[str] = None
-    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    model: str = "meta-llama/Llama-3.1-8B-Instruct"
     device: Optional[str] = None
     press_name: str = "knorm"
     compression_ratio: float = 1.0
