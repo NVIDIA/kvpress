@@ -24,7 +24,7 @@ def compute_masked_percentage(module, batch_size, num_key_value_heads, seq_len):
 
 @pytest.mark.parametrize("wrapper_press", [AdaKVPress, CriticalAdaKVPress])
 @pytest.mark.parametrize("compression_ratio", [0.2, 0.4, 0.6, 0.8])
-def test_head_compression(unit_test_model, wrapper_press, compression_ratio):  # noqa: F811
+def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ratio):  # noqa: F811
     p = KnormPress(compression_ratio=compression_ratio)
     press = wrapper_press(press=p)
     with press(unit_test_model):
