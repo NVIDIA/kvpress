@@ -70,6 +70,6 @@ default_presses = [
     {"cls": KeyDiffPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {
         "cls": KVzipPress,
-        "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}],
+        "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },
 ]
