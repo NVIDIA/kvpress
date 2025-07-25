@@ -195,11 +195,10 @@ class KVPressTextGenerationPipeline(Pipeline):
             cache = DynamicCache()
 
         with press(self.model) if press is not None else contextlib.nullcontext():
-            self.model(
+            self.model.model(
                 input_ids=context_ids,
                 past_key_values=cache,
                 output_attentions=self.output_attentions(press),
-                num_logits_to_keep=1,
             )
 
         logger.debug(f"Context Length: {context_length}")
