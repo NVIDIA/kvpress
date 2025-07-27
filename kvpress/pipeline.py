@@ -195,6 +195,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             cache = DynamicCache()
 
         with press(self.model) if press is not None else contextlib.nullcontext():
+            # We run the model without the lm head for pre-filling.
             self.model.model(
                 input_ids=context_ids,
                 past_key_values=cache,
