@@ -363,6 +363,7 @@ class EvaluationRunner:
             self.df["context"] = self.df["context"] + self.df["question"]  # type: ignore[index]
             self.df["question"] = ""  # type: ignore[index]
 
+    @torch.inference_mode()
     def _run_inference(self):
         """
         Executes the inference process on the prepared dataset using the model pipeline.
