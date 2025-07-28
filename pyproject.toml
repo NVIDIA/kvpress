@@ -2,14 +2,7 @@
 name = "kvpress"
 version = "0.3.0"
 description = "Efficiently compress the KV cache of any pretrained transformer"
-authors = [
-    { name = "Simon Jegou" },
-    { name = "Maximilian Jeblick" },
-    { name = "Alessio Devoto" },
-    { name = "Jiwei Liu" },
-    { name = "David Austin" },
-]
-requires-python = ">=3.10"
+version = "0.2.9"
 readme = "README.md"
 dependencies = [
     "numpy>=2.0.0,<3",
@@ -30,7 +23,7 @@ dependencies = [
 python = ">=3.10"
 numpy = "^2.0.0"
 torch = "^2.3.1"
-transformers = ">=4.54.1"
+transformers = ">=4.48.0, <4.54.0"
 sentencepiece = "^0.2.0"
 protobuf = "^5.27.2"
 datasets = "^2.21.0"
