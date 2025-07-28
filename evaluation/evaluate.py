@@ -3,11 +3,13 @@
 
 import json
 import logging
+import random
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
 import pandas as pd  # Import pandas for DataFrame type hinting
 import torch
 import yaml  # type: ignore[import-untyped]
@@ -191,39 +193,20 @@ class EvaluationRunner:
         torch.manual_seed(seed)
 
         # Set CUDA seeds if CUDA is available
-        try:
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed(seed)
-                torch.cuda.manual_seed_all(seed)
-                torch.backends.cudnn.deterministic = True
-                torch.backends.cudnn.benchmark = False
-                logger.debug("CUDA seeds and CUDNN settings configured")
-            else:
-                logger.debug("CUDA not available, skipping CUDA seed configuration")
-        except Exception as e:
-            logger.warning(f"Failed to set CUDA seeds: {e}")
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+            logger.info("CUDA seeds and CUDNN settings configured")
 
         # Set numpy seed if available
-        try:
-            import numpy as np
-
-            np.random.seed(seed)
-            logger.debug("NumPy seed configured")
-        except ImportError:
-            logger.debug("NumPy not available, skipping NumPy seed configuration")
-        except Exception as e:
-            logger.warning(f"Failed to set NumPy seed: {e}")
+        np.random.seed(seed)
+        logger.info("NumPy seed configured")
 
         # Set random seed if available
-        try:
-            import random
-
-            random.seed(seed)
-            logger.debug("Python random seed configured")
-        except ImportError:
-            logger.debug("Python random module not available, skipping random seed configuration")
-        except Exception as e:
-            logger.warning(f"Failed to set Python random seed: {e}")
+        random.seed(seed)
+        logger.info("Python random seed configured")
 
         logger.info(f"Set deterministic seeds to {seed}")
 
