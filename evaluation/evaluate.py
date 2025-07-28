@@ -186,10 +186,10 @@ class EvaluationRunner:
     def _setup_deterministic_seeds(self):
         """Set deterministic seeds for reproducible results."""
         seed = self.config.seed
-        
+
         # Set PyTorch seed
         torch.manual_seed(seed)
-        
+
         # Set CUDA seeds if CUDA is available
         try:
             if torch.cuda.is_available():
@@ -206,6 +206,7 @@ class EvaluationRunner:
         # Set numpy seed if available
         try:
             import numpy as np
+
             np.random.seed(seed)
             logger.debug("NumPy seed configured")
         except ImportError:
@@ -216,6 +217,7 @@ class EvaluationRunner:
         # Set random seed if available
         try:
             import random
+
             random.seed(seed)
             logger.debug("Python random seed configured")
         except ImportError:
