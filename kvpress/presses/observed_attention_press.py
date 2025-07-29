@@ -40,7 +40,7 @@ class ObservedAttentionPress(ScorerPress):
     def __post_init__(self):
         if not self.output_attentions:
             raise ValueError("ObservedAttentionPress requires output_attentions=True")
-    
+
     def score(
         self,
         module: nn.Module,
@@ -57,4 +57,3 @@ class ObservedAttentionPress(ScorerPress):
         scores = scores / n_tokens_in_sum
         scores = scores.view(bsz, num_key_value_heads, -1, n_tokens).mean(2)
         return scores
-
