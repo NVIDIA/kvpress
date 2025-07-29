@@ -154,8 +154,8 @@ class KVzipPress(BasePress):
             keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])  # type: ignore[attr-defined]
             values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])  # type: ignore[attr-defined]
         else:
-            keys = cache.key_cache[module.layer_idx]
-            values = cache.value_cache[module.layer_idx]
+            keys = cache.layers[module.layer_idx].keys
+            values = cache.layers[module.layer_idx].values
 
         # Compute importance scores for KV pairs in the prefilled context,
         # retaining only the originally prefilled KV pairs.
