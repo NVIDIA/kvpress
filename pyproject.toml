@@ -26,18 +26,18 @@ dependencies = [
     "cachetools>=5.5.2,<6",
 ]
 
-[project.optional-dependencies]
-eval = [
-    "rouge>=1.0.1,<2",
-    "nltk>=3.9.1,<4",
-    "tqdm>=4.66.4,<5",
-    "scipy>=1.13.1,<2",
-    "fire>=0.6.0,<0.7",
-    "bert-score>=0.3.13,<0.4",
-]
-flash-attn = [
-    "flash-attn"
-]
+[tool.poetry.dependencies]
+python = ">=3.10"
+numpy = "^2.0.0"
+torch = "^2.3.1"
+transformers = ">=4.54.1"
+sentencepiece = "^0.2.0"
+protobuf = "^5.27.2"
+datasets = "^2.21.0"
+pandas = "^2.2.2"
+accelerate = "^1.0.0"
+requests = "^2.32.3"
+cachetools = "^5.5.2"
 
 [dependency-groups]
 dev = [
