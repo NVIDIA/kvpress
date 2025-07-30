@@ -4,7 +4,7 @@
 import datasets
 import pytest
 import torch
-from transformers import DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
+from transformers import DynamicCache, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from tests.default_presses import default_presses
@@ -30,8 +30,7 @@ def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press
     if cache == "dynamic":
         cache = DynamicCache()
     elif cache == "quantized" and is_optimum_quanto_available():
-        config = QuantizedCacheConfig(nbits=4)
-        cache = QuantoQuantizedCache(config)
+        cache = QuantoQuantizedCache(nbits=4)
     elif cache == "quantized" and not is_optimum_quanto_available():
         pytest.skip("Quanto is not installed")
     else:
