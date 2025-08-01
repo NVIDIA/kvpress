@@ -26,7 +26,7 @@ For a local installation with all dev dependencies, use uv:
 ```bash
 git clone https://github.com/NVIDIA/kvpress.git
 cd kvpress
-uv sync --dev
+uv sync --all-groups
 ```
 
 ## Usage

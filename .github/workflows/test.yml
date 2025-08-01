@@ -2,6 +2,7 @@ name: Test
 
 on:
   push:
+      branches: [ main ]
   pull_request:
 
 jobs:
@@ -17,7 +18,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          enable_cache: true
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync --all-groups
