@@ -3,11 +3,13 @@
 
 import json
 import logging
+import random
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
 import pandas as pd  # Import pandas for DataFrame type hinting
 import torch
 import yaml  # type: ignore[import-untyped]
@@ -50,6 +52,9 @@ class EvaluationConfig:
 
     # Press information (will be set after press setup)
     press_init_command: Optional[str] = None
+
+    # For reproducibility
+    seed: int = 42
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -119,6 +124,15 @@ class EvaluationConfig:
 
         dir_name = "__".join(filter(None, components))  # Filter None/empty strings
         config_dir = output_dir / dir_name
+
+        # Make sure the directory does not exist, if it does, add a number to the end
+        # This is to avoid overwriting results
+        if config_dir.exists():
+            i = 1
+            while (config_dir / f"{i}").exists():
+                i += 1
+            config_dir = config_dir / f"{i}"
+
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir
 
@@ -167,8 +181,25 @@ class EvaluationRunner:
         self.pipeline: Optional[Pipeline] = None  # Will be set by _setup_model_pipeline()
         self.press = None  # Will be set by _setup_press()
         self.df: Optional[pd.DataFrame] = None  # Will be set by _load_dataset()
+        self._setup_deterministic_seeds()
         self._setup_logging()
         logger.info(f"Initialized EvaluationRunner with config:\n{json.dumps(asdict(self.config), indent=2)}")
+
+    def _setup_deterministic_seeds(self):
+        """Set deterministic seeds for reproducible results."""
+        seed = self.config.seed
+
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
+        logger.info(f"Set deterministic seeds to {seed}")
 
     def _setup_logging(self):
         """Configures the logging level based on the config."""
@@ -202,7 +233,7 @@ class EvaluationRunner:
 
         if fraction < 1.0:
             original_len = len(df)
-            df = df.sample(frac=fraction, random_state=42)
+            df = df.sample(frac=fraction, random_state=self.config.seed)
             logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
 
         self.df = df
@@ -295,6 +326,11 @@ class EvaluationRunner:
                 model_kwargs=model_kwargs,
                 trust_remote_code=True,
             )
+
+        # Ensure model is in eval mode for deterministic inference
+        if hasattr(self.pipeline, "model"):
+            self.pipeline.model.eval()
+
         logger.info("Model pipeline loaded.")
 
     def _prepare_data_for_inference(self):
@@ -318,6 +354,7 @@ class EvaluationRunner:
             self.df["context"] = self.df["context"] + self.df["question"]  # type: ignore[index]
             self.df["question"] = ""  # type: ignore[index]
 
+    @torch.inference_mode()
     def _run_inference(self):
         """
         Executes the inference process on the prepared dataset using the model pipeline.
