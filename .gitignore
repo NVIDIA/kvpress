@@ -2,7 +2,7 @@ dev_notebooks/
 results/
 reports/
 .DS_Store
-poetry.lock
+uv.lock
 *.parquet
 # Byte-compiled / optimized / DLL files
 __pycache__/
