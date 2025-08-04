@@ -17,7 +17,7 @@ Please refer to the README of each dataset for more information on how the Huggi
 
 Average performance the 13 tasks of the RULER dataset with 4k context length (per task results [here](../evaluation/assets/)):
 
-![RULER](../evaluation/assets/ruler_4096_average%20score.png) 
+![RULER](../../evaluation/assets/ruler_4096_average%20score.png) 
 
 Observations: 
 - snapkv w/ question consistently outperforms other methods. However this method can't be use for use cases such as prompt caching as it requires the question to be known beforehand.
@@ -35,14 +35,14 @@ Observations:
 </summary>
 
 Shortdep_qa
-![shortdep_qa](../evaluation/assets/loogle_shortdep_qa.png)
+![shortdep_qa](../../evaluation/assets/loogle_shortdep_qa.png)
 Shortdep_cloze
-![shortdep_cloze](../evaluation/assets/loogle_shortdep_cloze.png)
+![shortdep_cloze](../../evaluation/assets/loogle_shortdep_cloze.png)
 Longdep_qa
-![longdep_qa](../evaluation/assets/loogle_longdep_qa.png) 
+![longdep_qa](../../evaluation/assets/loogle_longdep_qa.png) 
 
 Observations: 
-- Metrics are adapted from loogle benchmark, see [here](../evaluation/loogle/calculate_metrics.py). The plot show the average score (mean over all submetrics) for each task.
+- Metrics are adapted from loogle benchmark, see [here](../../evaluation/loogle/calculate_metrics.py). The plot show the average score (mean over all submetrics) for each task.
 - The metrics are not always correlated with the quality of the answer, especially for longdep_qa task. LLM-as-a-judge may better suited for a more refined evaluation.
 - Again, snapkv w/ question consistently outperforms other methods.
 - In longdep_qa, the model looses track on counting (e.g. answer to "How many times is person x mentioned?" gets lower with increased compression ratio). This is not necessarily reflected in the metrics.
@@ -60,13 +60,13 @@ Observations:
 </summary>
 
 kv_retrieval
-![kv_retrieval](../evaluation/assets/infinitebench_kv_retrieval.png)
+![kv_retrieval](../../evaluation/assets/infinitebench_kv_retrieval.png)
 longbook_choice_eng
-![longbook_choice_eng](../evaluation/assets/infinitebench_longbook_choice_eng.png)
+![longbook_choice_eng](../../evaluation/assets/infinitebench_longbook_choice_eng.png)
 longbook_qa_eng
-![longbook_qa_eng](../evaluation/assets/infinitebench_longbook_qa_eng.png)
+![longbook_qa_eng](../../evaluation/assets/infinitebench_longbook_qa_eng.png)
 longdialogue_qa_eng
-![longdialogue_qa_eng](../evaluation/assets/infinitebench_longdialogue_qa_eng.png)
+![longdialogue_qa_eng](../../evaluation/assets/infinitebench_longdialogue_qa_eng.png)
 
 
 Observations: 

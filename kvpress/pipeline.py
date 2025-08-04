@@ -137,7 +137,10 @@ class KVPressTextGenerationPipeline(Pipeline):
         else:
             separator = "\n" + "#" * len(context)
             context = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": context + separator}], add_generation_prompt=True, tokenize=False
+                [{"role": "user", "content": context + separator}],
+                add_generation_prompt=True,
+                tokenize=False,
+                enable_thinking=False,
             )
             context, question_suffix = context.split(separator)
 
@@ -202,11 +205,11 @@ class KVPressTextGenerationPipeline(Pipeline):
             cache = DynamicCache()
 
         with press(self.model) if press is not None else contextlib.nullcontext():
-            self.model(
+            # We run the model without the lm head for pre-filling.
+            self.model.model(
                 input_ids=context_ids,
                 past_key_values=cache,
                 output_attentions=self.output_attentions(press),
-                num_logits_to_keep=1,
             )
 
             logger.debug(f"Context Length: {context_length}")
