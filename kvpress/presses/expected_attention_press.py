@@ -6,21 +6,20 @@ import math
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import List
-from tqdm import tqdm
 
 import torch
+from datasets import load_dataset
 from torch import nn
 from torch.nn import functional as F
+from tqdm import tqdm
+from transformers import AutoTokenizer
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import repeat_kv
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
-from transformers import AutoTokenizer
-from datasets import load_dataset
-
 
 from kvpress.presses.scorer_press import ScorerPress
-
+from kvpress.presses.utils import collect_queries
 
 
 @dataclass
@@ -69,23 +68,23 @@ class ExpectedAttentionPress(ScorerPress):
     use_vnorm: bool = True
     epsilon: float = 0.0
 
-    mu: torch.Tensor = None
-    cov: torch.Tensor = None
+    mu: torch.Tensor = None  # (num_layers, num_heads, head_dim)
+    cov: torch.Tensor = None  # (num_layers, num_heads, head_dim, head_dim)
 
     use_stats: bool = True
-    remove_sink_for_stats: bool = True
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
         Compute the mean and covariance matrix of the queries
         """
         if self.use_stats:
-            if self.mu is not None and self.cov is not None:
-                return self.mu[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype), self.cov[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype)
-            else:
-                self.mu, self.cov = self.get_granular_query_statistics(module.model, num_samples=self.n_samples, q_len=self.n_future_positions) 
-                return self.mu[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype), self.cov[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype)
-
+            if self.mu is None or self.cov is None:
+                raise ValueError(
+                    "ExpectedAttentionPress: mu and cov must be set before calling get_query_statistics. Please initialize this press with the model."
+                )
+            return self.mu[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype), self.cov[
+                module.layer_idx
+            ].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype)
 
         bsz, q_len, _ = hidden_states.shape
         n, d = module.config.num_attention_heads, module.head_dim
@@ -143,60 +142,8 @@ class ExpectedAttentionPress(ScorerPress):
         #     cov = cov.mean(dim=2)
         #     cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
         # mu = mean_mu.squeeze(2)
-
+        print(mu.shape, cov.shape)
         return mu, cov
-    
-    @staticmethod
-    def compute_query_covariance(queries):
-        batch_size, num_heads, seq_len, head_dim = queries.shape
-        covariances = []
-        
-        for b in range(batch_size):
-            batch_covs = []
-            for h in range(num_heads):
-                # queries[b, h] has shape (seq_len, head_dim)
-                # torch.cov expects features as rows, so transpose
-                cov = torch.cov(queries[b, h].T)  # (head_dim, head_dim)
-                batch_covs.append(cov)
-            covariances.append(torch.stack(batch_covs))
-    
-        return torch.stack(covariances)
-    
-    @torch.inference_mode()
-    def get_granular_query_statistics(self, model, num_samples, q_len):
-        """
-        Compute mean and covariance of the queries with a small calibration dataset.
-        """
-        from kvpress.presses.utils import patch_rotary_embedding
-
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
-        dataset = load_dataset("kmfoda/booksum", split=f"train[:{num_samples}]")
-        # Cut to max q_len
-        dataset = dataset.map(lambda x: {"chapter": x["chapter"][:q_len]})
-
-        collected_queries = []
-        for text in tqdm(dataset["chapter"], desc="Collecting queries"):
-            inputs = tokenizer(text, return_tensors="pt").to(model.device)
-            with patch_rotary_embedding(model) as captured_queries:
-                model(**inputs)
-            collected_queries.append(torch.cat(captured_queries, dim=0))
-
-        # list of elements of shape (num_layers, num_heads, seq_len, head_dim) 
-        collected_queries = torch.cat(collected_queries, dim=-2)
-
-
-        # Remove sink
-        if self.remove_sink_for_stats:
-            collected_queries = collected_queries[:, :, self.n_sink :, :]
-
-        # Compute mean and covariance
-        mean_query = collected_queries.mean(dim=-2)
-        cov_query = self.compute_query_covariance(collected_queries)
-
-        return mean_query, cov_query
-
-
 
     def score(
         self,
@@ -241,12 +188,14 @@ class ExpectedAttentionPress(ScorerPress):
         return scores
 
     def __post_init_from_model__(self, model):
-        if self.mu is None or self.cov is None:
-            self.mu, self.cov = self.get_granular_query_statistics(model, num_samples=self.n_samples, q_len=self.n_future_positions)
+        # Only is use_stats is True, we compute the query statistics on a small calibration dataset.
+        if self.use_stats and (self.mu is None or self.cov is None):
+            _, self.mu, self.cov = collect_queries(
+                model, num_samples=self.n_samples, q_len=self.n_future_positions, n_sink=self.n_sink, return_stats=True
+            )
 
     @contextmanager
     def __call__(self, model):
-        if self.use_stats:
-            self.__post_init_from_model__(model)
+        self.__post_init_from_model__(model)
         with super().__call__(model):
             yield
