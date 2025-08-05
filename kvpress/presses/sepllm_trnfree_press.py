@@ -310,7 +310,7 @@ class SepCache(Cache):
             )
         assert layer_num is not None, "`layer_num` must be provided according to the pretrained model."
 
-        ## For basic parameters & states
+        # For basic parameters & states
         self.key_cache: List[torch.Tensor] = key_cache if key_cache is not None else []
         self.value_cache: List[torch.Tensor] = value_cache if value_cache is not None else []
 
@@ -328,13 +328,13 @@ class SepCache(Cache):
         self.layer_num = layer_num
         self.device = device  # Deprecated
 
-        ## For debugging
+        # For debugging
         self.PRINT_KV_RATIO_INSIDE = PRINT_KV_RATIO_INSIDE
         self.print_KV_inside_per_steps = print_KV_inside_per_steps
         self._print_kv_ratio_count = 0
         self._kept_kv_ratio: List[Tuple[int]] = _kept_kv_ratio if _kept_kv_ratio is not None else []
 
-        ## For Streaming SepLLM
+        # For Streaming SepLLM
         self.past_tok_ids: List[torch.Tensor] = (
             past_tok_ids if past_tok_ids is not None else []
         )  # It saves all the token ids corresponding to the saved KVs for all layers in SepCache
@@ -351,7 +351,7 @@ class SepCache(Cache):
         self.USE_MAX_SEP_CACHE = USE_MAX_SEP_CACHE
         self.SEP_PADDING_IN_BATCH = SEP_PADDING_IN_BATCH
 
-        ### For positional encoding shifting
+        # For positional encoding shifting
         self.APPLY_PE_SHIFT = APPLY_PE_SHIFT
         self.APPLY_PES_INSIDE = APPLY_PES_INSIDE
 
@@ -450,7 +450,7 @@ class SepCache(Cache):
 
         if APPLY_PE_SHIFT:
             print(
-                ">>>>>>>>---------#####################################################################################-----------<<<<<<<<"
+                ">>>>>>>>---------###########################################-----------<<<<<<<<"
             )
             print(
                 ">>>>>>>>---------                                                                                     -----------<<<<<<<<"
@@ -462,12 +462,12 @@ class SepCache(Cache):
                 ">>>>>>>>---------              before applying positional encoding (specifically RoPE)                -----------<<<<<<<<"
             )
             print(
-                ">>>>>>>>---------#####################################################################################-----------<<<<<<<<"
+                ">>>>>>>>---------###########################################-----------<<<<<<<<"
             )
 
         if APPLY_PES_INSIDE:
             print(
-                ">>>>>>>>---------#####################################################################################-----------<<<<<<<<"
+                ">>>>>>>>---------###########################################-----------<<<<<<<<"
             )
             print(
                 ">>>>>>>>---------                                                                                     -----------<<<<<<<<"
@@ -485,7 +485,7 @@ class SepCache(Cache):
                 ">>>>>>>>---------  `APPLY_PE_SHIFT=True`.                                                                     ---<<<<<<<<"
             )
             print(
-                ">>>>>>>>---------#####################################################################################-----------<<<<<<<<"
+                ">>>>>>>>---------###########################################-----------<<<<<<<<"
             )
 
     def update(
@@ -913,7 +913,7 @@ class SepCache(Cache):
             if PREFILLING_FLAG:  # for prefilling
                 assert (
                     position_ids.shape[-1] >= seq_len
-                ), f"The length of position_ids should be >= the usable length of kv cache when prefilling."
+                ), "The length of position_ids should be >= the usable length of kv cache when prefilling."
                 self._shifted_position_ids[layer_idx] = position_ids[:, :seq_len].detach()
                 shifted_pos_ids = self._shifted_position_ids[layer_idx]
 
@@ -1014,8 +1014,8 @@ class SepCache(Cache):
         past_tok_ids = self.past_tok_ids[layer_idx]
         assert past_tok_ids is not None, f"`past_tok_ids` for layer {layer_idx} should not be None"
 
-        pad_index_tensor = past_tok_ids == self.PADDING_ID  ## batch x seq_len
-        pad_toks_cnt = pad_index_tensor.int().sum(-1)  ## [batch]
+        pad_index_tensor = past_tok_ids == self.PADDING_ID  # batch x seq_len
+        pad_toks_cnt = pad_index_tensor.int().sum(-1)  # [batch]
         offset = pad_toks_cnt.max().item()
 
         return offset
@@ -1277,12 +1277,12 @@ class SepCache(Cache):
         if LAYER_WISE:
             if self._print_kv_ratio_count % self.print_KV_inside_per_steps == 0:
                 print(
-                    f"######################## [Kept Tokens, Seen Tokens] : {self._kept_kv_ratio[layer_idx]}, Ratio: { (self._kept_kv_ratio[layer_idx][0]+1e-6) / (self._kept_kv_ratio[layer_idx][1]+1e-6) :.4f} ########################"
+                    f"############ [Kept Tokens, Seen Tokens] : {self._kept_kv_ratio[layer_idx]}, Ratio: { (self._kept_kv_ratio[layer_idx][0]+1e-6) / (self._kept_kv_ratio[layer_idx][1]+1e-6) :.4f} ############"
                 )
 
         elif self._print_kv_ratio_count % (self.print_KV_inside_per_steps * self.layer_num) == 0:
             print(
-                f"######################## [Kept Tokens, Seen Tokens] : {self._kept_kv_ratio[layer_idx]}, Ratio: { (self._kept_kv_ratio[layer_idx][0]+1e-6) / (self._kept_kv_ratio[layer_idx][1]+1e-6) :.4f} ########################"
+                f"############ [Kept Tokens, Seen Tokens] : {self._kept_kv_ratio[layer_idx]}, Ratio: { (self._kept_kv_ratio[layer_idx][0]+1e-6) / (self._kept_kv_ratio[layer_idx][1]+1e-6) :.4f} ############"
             )
 
     @classmethod  # Deprecated
@@ -1312,7 +1312,7 @@ class SepCache(Cache):
         print_KV_inside_per_steps: int = 1000,
         _seen_tokens: int = 0,
         _kept_kv_ratio: List[Tuple[int]] = None,
-        ### For positional encoding shifting
+        #For positional encoding shifting
         APPLY_PE_SHIFT: bool = False,
         APPLY_PES_INSIDE: bool = True,
         _shifted_position_ids: List[torch.Tensor] = None,
@@ -1341,7 +1341,7 @@ class SepCache(Cache):
             past_key_values is None
         ), f"`from_legacy_cache` function is deprecated. You can only use it when `past_key_values=None` or `past_key_values` is empty, in which case, `from_legacy_cache` is equivalent to the `__init__` function."
 
-        if past_key_values is not None:  ## Deprecated
+        if past_key_values is not None:  # Deprecated
             key_cache = []
             value_cache = []
 
@@ -1361,7 +1361,7 @@ class SepCache(Cache):
                     value_cache.append(v)
 
         cache = cls(
-            ## For SepLLM
+            # For SepLLM
             init_cache_size=init_cache_size,
             sep_cache_size=sep_cache_size,
             local_size=local_size,
@@ -1371,16 +1371,16 @@ class SepCache(Cache):
             SEP_PADDING_IN_BATCH=SEP_PADDING_IN_BATCH,
             separator_token_ids=separator_token_ids,
             PADDING_ID=PADDING_ID,
-            ## For inheritance & initialization states
-            past_tok_ids=past_tok_ids,  ## It saves all the token ids corresponding to the saved KVs for all layers in SepCache
+            # For inheritance & initialization states
+            past_tok_ids=past_tok_ids,  # It saves all the token ids corresponding to the saved KVs for all layers in SepCache
             key_cache=key_cache,
             value_cache=value_cache,
-            ## For debugging
+            # For debugging
             PRINT_KV_RATIO_INSIDE=PRINT_KV_RATIO_INSIDE,
             print_KV_inside_per_steps=print_KV_inside_per_steps,
             _seen_tokens=_seen_tokens,
             _kept_kv_ratio=_kept_kv_ratio,
-            ### For positional encoding shifting
+            #For positional encoding shifting
             APPLY_PE_SHIFT=APPLY_PE_SHIFT,
             APPLY_PES_INSIDE=APPLY_PES_INSIDE,
             _shifted_position_ids=_shifted_position_ids,
@@ -1390,7 +1390,7 @@ class SepCache(Cache):
             pe_dim=pe_dim,
             max_position_embeddings=max_position_embeddings,
             base=base,
-            ## For basic transformer architecture
+            # For basic transformer architecture
             k_seq_dim=k_seq_dim,
             v_seq_dim=v_seq_dim,
             layer_num=layer_num,
@@ -1400,7 +1400,7 @@ class SepCache(Cache):
 
         return cache
 
-    def to_legacy_cache(self) -> Tuple[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]:  ## Deprecated
+    def to_legacy_cache(self) -> Tuple[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]:  # Deprecated
         """Deprecated: Converts the `SepCache` instance into the legacy cache format, i.e., tuple."""
         print(
             ">>>>>>>>>>>Warnings: Please try to avoid using this deprecated `to_legacy_cache` function since it will drop many useful parameters or states in SepCache.<<<<<<<<<<<"
