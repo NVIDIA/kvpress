@@ -403,13 +403,13 @@ class SepCache(Cache):
         """
         Updates the cache with the new `key_states` and `value_states` for the layer `layer_idx`.
 
-        Parameters:        
+        Parameters:
             `key_states` (`torch.Tensor`):
                 The new key states to cache.
             `value_states` (`torch.Tensor`):
                 The new value states to cache.
             `input_ids` (`torch.Tensor`)
-                The ids of the input tokens (context tokens or autoregressive tokens)                
+                The ids of the input tokens (context tokens or autoregressive tokens)
             `layer_idx` (`int`):
                 The index of the layer to cache the states for.
             `PREFILLING_FLAG` (`bool`)
@@ -429,10 +429,10 @@ class SepCache(Cache):
                     `cos` and `sin` are the shifted rotation matrices for key states
                     `cos_q` and `sin_q` are the shifted rotation matrices for query states
                     `shifted_pos_ids` is the shifted positional ids for key states
-                    
+
                 When `self.APPLY_PE_SHIFT=True` and `self.APPLY_PES_INSIDE=True`:
                     SepCache will utilize `position_ids` to calculate positional shifting.
-                
+
                 `partial_rotation_size` means that `partial_rotation_size` slices along certain dimension need to be shifted (i.e., [0, 1, ..., `partial_rotation_size-1`] slices along certain dimension)
 
         Return:
@@ -446,13 +446,13 @@ class SepCache(Cache):
         SEP_ACCUMULATION = self.SEP_ACCUMULATION
         USE_MAX_SEP_CACHE = self.USE_MAX_SEP_CACHE
         SEP_PADDING_IN_BATCH = self.SEP_PADDING_IN_BATCH
-        
+
         if input_ids is None:
             input_ids = cache_kwargs.get("input_ids", None)
         assert input_ids is not None, f"`input_ids` must be properly provided when calling `update()` in `SepCache`."
 
         assert (self.APPLY_PE_SHIFT and (query_states is not None)) or not APPLY_PE_SHIFT, f"If `APPLY_PE_SHIFT=True`, `query_states` should be provided and it will be updated and returned"
-                
+
         # Update the number of seen tokens
         if layer_idx == 0:
             assert key_states.shape[-2] == input_ids.shape[-1], f"`key_states.shape[-2]` ({key_states.shape[-2]}) should be equal to `input_ids.shape[-1]` ({input_ids.shape[-1]})."
@@ -460,48 +460,48 @@ class SepCache(Cache):
 
         # [bsz, num_heads, seq_len, head_dim]
         new_kv_pair = (key_states, value_states)
-                
-        if (key_states.shape[self.k_seq_dim] + self.get_usable_length(layer_idx) < self.cache_size[layer_idx]) or PREFILLING_FLAG:  ## For prefilling
-            assert  (PREFILLING_FLAG and key_states.shape[self.k_seq_dim] >= 1)  or (not PREFILLING_FLAG and key_states.shape[self.k_seq_dim] == 1)
 
-            # Update cache and past token ids                
+        if (key_states.shape[self.k_seq_dim] + self.get_usable_length(layer_idx) < self.cache_size[layer_idx]) or PREFILLING_FLAG:  # For prefilling
+            assert (PREFILLING_FLAG and key_states.shape[self.k_seq_dim] >= 1) or (not PREFILLING_FLAG and key_states.shape[self.k_seq_dim] == 1)
+
+            # Update cache and past token ids
             self.update_kv_cache_and_past_tok_ids(new_kv_pair, input_ids, layer_idx, COMPRESS_KV=False, SEP_ACCUMULATION=SEP_ACCUMULATION, USE_MAX_SEP_CACHE=USE_MAX_SEP_CACHE, SEP_PADDING_IN_BATCH=SEP_PADDING_IN_BATCH)
-            
-            if APPLY_PE_SHIFT:                     
-                shifted_keys, shifted_queries = self.apply_shifted_pos_emb(layer_idx, APPLY_PES_INSIDE, PREFILLING_FLAG, key_states, query_states, position_ids, cache_kwargs ) 
-                query_states  = shifted_queries
-                self.set_kv_cache( (shifted_keys, self.value_cache[layer_idx]), layer_idx)
-            
+
+            if APPLY_PE_SHIFT:
+                shifted_keys, shifted_queries = self.apply_shifted_pos_emb(layer_idx, APPLY_PES_INSIDE, PREFILLING_FLAG, key_states, query_states, position_ids, cache_kwargs)
+                query_states = shifted_queries
+                self.set_kv_cache((shifted_keys, self.value_cache[layer_idx]), layer_idx)
+
             if PREFILLING_FLAG and layer_idx == 0:
                 self.left_padding_offset = self.get_initial_pos_offset(layer_idx)
 
-            ## Count KV usage
+            # Count KV usage
             kv_len_ori = self.get_seq_length(layer_idx)
             kv_len_cmp = self.get_usable_length(layer_idx)
             self._update_kv_ratio(kv_len_cmp=kv_len_cmp, kv_len_ori=kv_len_ori, layer_idx=layer_idx)
 
         else:
-            ## Update the KV cache, count KV usage, and compress the KV cache if necessary                        
+            # Update the KV cache, count KV usage, and compress the KV cache if necessary
             kv_len_ori = self.get_seq_length(layer_idx)
             offset_init_size_layer = self.update_kv_cache_and_past_tok_ids(new_kv_pair, input_ids, layer_idx, COMPRESS_KV=True, SEP_ACCUMULATION=SEP_ACCUMULATION, USE_MAX_SEP_CACHE=USE_MAX_SEP_CACHE, SEP_PADDING_IN_BATCH=SEP_PADDING_IN_BATCH)
             kv_len_cmp = self.get_usable_length(layer_idx)
             self._update_kv_ratio(kv_len_cmp=kv_len_cmp, kv_len_ori=kv_len_ori, layer_idx=layer_idx)
-                        
-            if APPLY_PE_SHIFT:                
-                shifted_keys, shifted_queries = self.apply_shifted_pos_emb(layer_idx, APPLY_PES_INSIDE, PREFILLING_FLAG, key_states, query_states, position_ids, cache_kwargs )                 
-                query_states  = shifted_queries
-                self.set_kv_cache( (shifted_keys, self.value_cache[layer_idx]), layer_idx)
+
+            if APPLY_PE_SHIFT:
+                shifted_keys, shifted_queries = self.apply_shifted_pos_emb(layer_idx, APPLY_PES_INSIDE, PREFILLING_FLAG, key_states, query_states, position_ids, cache_kwargs)
+                query_states = shifted_queries
+                self.set_kv_cache((shifted_keys, self.value_cache[layer_idx]), layer_idx)
             
-        if self.PRINT_KV_RATIO_INSIDE:    
+        if self.PRINT_KV_RATIO_INSIDE:
             self._print_kv_ratio(layer_idx)
 
         if query_states is not None:
             return self.key_cache[layer_idx], self.value_cache[layer_idx], query_states
         else:
             return self.key_cache[layer_idx], self.value_cache[layer_idx]
-            
-    
-    def update_kv_cache_and_past_tok_ids(self, new_kv_pair: Tuple[torch.Tensor], input_ids: torch.Tensor, layer_idx: int, COMPRESS_KV=False, SEP_ACCUMULATION:bool=True, USE_MAX_SEP_CACHE:bool=False, SEP_PADDING_IN_BATCH:bool=True) -> None:
+
+
+    def update_kv_cache_and_past_tok_ids(self, new_kv_pair: Tuple[torch.Tensor], input_ids: torch.Tensor, layer_idx: int, COMPRESS_KV=False, SEP_ACCUMULATION: bool = True, USE_MAX_SEP_CACHE: bool = False, SEP_PADDING_IN_BATCH: bool = True) -> None:
         """Update the KV cache and past token ids; compress the KV cache if necessary."""
         assert layer_idx is not None, f"`layer_idx` must be given"
         assert len(new_kv_pair) == 2, f"The length of `new_kv_pair` must be 2."
@@ -510,61 +510,61 @@ class SepCache(Cache):
         self.append_past_tok_ids(input_ids, layer_idx)
 
         key, value = new_kv_pair
-                
+
         if len(self.key_cache) <= layer_idx:
-            self.key_cache.append(key)                        
+            self.key_cache.append(key)
             self.value_cache.append(value)
-            assert len(self.key_cache) - 1  == layer_idx, f"The key_cache should be updated sequentially according to the layer numbering."              
-            assert len(self.value_cache) - 1  == layer_idx, f"The value_cache should be updated sequentially according to the layer numbering."      
-        else:            
-            self.key_cache[layer_idx] = torch.cat([self.key_cache[layer_idx] , key], dim=self.k_seq_dim)
-            self.value_cache[layer_idx] = torch.cat([self.value_cache[layer_idx] , value], dim=self.v_seq_dim)
+            assert len(self.key_cache) - 1 == layer_idx, f"The key_cache should be updated sequentially according to the layer numbering."
+            assert len(self.value_cache) - 1 == layer_idx, f"The value_cache should be updated sequentially according to the layer numbering."
+        else:
+            self.key_cache[layer_idx] = torch.cat([self.key_cache[layer_idx], key], dim=self.k_seq_dim)
+            self.value_cache[layer_idx] = torch.cat([self.value_cache[layer_idx], value], dim=self.v_seq_dim)
 
         assert len(self.key_cache) == len(self.value_cache), f"The layer numbers of stored key_cache and value_cache must be the same."
         assert self.key_cache[layer_idx].shape[self.k_seq_dim] == self.value_cache[layer_idx].shape[self.v_seq_dim], "The seq length for key_cache and value_cache must be the same."
 
         if COMPRESS_KV:
-            cmp_past_kv_pairs, cmp_past_tok_ids, offset_init_size_layer = self.compress_kv_cache_and_tokids_layer_wise((self.key_cache[layer_idx], self.value_cache[layer_idx]), layer_idx ,SEP_ACCUMULATION=SEP_ACCUMULATION, USE_MAX_SEP_CACHE=USE_MAX_SEP_CACHE, SEP_PADDING_IN_BATCH=SEP_PADDING_IN_BATCH )
+            cmp_past_kv_pairs, cmp_past_tok_ids, offset_init_size_layer = self.compress_kv_cache_and_tokids_layer_wise((self.key_cache[layer_idx], self.value_cache[layer_idx]), layer_idx, SEP_ACCUMULATION=SEP_ACCUMULATION, USE_MAX_SEP_CACHE=USE_MAX_SEP_CACHE, SEP_PADDING_IN_BATCH=SEP_PADDING_IN_BATCH)
             self.set_kv_cache(cmp_past_kv_pairs, layer_idx)
-            self.set_past_tok_ids(cmp_past_tok_ids, layer_idx)            
+            self.set_past_tok_ids(cmp_past_tok_ids, layer_idx)
             return offset_init_size_layer
-        
+
 
     def append_past_tok_ids(self, input_ids: torch.Tensor, layer_idx: int) -> None:
-        """Naively append the new `input_ids` to `self.past_tok_ids[layer_idx]`"""    
+        """Naively append the new `input_ids` to `self.past_tok_ids[layer_idx]`"""
         assert layer_idx is not None, f"`layer_idx` must be given"
-        
-        if len(self.past_tok_ids) <= layer_idx:                        
+
+        if len(self.past_tok_ids) <= layer_idx:
             self.past_tok_ids.append(input_ids)
-            assert len(self.past_tok_ids) - 1  == layer_idx, f"The past_tok_ids should be updated sequentially according to the layer numbering."                        
-        else:      
-            self.past_tok_ids[layer_idx] = torch.cat([self.past_tok_ids[layer_idx] , input_ids], dim=-1)
+            assert len(self.past_tok_ids) - 1 == layer_idx, f"The past_tok_ids should be updated sequentially according to the layer numbering."
+        else:
+            self.past_tok_ids[layer_idx] = torch.cat([self.past_tok_ids[layer_idx], input_ids], dim=-1)
 
 
-    def compress_kv_cache_and_tokids_layer_wise(self, past_kv_pairs, layer_idx:int ,SEP_ACCUMULATION=False, USE_MAX_SEP_CACHE=False, SEP_PADDING_IN_BATCH=True ):
-        """        
+    def compress_kv_cache_and_tokids_layer_wise(self, past_kv_pairs, layer_idx: int, SEP_ACCUMULATION=False, USE_MAX_SEP_CACHE=False, SEP_PADDING_IN_BATCH=True):
+        """
         `SEP_ACCUMULATION`: If True, it means we will try to accumulate all the KVs for seperators. If False, only the `new_sep_kv` compressed from the `past_win_kv` will be kept (see function `compress_kv_cache_and_tokids_layer_wise`).
-                                                             
+
         `USE_MAX_SEP_CACHE`: If True, it means we only keep at most `self.sep_cache_size` seperators' KVs.  If the number exceeds this limit, older separator's KVs will be discarded, keeping only the most recent `self.sep_cache_size` KVs. In the paper, the hyperparameter `s` is an abbreviated alias for `self.sep_cache_size`.
 
         `SEP_PADDING_IN_BATCH`: If True, it means that SepCache will pad separator tokens in other records to be aligned with the record with the most separators in a batch. If False, it means that SepCache will truncate older separator tokens in other records to be aligned with the record with the fewest separators in a batch.
-        
-        Note: If `SEP_ACCUMULATION=True` and `USE_MAX_SEP_CACHE=False`, as the number of input tokens increases, the number of separators in the KV cache will also accumulate endlessly 
+
+        Note: If `SEP_ACCUMULATION=True` and `USE_MAX_SEP_CACHE=False`, as the number of input tokens increases, the number of separators in the KV cache will also accumulate endlessly
               and `self.cache_size` will also be infinitely expanded (no longer fixed).
 
-              When `SEP_PADDING_IN_BATCH=True` is used in combination with `USE_MAX_SEP_CACHE=False` and `SEP_ACCUMULATION=True`, the KV cache will accumulate indefinitely, 
+              When `SEP_PADDING_IN_BATCH=True` is used in combination with `USE_MAX_SEP_CACHE=False` and `SEP_ACCUMULATION=True`, the KV cache will accumulate indefinitely,
               and since `SEP_PADDING_IN_BATCH=True`, the KVs of all separators will be retained (rather than being truncated).
 
 
         For detailed usage instructions, please refer to https://github.com/HKUDS/SepLLM
-        """    
+        """
 
         key, value = past_kv_pairs
         seq_len = key.size(self.k_seq_dim)
         assert seq_len == self.get_usable_length(layer_idx), f"The seq_len of cached past key and value states should be the same as the return of `get_usable_length()`, which is {self.get_usable_length(layer_idx)}"
 
-        
-        left_padding_offset =  self.left_padding_offset        
+
+        left_padding_offset = self.left_padding_offset
         assert left_padding_offset is not None
         offset_init_size_layer = self.init_cache_size[layer_idx] + left_padding_offset
         self._set_layer_wise_attribute("max_sep_exidx", self._list_element_add(self.sep_cache_size, self.init_cache_size, bias=left_padding_offset), self.layer_num)
