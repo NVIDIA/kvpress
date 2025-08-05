@@ -5,6 +5,7 @@
 We support evaluation for all the presses implemented in the library, on a variety of popular benchmarks.
 
 ### Quick Start 🚀
+> Evaluation requires some additional packages. You can install them with `uv sync --group eval`
 
 Running evaluation is straightforward! Make sure you are in the `evaluation` directory, then:
 
