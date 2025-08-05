@@ -363,22 +363,22 @@ class SepCache(Cache):
                 self.PADDING_ID = 128009
             elif ('pythia' in model_type.lower()) or ('gpt_neox' in model_type.lower()):
                 # print("Debug: For GPTNeox's default separators")
-                self.separator_token_ids = [15, 13, 32, 2, 28, 27, 209, 186, 187,    964, 1157, 3736, 2195, 3706, 1163, 2490,  50276,    586, 4928, 50275 ]       # pythia 14b
+                self.separator_token_ids = [15, 13, 32, 2, 28, 27, 209, 186, 187, 964, 1157, 3736, 2195, 3706, 1163, 2490, 50276, 586, 4928, 50275]  # pythia 14b
                 self.PADDING_ID = 0
             elif 'falcon' in model_type.lower():
                 # print(f"Debug: For Falcon's default separators")
-                self.separator_token_ids = [25, 23,  42, 12, 38, 37, 193,  4610,  204, 258, 1212, 23787, 466 ]       # falcon-40b
+                self.separator_token_ids = [25, 23, 42, 12, 38, 37, 193, 4610, 204, 258, 1212, 23787, 466]  # falcon-40b
                 self.PADDING_ID = 11
             else:
                 raise NotImplementedError(f"NOT implemented for the tokenizer of the backbone model type: `{model_type}`. You must provide `separator_token_ids: List[int]` and `PADDING_ID: int` for initialization in this case! ")
-        
+
         if APPLY_PE_SHIFT:
             print(">>>>>>>>---------#####################################################################################-----------<<<<<<<<")
             print(">>>>>>>>---------                                                                                     -----------<<<<<<<<")
             print(">>>>>>>>---------  Warning: When `APPLY_PE_SHIFT=True`, SepCache must store the key/value states       ----------<<<<<<<<")
             print(">>>>>>>>---------              before applying positional encoding (specifically RoPE)                -----------<<<<<<<<")
             print(">>>>>>>>---------#####################################################################################-----------<<<<<<<<")
-                
+
         if APPLY_PES_INSIDE:
             print(">>>>>>>>---------#####################################################################################-----------<<<<<<<<")
             print(">>>>>>>>---------                                                                                     -----------<<<<<<<<")
@@ -392,14 +392,14 @@ class SepCache(Cache):
     def update(
         self,
         key_states: torch.Tensor,
-        value_states: torch.Tensor,        
-        layer_idx: int,        
+        value_states: torch.Tensor,
+        layer_idx: int,
         input_ids: torch.Tensor = None,
         PREFILLING_FLAG: bool = True,
-        query_states: Optional[torch.Tensor] = None,        
-        position_ids: Optional[torch.Tensor]=None,                
+        query_states: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
         cache_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor],Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Updates the cache with the new `key_states` and `value_states` for the layer `layer_idx`.
 
