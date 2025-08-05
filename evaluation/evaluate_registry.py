@@ -66,7 +66,7 @@ PRESS_REGISTRY = {
     "critical_snapkv": CriticalKVPress(SnapKVPress()),
     "duo_attention": DuoAttentionPress(),
     "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
-    "expected_attention": ExpectedAttentionPress(),
+    "expected_attention": ExpectedAttentionPress(n_future_positions=100),
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
     "kvzip": KVzipPress(),
@@ -81,4 +81,5 @@ PRESS_REGISTRY = {
     "think": ThinKPress(),
     "tova": TOVAPress(),
     "no_press": None,
+    "expected_attention_with_stats": ExpectedAttentionPress(use_stats=True, n_future_positions=100),
 }
