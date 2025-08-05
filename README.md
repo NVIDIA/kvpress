@@ -206,7 +206,7 @@ However, the `generate` method does not allow to exclude the question from the c
 </details>
 
 
-## Advances installation settings
+## Advanced installation settings
 To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
 To install with flash attention, just run:
 

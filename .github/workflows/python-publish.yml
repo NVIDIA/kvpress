@@ -3,7 +3,6 @@ name: Upload Python Package
 on:
   release:
     types: [published]
-  pull_request:
 
 permissions:
   contents: read
@@ -25,3 +24,9 @@ jobs:
 
     - name: Build
       run: uv build --no-sources
+
+    - name: Publish package
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }}
