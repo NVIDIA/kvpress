@@ -17,8 +17,8 @@ from transformers import QuantizedCache
 
 class SepCache(Cache):
     """
-    A cache as described in the [SepLLM paper - ICML 2025](https://arxiv.org/abs/2412.12094). In the training phase, 
-    SepLLM condenses the segment information into the KV of the separator that divides the segment. In the inference phase, the 
+    A cache as described in the [SepLLM paper - ICML 2025](https://arxiv.org/abs/2412.12094). In the training phase,
+    SepLLM condenses the segment information into the KV of the separator that divides the segment. In the inference phase, the
     corresponding SepCache only needs to store the KVs of initial tokens, separator tokens, and recent tokens for generation.
 
     It stores the Key and Value states as lists of tensors, two lists for each layer. The expected shape for each tensor is
@@ -28,51 +28,51 @@ class SepCache(Cache):
 
         `init_cache_size: Union[int, List]`:
             The maximum number of KVs to be stored for initial tokens.
-            In the paper, the hyperparameter `a` is an abbreviated alias for `self.init_cache_size`.                
-                
+            In the paper, the hyperparameter `a` is an abbreviated alias for `self.init_cache_size`.
+
         `sep_cache_size: Union[int, List]`:
             The maximum number of KVs to be stored for separator tokens.
             In the paper, the hyperparameter `s` is an abbreviated alias for `self.sep_cache_size`.
 
-        `local_size: Union[int, List]`: 
+        `local_size: Union[int, List]`:
             The maximum number of KVs to be stored for local tokens (i.e., sliding window).
             In the paper, the hyperparameter `w` is an abbreviated alias for `self.local_size`.
 
-        `cache_size: Union[int, List]`:    
-            The maximum number of KVs to be stored for all the tokens, i.e., the size for the whole KV cache.  
+        `cache_size: Union[int, List]`:
+            The maximum number of KVs to be stored for all the tokens, i.e., the size for the whole KV cache.
             In the paper, the hyperparameter `c` is an abbreviated alias for `self.cache_size`.
 
         Concerning these four parameters above:
-            When a list is passed (its length must be `layer_num`), it represents different values for each layer. 
+            When a list is passed (its length must be `layer_num`), it represents different values for each layer.
             When an integer is passed, it means the setting is the same for all layers.
-        
-        
-        `USE_MAX_SEP_CACHE: bool`: 
-            If True, it means we only keep at most `self.sep_cache_size` seperators' KVs.  
-            If the number exceeds this limit, older separator's KVs will be discarded, keeping only the most recent `self.sep_cache_size` KVs. 
+
+
+        `USE_MAX_SEP_CACHE: bool`:
+            If True, it means we only keep at most `self.sep_cache_size` seperators' KVs.
+            If the number exceeds this limit, older separator's KVs will be discarded, keeping only the most recent `self.sep_cache_size` KVs.
             In the paper, the hyperparameter `s` is an abbreviated alias for `self.sep_cache_size`.
-          
+
         `separator_token_ids: List[int]`:
-            The token ids of the separator tokens for the current model's tokenizer.            
-            We have some examples, such as the Llama-3 series models, where setting `model_type='llama'` allows you 
+            The token ids of the separator tokens for the current model's tokenizer.
+            We have some examples, such as the Llama-3 series models, where setting `model_type='llama'` allows you
                 to skip setting `separator_token_ids` and `PADDING_ID` (SepCache will auto-fill them).
 
         `PADDING_ID: int`:
             The token id of the padding token. You can just set `PADDING_ID` to the id of "<|endoftext|>" token of the tokenizer for the pretrained model.
 
     Important Note:
-        When `cache_size` and `local_size` are set to infinity (i.e., sufficiently large positive integers), and `USE_MAX_SEP_CACHE` is `False`, `SepCache` degenerates into a regular Cache. 
-        However, you must always ensure that `init_cache_size` + `sep_cache_size` + `local_size` + `left_padding_offset` < `cache_size`. 
-        Here, `left_padding_offset` denotes the number of padding tokens in the record with the largest left paddings within a runtime batch. `left_padding_offset` can only be determined at runtime.        
+        When `cache_size` and `local_size` are set to infinity (i.e., sufficiently large positive integers), and `USE_MAX_SEP_CACHE` is `False`, `SepCache` degenerates into a regular Cache.
+        However, you must always ensure that `init_cache_size` + `sep_cache_size` + `local_size` + `left_padding_offset` < `cache_size`.
+        Here, `left_padding_offset` denotes the number of padding tokens in the record with the largest left paddings within a runtime batch. `left_padding_offset` can only be determined at runtime.
         To guarantee the above inequality always holds during runtime, when setting, you can intentionally create a sufficient margin between both sides of the following inequality:
             `init_cache_size` + `sep_cache_size` + `local_size`  < `cache_size`, i.e., `a`+`s`+`w`<`c` in the [SepLLM paper - ICML 2025]
             to leave room for `left_padding_offset`.
 
         Please refer to the `__init__` function's comments for more details on the parameters.
-            
+
     Example:
 
-        ```python        
+        ```python
         >>> from transformers import AutoTokenizer, AutoModelForCausalLM, SepCache
         >>> import torch
         >>> from huggingface_hub import login
@@ -80,7 +80,7 @@ class SepCache(Cache):
 
 
         >>> def to_cuda(a_dict: dict) -> dict:
-        >>>    new_dict = {}    
+        >>>    new_dict = {}
         >>>    for k,v in a_dict.items():
         >>>        if isinstance(v, torch.Tensor):
         >>>            new_dict[k] = v.cuda()
@@ -102,12 +102,12 @@ class SepCache(Cache):
         ```
 
         ```python
-        >>> ## When using the `update` function of SepCache to update the keys/values and the past token ids (necessary in SepCache), the current `input_ids` must also be provided.        
-        >>> key_states, value_states = past_key_values.update(                
+        >>> ## When using the `update` function of SepCache to update the keys/values and the past token ids (necessary in SepCache), the current `input_ids` must also be provided.
+        >>> key_states, value_states = past_key_values.update(
                     key_states = key_states,
-                    value_states = value_states,    
+                    value_states = value_states,
                     input_ids = input_ids,
-                    layer_idx = layer_idx,     
+                    layer_idx = layer_idx,
                     PREFILLING_FLAG = q_len > 1, ## `q_len` is the sequence length of the current `query_states`
                     )
 
@@ -119,93 +119,95 @@ class SepCache(Cache):
     @staticmethod
     def slice_on_1d(x, start, end):
         return x[:, start:end, ...]
+
     @staticmethod
     def slice_on_2d(x, start, end):
         return x[:, :, start:end, ...]
+
     @staticmethod
     def slice_on_3d(x, start, end):
         return x[:, :, :, start:end, ...]
 
 
     @staticmethod
-    def sep_1bat_select_on_1d(x, Bid, sep_index, min_sep_num=None, max_sep_num=None, SEP_PADDING_IN_BATCH=True):    
+    def sep_1bat_select_on_1d(x, Bid, sep_index, min_sep_num=None, max_sep_num=None, SEP_PADDING_IN_BATCH=True):
         """
-        For the record with index `Bid` in a batch, extract the K/V states corresponding to the separators on dimension 1. 
-           If `SEP_PADDING_IN_BATCH=True`, pad to the longest length (i.e. `max_sep_num`); 
-           otherwise, truncate to the shortest length (i.e. `min_sep_num`). 
+        For the record with index `Bid` in a batch, extract the K/V states corresponding to the separators on dimension 1.
+           If `SEP_PADDING_IN_BATCH=True`, pad to the longest length (i.e. `max_sep_num`);
+           otherwise, truncate to the shortest length (i.e. `min_sep_num`).
         """
         sep_index = sep_index.to(x.device)
 
-        if SEP_PADDING_IN_BATCH: ## Need padding
+        if SEP_PADDING_IN_BATCH:  # Need padding
             assert max_sep_num is not None, f"if `SEP_PADDING_IN_BATCH=True`, `max_sep_num` should not be None"
-            new_x_sep =  x[Bid, sep_index, ...]   # # batch x seqlen x head x dim  -->  sep_num x head x dim  
-            padding_num = max_sep_num -  new_x_sep.shape[0]
-            if padding_num > 0 :
+            new_x_sep = x[Bid, sep_index, ...]  # batch x seqlen x head x dim  -->  sep_num x head x dim
+            padding_num = max_sep_num - new_x_sep.shape[0]
+            if padding_num > 0:
                 assert padding_num <= x.shape[1], f"`padding_num` should be <= `x.shape[1]`, i.e.  x's seqlen"
-                new_x_pad = x[Bid, -padding_num: , ...]    #  padding_num x head x dim     
-                return torch.cat([new_x_sep, new_x_pad ] , dim=0) # max_sep_num x head x dim 
+                new_x_pad = x[Bid, -padding_num:, ...]  # padding_num x head x dim
+                return torch.cat([new_x_sep, new_x_pad], dim=0)  # max_sep_num x head x dim
             else:
-                return new_x_sep #  max_sep_num x head x dim 
+                return new_x_sep  # max_sep_num x head x dim
 
         if min_sep_num is None:
-            return x[Bid, sep_index, ...]  # # batch x seqlen x head x dim -->  sep_num x head x dim    
-        else: ## `min_sep_num` is provided. Need truncation
-            new_x =  x[Bid, sep_index, ...]   # # batch x seqlen x head x dim -->  sep_num x head x dim               
-            return new_x[ :min_sep_num, ...] # #  min_sep_num x head x dim      
+            return x[Bid, sep_index, ...]  # batch x seqlen x head x dim -->  sep_num x head x dim
+        else:  # `min_sep_num` is provided. Need truncation
+            new_x = x[Bid, sep_index, ...]  # batch x seqlen x head x dim -->  sep_num x head x dim
+            return new_x[:min_sep_num, ...]  # min_sep_num x head x dim
 
 
     @staticmethod
-    def sep_1bat_select_on_2d(x, Bid, sep_index, min_sep_num=None, max_sep_num=None, SEP_PADDING_IN_BATCH=True):    
+    def sep_1bat_select_on_2d(x, Bid, sep_index, min_sep_num=None, max_sep_num=None, SEP_PADDING_IN_BATCH=True):
         """
-        For the record with index `Bid` in a batch, extract the K/V states corresponding to the separators on dimension 2. 
-           If `SEP_PADDING_IN_BATCH=True`, pad to the longest length (i.e. `max_sep_num`); 
-           otherwise, truncate to the shortest length (i.e. `min_sep_num`). 
+        For the record with index `Bid` in a batch, extract the K/V states corresponding to the separators on dimension 2.
+           If `SEP_PADDING_IN_BATCH=True`, pad to the longest length (i.e. `max_sep_num`);
+           otherwise, truncate to the shortest length (i.e. `min_sep_num`).
         """
         sep_index = sep_index.to(x.device)
 
-        if SEP_PADDING_IN_BATCH: ## Need padding
+        if SEP_PADDING_IN_BATCH:  # Need padding
             assert max_sep_num is not None, f"if `SEP_PADDING_IN_BATCH=True`, `max_sep_num` should not be None"
-            new_x_sep =  x[Bid, :, sep_index, ...]   # # batch x head x seqlen x dim -->  head x sep_num x dim  
-            padding_num = max_sep_num -  new_x_sep.shape[-2]
-            if padding_num > 0 :
-                assert padding_num<= x.shape[-2], f"`padding_num` should be <= `x.shape[-2]`, i.e.  x's seqlen"
-                new_x_pad = x[Bid, :, -padding_num: , ...]    # head x padding_num x dim     
-                return torch.cat([new_x_sep, new_x_pad ] , dim=-2) # head x max_sep_num x dim 
+            new_x_sep = x[Bid, :, sep_index, ...]  # batch x head x seqlen x dim -->  head x sep_num x dim
+            padding_num = max_sep_num - new_x_sep.shape[-2]
+            if padding_num > 0:
+                assert padding_num <= x.shape[-2], f"`padding_num` should be <= `x.shape[-2]`, i.e.  x's seqlen"
+                new_x_pad = x[Bid, :, -padding_num:, ...]  # head x padding_num x dim
+                return torch.cat([new_x_sep, new_x_pad], dim=-2)  # head x max_sep_num x dim
             else:
-                return new_x_sep # head x max_sep_num x dim 
+                return new_x_sep  # head x max_sep_num x dim
 
         if min_sep_num is None:
-            return x[Bid, :, sep_index, ...]  # # batch x head x seqlen x dim -->  head x sep_num x dim    
-        else: ## `min_sep_num` is provided. Need truncation
-            new_x =  x[Bid, :, sep_index, ...]   # # batch x head x seqlen x dim -->  head x sep_num x dim            
-            return new_x[:, :min_sep_num, ...] # #  head x min_sep_num x dim      
+            return x[Bid, :, sep_index, ...]  # batch x head x seqlen x dim -->  head x sep_num x dim
+        else:  # `min_sep_num` is provided. Need truncation
+            new_x = x[Bid, :, sep_index, ...]  # batch x head x seqlen x dim -->  head x sep_num x dim
+            return new_x[:, :min_sep_num, ...]  # head x min_sep_num x dim
 
 
     @staticmethod
-    def sep_1bat_select_on_3d(x, Bid, sep_index, min_sep_num=None, max_sep_num=None, SEP_PADDING_IN_BATCH=True):    
+    def sep_1bat_select_on_3d(x, Bid, sep_index, min_sep_num=None, max_sep_num=None, SEP_PADDING_IN_BATCH=True):
         """
-        For the record with index `Bid` in a batch, extract the K/V states corresponding to the separators on dimension 3. 
-           If `SEP_PADDING_IN_BATCH=True`, pad to the longest length (i.e. `max_sep_num`); 
-           otherwise, truncate to the shortest length (i.e. `min_sep_num`). 
-        """        
+        For the record with index `Bid` in a batch, extract the K/V states corresponding to the separators on dimension 3.
+           If `SEP_PADDING_IN_BATCH=True`, pad to the longest length (i.e. `max_sep_num`);
+           otherwise, truncate to the shortest length (i.e. `min_sep_num`).
+        """
         sep_index = sep_index.to(x.device)
 
-        if SEP_PADDING_IN_BATCH: ## Need padding
+        if SEP_PADDING_IN_BATCH:  # Need padding
             assert max_sep_num is not None, f"if `SEP_PADDING_IN_BATCH=True`, `max_sep_num` should not be None"
-            new_x_sep =  x[Bid, :, :, sep_index, ...]   # # batch x head x dim x seqlen  -->  head x dim x sep_num 
-            padding_num = max_sep_num -  new_x_sep.shape[-1]
-            if padding_num > 0 :
+            new_x_sep = x[Bid, :, :, sep_index, ...]  # batch x head x dim x seqlen  -->  head x dim x sep_num
+            padding_num = max_sep_num - new_x_sep.shape[-1]
+            if padding_num > 0:
                 assert padding_num <= x.shape[-1], f"`padding_num` should be <= `x.shape[-1]`, i.e.  x's seqlen"
-                new_x_pad = x[Bid, :, :, -padding_num:, ...]    # head x dim x padding_num     
-                return torch.cat([new_x_sep, new_x_pad] , dim=-1) # head x dim x max_sep_num 
+                new_x_pad = x[Bid, :, :, -padding_num:, ...]  # head x dim x padding_num
+                return torch.cat([new_x_sep, new_x_pad], dim=-1)  # head x dim x max_sep_num
             else:
-                return new_x_sep # head x dim x max_sep_num 
+                return new_x_sep  # head x dim x max_sep_num
 
         if min_sep_num is None:
-            return x[Bid, :, :, sep_index, ...]  # # batch x head x dim x seqlen -->  head x dim x sep_num    
-        else: ## `min_sep_num` is provided. Need truncation
-            new_x =  x[Bid, :, :, sep_index, ...]   # # batch x head x dim x seqlen -->  head x dim x sep_num          
-            return new_x[:, :, :min_sep_num, ...] # #  head x dim x min_sep_num       
+            return x[Bid, :, :, sep_index, ...]  # batch x head x dim x seqlen -->  head x dim x sep_num
+        else:  # `min_sep_num` is provided. Need truncation
+            new_x = x[Bid, :, :, sep_index, ...]  # batch x head x dim x seqlen -->  head x dim x sep_num
+            return new_x[:, :, :min_sep_num, ...]  # head x dim x min_sep_num
 
     DIM_TO_SLICE = {
         1: slice_on_1d,
@@ -219,66 +221,66 @@ class SepCache(Cache):
         3: sep_1bat_select_on_3d,
     }
 
-    def __init__(self,                                                
-                ## For SepLLM                                
-                init_cache_size: Union[int, List] = 4,        
-                sep_cache_size: Union[int, List] = 64,
-                local_size: Union[int, List]=256, 
-                cache_size: Union[int, List]=512,    
-                SEP_ACCUMULATION: bool = True,
-                USE_MAX_SEP_CACHE: bool = False,
-                SEP_PADDING_IN_BATCH: bool = False,
-                separator_token_ids: List[int] = None, ## required for initialization if `model_type` is not provided.
-                PADDING_ID: int = None, ## required for initialization if `model_type` is not provided.
+    def __init__(self,
+                 ## For SepLLM
+                 init_cache_size: Union[int, List] = 4,
+                 sep_cache_size: Union[int, List] = 64,
+                 local_size: Union[int, List] = 256,
+                 cache_size: Union[int, List] = 512,
+                 SEP_ACCUMULATION: bool = True,
+                 USE_MAX_SEP_CACHE: bool = False,
+                 SEP_PADDING_IN_BATCH: bool = False,
+                 separator_token_ids: List[int] = None,  # required for initialization if `model_type` is not provided.
+                 PADDING_ID: int = None,  # required for initialization if `model_type` is not provided.
 
-                ## For inheritance & initialization states
-                past_tok_ids: List[torch.Tensor] = None,  ## It saves all the token ids corresponding to the saved KVs for all layers in SepCache.                
-                key_cache: List[torch.Tensor] = None,          
-                value_cache: List[torch.Tensor] = None,
+                 ## For inheritance & initialization states
+                 past_tok_ids: List[torch.Tensor] = None,  # It saves all the token ids corresponding to the saved KVs for all layers in SepCache.
+                 key_cache: List[torch.Tensor] = None,
+                 value_cache: List[torch.Tensor] = None,
 
-                ## For debugging
-                PRINT_KV_RATIO_INSIDE: bool = False,
-                print_KV_inside_per_steps: int = 1000,   
-                _seen_tokens: int = 0, 
-                _kept_kv_ratio: List[Tuple[int]] = None,
-                
-                ### For positional encoding shifting
-                APPLY_PE_SHIFT: bool = False,
-                APPLY_PES_INSIDE: bool = True,
-                _shifted_position_ids:  List[torch.Tensor] = None,
-                _rope_unsqueeze_dim: int = 1, ## The unsqueeze_dim when applying RoPE.
-                _rope_seq_dim: int=1, ## The seq_len dimension for the `cos` or `sin` tensors.
-                pe_scaling_factor:float = 1.0,
-                pe_dim:int=128, ## The number of dims for positional encoding. Typically, just set the `head_dim` to this.
-                max_position_embeddings: int = 8192, 
-                base: int=10000,  ## The base for RoPE.               
-                
-                ## For basic transformer architecture
-                k_seq_dim: int=2, ## The dimension for seq_len in key tensors
-                v_seq_dim: int=2, ## The dimension for seq_len in value tensors
-                layer_num: int = None, ## required for initialization
+                 ## For debugging
+                 PRINT_KV_RATIO_INSIDE: bool = False,
+                 print_KV_inside_per_steps: int = 1000,
+                 _seen_tokens: int = 0,
+                 _kept_kv_ratio: List[Tuple[int]] = None,
 
-                model_type: str = None,  ## The model type for running the example. choose from ['llama', 'pythia','falcon'].
-                device = None          
+                 ### For positional encoding shifting
+                 APPLY_PE_SHIFT: bool = False,
+                 APPLY_PES_INSIDE: bool = True,
+                 _shifted_position_ids: List[torch.Tensor] = None,
+                 _rope_unsqueeze_dim: int = 1,  # The unsqueeze_dim when applying RoPE.
+                 _rope_seq_dim: int = 1,  # The seq_len dimension for the `cos` or `sin` tensors.
+                 pe_scaling_factor: float = 1.0,
+                 pe_dim: int = 128,  # The number of dims for positional encoding. Typically, just set the `head_dim` to this.
+                 max_position_embeddings: int = 8192,
+                 base: int = 10000,  # The base for RoPE.
+
+                 ## For basic transformer architecture
+                 k_seq_dim: int = 2,  # The dimension for seq_len in key tensors
+                 v_seq_dim: int = 2,  # The dimension for seq_len in value tensors
+                 layer_num: int = None,  # required for initialization
+
+                 model_type: str = None,  # The model type for running the example. choose from ['llama', 'pythia','falcon'].
+                 device = None
                  ) -> None:
-        """        
+        """
         `SEP_ACCUMULATION`: If True, it means we will try to accumulate all the KVs for seperators. If False, only the `new_sep_kv` compressed from the `past_win_kv` will be kept (see function `compress_kv_cache_and_tokids_layer_wise`).
-                                                             
+
         `USE_MAX_SEP_CACHE`: If True, it means we only keep at most `self.sep_cache_size` seperators' KVs.  If the number exceeds this limit, older separator's KVs will be discarded, keeping only the most recent `self.sep_cache_size` KVs. In the paper, the hyperparameter `s` is an abbreviated alias for `self.sep_cache_size`.
 
         `SEP_PADDING_IN_BATCH`: If True, it means that SepCache will pad separator tokens in other records to be aligned with the record with the most separators in a batch. If False, it means that SepCache will truncate older separator tokens in other records to be aligned with the record with the fewest separators in a batch.
-        
-        Note: If `SEP_ACCUMULATION=True` and `USE_MAX_SEP_CACHE=False`, as the number of input tokens increases, the number of separators in the KV cache will also accumulate endlessly 
+
+        Note: If `SEP_ACCUMULATION=True` and `USE_MAX_SEP_CACHE=False`, as the number of input tokens increases, the number of separators in the KV cache will also accumulate endlessly
               and `self.cache_size` will also be infinitely expanded (no longer fixed).
 
-              When `SEP_PADDING_IN_BATCH=True` is used in combination with `USE_MAX_SEP_CACHE=False` and `SEP_ACCUMULATION=True`, the KV cache will accumulate indefinitely, 
+              When `SEP_PADDING_IN_BATCH=True` is used in combination with `USE_MAX_SEP_CACHE=False` and `SEP_ACCUMULATION=True`, the KV cache will accumulate indefinitely,
               and since `SEP_PADDING_IN_BATCH=True`, the KVs of all separators will be retained (rather than being truncated).
 
 
         For detailed usage instructions, please refer to https://github.com/HKUDS/SepLLM
-        """    
+        """
 
-        super().__init__()               
+        super().__init__()
         if (key_cache is not None) or (value_cache is not None) or (past_tok_ids is not None):
             assert isinstance(key_cache, list)
             assert isinstance(value_cache, list)
@@ -288,42 +290,42 @@ class SepCache(Cache):
             assert len(value_cache) == len(past_tok_ids), f"The length of `value_cache` ({len(value_cache)}) should be equal to that of `past_tok_ids` ({len(past_tok_ids)})."
         assert layer_num is not None, f"`layer_num` must be provided according to the pretrained model."
 
-        ## For basic parameters & states    
+        ## For basic parameters & states
         self.key_cache: List[torch.Tensor] = key_cache if key_cache is not None else []
         self.value_cache: List[torch.Tensor] = value_cache if value_cache is not None else []    
 
-        self.k_seq_dim = k_seq_dim ## The dimension for the seq_len in key states. Typically, 2.
-        self.v_seq_dim = v_seq_dim ## The dimension for the seq_len in value states. Typically, 2.
+        self.k_seq_dim = k_seq_dim  # The dimension for the seq_len in key states. Typically, 2.
+        self.v_seq_dim = v_seq_dim  # The dimension for the seq_len in value states. Typically, 2.
 
         self.k_slice = self.DIM_TO_SLICE[k_seq_dim]
         self.v_slice = self.DIM_TO_SLICE[v_seq_dim]
-        
+
         self.k_bat_dim_select = self.BAT_DIM_TO_SELECT[k_seq_dim]
         self.v_bat_dim_select = self.BAT_DIM_TO_SELECT[v_seq_dim]
         self._seen_tokens: int = _seen_tokens  # Used in `generate` to keep tally of how many tokens the cache has seen as well as performing statistics.
-        self.layer_num =  layer_num
-        self.device = device # Deprecated
+        self.layer_num = layer_num
+        self.device = device  # Deprecated
 
 
         ## For debugging
         self.PRINT_KV_RATIO_INSIDE = PRINT_KV_RATIO_INSIDE
         self.print_KV_inside_per_steps = print_KV_inside_per_steps
         self._print_kv_ratio_count = 0
-        self._kept_kv_ratio: List[Tuple[int]] = _kept_kv_ratio if _kept_kv_ratio is not None else []   
+        self._kept_kv_ratio: List[Tuple[int]] = _kept_kv_ratio if _kept_kv_ratio is not None else []
 
         ## For Streaming SepLLM
-        self.past_tok_ids: List[torch.Tensor] = past_tok_ids if past_tok_ids is not None else []  ## It saves all the token ids corresponding to the saved KVs for all layers in SepCache      
+        self.past_tok_ids: List[torch.Tensor] = past_tok_ids if past_tok_ids is not None else []  # It saves all the token ids corresponding to the saved KVs for all layers in SepCache
         self.left_padding_offset = None
         self._set_layer_wise_attribute("init_cache_size", init_cache_size, layer_num)
         self._set_layer_wise_attribute("local_size", local_size, layer_num)
         self._set_layer_wise_attribute("cache_size", cache_size, layer_num)
         self._set_layer_wise_attribute("sep_cache_size", sep_cache_size, layer_num)
-        self._set_layer_wise_attribute("sep_exrange", 0, layer_num) # runtime right boundary for separators, excluded
-        self._set_layer_wise_attribute("max_sep_exidx", self._list_element_add(self.sep_cache_size, self.init_cache_size), layer_num) # max right boundary for separators, excluded
+        self._set_layer_wise_attribute("sep_exrange", 0, layer_num)  # runtime right boundary for separators, excluded
+        self._set_layer_wise_attribute("max_sep_exidx", self._list_element_add(self.sep_cache_size, self.init_cache_size), layer_num)  # max right boundary for separators, excluded
         self.SEP_ACCUMULATION = SEP_ACCUMULATION
         self.USE_MAX_SEP_CACHE = USE_MAX_SEP_CACHE
         self.SEP_PADDING_IN_BATCH = SEP_PADDING_IN_BATCH
-        
+
 
         ### For positional encoding shifting
         self.APPLY_PE_SHIFT = APPLY_PE_SHIFT
@@ -331,8 +333,8 @@ class SepCache(Cache):
 
         self.cos_sin_rerotation_cache = {}
         self._cos_cache = None
-        self._sin_cache = None        
-        self._shifted_position_ids: List[torch.Tensor] = _shifted_position_ids if _shifted_position_ids is not None else []        
+        self._sin_cache = None
+        self._shifted_position_ids: List[torch.Tensor] = _shifted_position_ids if _shifted_position_ids is not None else []
         self._rope_unsqueeze_dim = _rope_unsqueeze_dim
         self._rope_seq_dim = _rope_seq_dim        
 
@@ -349,17 +351,17 @@ class SepCache(Cache):
             assert isinstance(separator_token_ids, list), f"`separator_token_ids: List[int]` must be correctly provided for initialization unless `model_type` is properly given, which will auto-fiil `separator_token_ids`."
             assert len(separator_token_ids) > 0, f"`separator_token_ids: List[int]` should NOT be empty."
             for i in range(len(separator_token_ids)):
-                assert isinstance(separator_token_ids[i], int), f"The ids in `separator_token_ids` must be of the type `int`."  
+                assert isinstance(separator_token_ids[i], int), f"The ids in `separator_token_ids` must be of the type `int`."
             assert isinstance(PADDING_ID, int), f"`PADDING_ID: int` must be correctly provided for initialization unless `model_type` is properly given, which will auto-fiil `PADDING_ID`."
             self.separator_token_ids = separator_token_ids
-            self.PADDING_ID = PADDING_ID                               
+            self.PADDING_ID = PADDING_ID
         else:
             assert isinstance(model_type, str), f"`model_type` should be a `str` or `None`."
-            if 'llama' in  model_type.lower():
+            if 'llama' in model_type.lower():
                 # print("Debug: For Llama's default separators")
-                self.separator_token_ids = [128000, 13, 11, 30, 0, 26, 25, 198, 220, 662, 1174, 949, 758, 2652, 551, 720, 256,262] # llama3 8b
+                self.separator_token_ids = [128000, 13, 11, 30, 0, 26, 25, 198, 220, 662, 1174, 949, 758, 2652, 551, 720, 256, 262]  # llama3 8b
                 self.PADDING_ID = 128009
-            elif ( 'pythia' in model_type.lower() ) or ( 'gpt_neox' in model_type.lower() ):
+            elif ('pythia' in model_type.lower()) or ('gpt_neox' in model_type.lower()):
                 # print("Debug: For GPTNeox's default separators")
                 self.separator_token_ids = [15, 13, 32, 2, 28, 27, 209, 186, 187,    964, 1157, 3736, 2195, 3706, 1163, 2490,  50276,    586, 4928, 50275 ]       # pythia 14b
                 self.PADDING_ID = 0
