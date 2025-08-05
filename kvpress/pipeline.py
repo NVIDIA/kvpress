@@ -200,14 +200,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         with press(self.model) if press is not None else contextlib.nullcontext():
             # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
             kwargs = {}
-            kwargs['input_ids_4_sepllm'] = context_ids            
-            
+            kwargs["input_ids_4_sepllm"] = context_ids
+
             # We run the model without the lm head for pre-filling.
             self.model.model(
-                input_ids=context_ids,
-                past_key_values=cache,
-                output_attentions=self.output_attentions(press),
-                **kwargs
+                input_ids=context_ids, past_key_values=cache, output_attentions=self.output_attentions(press), **kwargs
             )
 
         logger.debug(f"Context Length: {context_length}")
@@ -273,7 +270,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
         kwargs = {}
-        kwargs['input_ids_4_sepllm'] = question_ids.to(self.model.device) 
+        kwargs["input_ids_4_sepllm"] = question_ids.to(self.model.device)
 
         # if the user doesn't provide a question, skip forward pass
         outputs = self.model(
@@ -281,7 +278,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             past_key_values=cache,
             position_ids=position_ids,
             num_logits_to_keep=1,
-            **kwargs
+            **kwargs,
         )
 
         position_ids = position_ids[:, -1:] + 1
@@ -294,13 +291,13 @@ class KVPressTextGenerationPipeline(Pipeline):
         for i in range(max_new_tokens - 1):
             # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
             kwargs = {}
-            kwargs['input_ids_4_sepllm'] = generated_ids[-1].unsqueeze(0).unsqueeze(0)
+            kwargs["input_ids_4_sepllm"] = generated_ids[-1].unsqueeze(0).unsqueeze(0)
 
             outputs = self.model(
                 input_ids=generated_ids[-1].unsqueeze(0).unsqueeze(0),
                 past_key_values=cache,
                 position_ids=position_ids + i,
-                **kwargs
+                **kwargs,
             )
             new_id = outputs.logits[0, -1].argmax()
             generated_ids.append(new_id)
