@@ -13,6 +13,7 @@ from kvpress import (
     PyramidKVPress,
     QFilterPress,
     RandomPress,
+    SepLLMTrainingFreePress,
     SimLayerKVPress,
     SnapKVPress,
     StreamingLLMPress,
@@ -37,6 +38,12 @@ default_presses = [
     {"cls": RandomPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": StreamingLLMPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": QFilterPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
+    {
+        "cls": SepLLMTrainingFreePress, 
+        "kwargs": [ {"compression_ratio": 0.2, "model_type": "llama", "separator_token_ids": (128000, 13, 11, 30, 0, 26, 25, 198, 220, 662, 1174, 949, 758, 2652, 551, 720, 256,262), "PADDING_ID": 128009}, 
+                    {"compression_ratio": 0.8, "model_type": "llama", "separator_token_ids": (128000, 13, 11, 30, 0, 26, 25, 198, 220, 662, 1174, 949, 758, 2652, 551, 720, 256,262), "PADDING_ID": 128009}                                      
+        ],
+    },    
     {
         "cls": SnapKVPress,
         "kwargs": [{"compression_ratio": 0.2, "window_size": 2}, {"compression_ratio": 0.8, "window_size": 2}],
