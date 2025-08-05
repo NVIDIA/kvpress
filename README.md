@@ -224,4 +224,4 @@ cd kvpress
 uv sync --extra eval
 ```
 
-Notice that optional dependecies can be combined. Installation with uv is editable by default, meaning that changes to local files are applied automatically.
+Notice that optional dependecies can be combined.
