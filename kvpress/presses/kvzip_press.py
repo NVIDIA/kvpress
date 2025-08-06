@@ -101,7 +101,10 @@ class KVzipPress(BasePress):
             dummy_context = "dummy context"
             separator = "\n" + "#" * len(dummy_context)
             temp_context = tokenizer.apply_chat_template(
-                [{"role": "user", "content": dummy_context + separator}], add_generation_prompt=True, tokenize=False
+                [{"role": "user", "content": dummy_context + separator}],
+                add_generation_prompt=True,
+                tokenize=False,
+                enable_thinking=False,
             )
             context, suffix_text = temp_context.split(separator)
             prefix_text = context.split(dummy_context)[0]

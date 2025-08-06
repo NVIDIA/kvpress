@@ -21,6 +21,12 @@ class KeyDiffPress(ScorerPress):
 
     Based on KeyDiff (https://arxiv.org/abs/2504.15364).
 
+    Note: The original press in the KeyDiff paper implements a block-wise iterative compression.
+    In KVPress, the iterative compression is implemented in the BlockPress class.
+    Therefore, to replicate the paper's implementation, please use:
+
+    `press = BlockPress(press=KeyDiffPress(compression_ratio=0.x), block_size=N)`
+
     Parameters
     ----------
     compression_ratio : float, default=0.0

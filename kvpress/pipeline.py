@@ -135,7 +135,10 @@ class KVPressTextGenerationPipeline(Pipeline):
         else:
             separator = "\n" + "#" * len(context)
             context = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": context + separator}], add_generation_prompt=True, tokenize=False
+                [{"role": "user", "content": context + separator}],
+                add_generation_prompt=True,
+                tokenize=False,
+                enable_thinking=False,
             )
             context, question_suffix = context.split(separator)
 
