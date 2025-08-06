@@ -13,7 +13,6 @@ from kvpress import ExpectedAttentionPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from tests.fixtures import danube_500m_model  # noqa: F401
 from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
-from tests.fixtures import kv_press_unit_test_pipeline, kv_press_llama3_2_flash_attn_pipeline  # noqa: F401
 from tests.fixtures import unit_test_model  # noqa: F401
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_unit_test_pipeline  # noqa: F401
 
