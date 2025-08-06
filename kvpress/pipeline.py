@@ -198,7 +198,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             cache = DynamicCache()
 
         with press(self.model) if press is not None else contextlib.nullcontext():
-            # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
+            # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094):
+            # pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
             kwargs = {}
             kwargs["input_ids_4_sepllm"] = context_ids
 
@@ -268,7 +269,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
 
-        # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
+        # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094):
+        # pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
         kwargs = {}
         kwargs["input_ids_4_sepllm"] = question_ids.to(self.model.device)
 
@@ -289,7 +291,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             should_stop_token_ids = [should_stop_token_ids]
 
         for i in range(max_new_tokens - 1):
-            # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
+            # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094):
+            # pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
             kwargs = {}
             kwargs["input_ids_4_sepllm"] = generated_ids[-1].unsqueeze(0).unsqueeze(0)
 

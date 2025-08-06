@@ -28,7 +28,8 @@ from tests.fixtures import unit_test_model, unit_test_model_output_attention  # 
 
 def _get_kwargs_for_trnfree_sepllm_press(input_ids):
     """
-    For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
+    For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094):
+    pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
     """
     kwargs = {}
     kwargs["input_ids_4_sepllm"] = input_ids
@@ -96,7 +97,9 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             input_ids = torch.randint(0, 1024, (1, 128))
             kwargs = _get_kwargs_for_trnfree_sepllm_press(
                 input_ids
-            )  # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094): pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
+            )
+            # For the training-free version of [SepLLM - ICML 2025 Paper](https://arxiv.org/abs/2412.12094):
+            # pass `input_ids` to the `forward` function of `XXXAttention` through `kwargs`.
             unit_test_model(input_ids, past_key_values=DynamicCache(), **kwargs).past_key_values
         # Check that the press has a compression_ratio attribute
         assert hasattr(press, "compression_ratio")
