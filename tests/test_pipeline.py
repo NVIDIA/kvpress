@@ -45,15 +45,24 @@ def test_pipeline_with_cache(kv_press_unit_test_pipeline):  # noqa: F811
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
-def test_pipeline_fa2(kv_press_llama3_2_flash_attn_pipeline):  # noqa: F811
+@pytest.mark.parametrize("compression_ratio", [0.0, 0.2, 0.4])
+def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):  # noqa: F811
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?"]
-    press = ExpectedAttentionPress(compression_ratio=0.4)
+    press = ExpectedAttentionPress(compression_ratio=compression_ratio)
     cache = DynamicCache()
     answers = kv_press_llama3_2_flash_attn_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
+
+    kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("sdpa")
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["When was this article written?"]
+    press = ExpectedAttentionPress(compression_ratio=compression_ratio)
+    cache = DynamicCache()
+    answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+    kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
 
 
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
