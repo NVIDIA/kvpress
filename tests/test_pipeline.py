@@ -6,8 +6,8 @@ import logging
 
 import pytest
 import torch
-from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache
-from transformers.utils import is_optimum_quanto_available
+from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache, pipeline
+from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
@@ -32,7 +32,7 @@ def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     assert "Compressed Context Length: 13" in messages, messages
 
 
-def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
+def test_pipeline_with_cache(kv_press_unit_test_pipeline):  # noqa: F811
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?"]
     press = ExpectedAttentionPress(compression_ratio=0.4)
@@ -40,6 +40,25 @@ def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     answers = kv_press_unit_test_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
+    assert isinstance(answers[0], str)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
+@pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
+def test_pipeline_fa2():  # noqa: F811
+    model_kwargs = dict(attn_implementation="flash_attention_2")
+    pipe = pipeline(
+        "kv-press-text-generation", model="meta-llama/Llama-3.2-1B-Instruct", device=0, model_kwargs=model_kwargs
+    )
+
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["When was this article written?"]
+    press = ExpectedAttentionPress(compression_ratio=0.4)
+    cache = DynamicCache()
+    answers = pipe(context, questions=questions, press=press, cache=cache)["answers"]
+
+    assert len(answers) == 1
+    print(answers)
     assert isinstance(answers[0], str)
 
 
