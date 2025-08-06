@@ -104,11 +104,19 @@ def collect_queries(
         collected_queries.append(torch.cat(captured_queries, dim=0)[:, :, n_sink:, :])
 
     if return_stats:
-        mean_query = torch.cat(collected_queries, dim=-2).mean(dim=-2)
-        cov_query = compute_query_covariance(collected_queries)
+        cat_queries = torch.cat(collected_queries, dim=-2)
+        mean_query = cat_queries.mean(dim=-2)
+        # compute covariance manually
+        centered_queries = cat_queries - mean_query.unsqueeze(-2)
+        N = cat_queries.shape[-2]
+        cov_query = (centered_queries.transpose(-2, -1) @ centered_queries) / (N - 1)
         return collected_queries, mean_query, cov_query
     else:
         return collected_queries
+
+# example cov for one layer
+# q = torch.matmul(h, Wq.T).view(bsz, h.shape[1], n, d)
+# cov = torch.einsum("bsni,bsnj->bnij", q, q) / h.shape[1]
 
 
 def compute_query_covariance(queries: list[torch.Tensor]) -> torch.Tensor:

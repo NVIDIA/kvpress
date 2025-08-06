@@ -71,7 +71,7 @@ class ExpectedAttentionPress(ScorerPress):
     mu: torch.Tensor = None  # (num_layers, num_heads, head_dim)
     cov: torch.Tensor = None  # (num_layers, num_heads, head_dim, head_dim)
 
-    use_stats: bool = True
+    use_stats: bool = False
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
@@ -108,11 +108,12 @@ class ExpectedAttentionPress(ScorerPress):
         mu = torch.matmul(mean_h, Wq.T).squeeze(1)
         mu = mu.view(bsz, n, d)
 
+        # h is shape (bsz, q_len, d)
         # Query covariance
         cov = None
         if self.use_covariance:
-            h = h - mean_h
-            cov = torch.matmul(h.transpose(1, 2), h) / h.shape[1]
+            h = h - mean_h 
+            cov = torch.matmul(h.transpose(1, 2), h) / h.shape[1] 
             cov = torch.matmul(Wq, torch.matmul(cov, Wq.T))  # TODO: not optimal
             cov = cov.view(bsz, n, d, n, d).diagonal(dim1=1, dim2=3)
             cov = cov.permute(0, 3, 1, 2)
