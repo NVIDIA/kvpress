@@ -24,7 +24,7 @@ cd kvpress
 uv sync --all-groups
 ```
 <details><summary>
-## Advanced installation settings
+Advanced installation settings
 </summary>
 
 To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
