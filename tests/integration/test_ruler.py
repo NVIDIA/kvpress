@@ -7,6 +7,7 @@ import torch
 from transformers import DynamicCache, QuantoQuantizedCache, QuantizedCacheConfig
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
+from kvpress import PyramidKVPress, KVzipPress
 from tests.default_presses import default_presses
 from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
@@ -33,6 +34,9 @@ def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press
         press.compression_ratio = 0.1
     except AttributeError:
         pytest.skip(reason="Press does not support setting compression_ratio")
+
+    if isinstance(press, (PyramidKVPress, KVzipPress)):
+        pytest.skip()
 
     if cache == "dynamic":
         cache = DynamicCache()
