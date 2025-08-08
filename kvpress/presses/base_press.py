@@ -131,23 +131,23 @@ class BasePress:
             return output
 
         if isinstance(cache, QuantizedCache):
-            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
-            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+            keys = cache.cache_processor._dequantize(cache.cache_processor._quantized_keys[module.layer_idx])
+            values = cache.cache_processor._dequantize(cache.cache_processor._quantized_values[module.layer_idx])
         else:
-            keys = cache.key_cache[module.layer_idx]
-            values = cache.value_cache[module.layer_idx]
+            keys = cache.layers[module.layer_idx].keys
+            values = cache.layers[module.layer_idx].values
 
         keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
-            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
-            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
-            cache.key_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache._seen_tokens = keys.shape[2]
+            cache.cache_processor._quantized_keys[module.layer_idx] = cache.cache_processor._quantize(keys, axis=cache.cache_processor.axis_key)
+            cache.cache_processor._quantized_values[module.layer_idx] = cache.cache_processor._quantize(values, axis=cache.cache_processor.axis_value)
+            cache.layers[module.layer_idx].keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)
+            cache.layers[module.layer_idx].values = torch.zeros(0, dtype=keys.dtype, device=keys.device)
+            cache.cache_processor.erased_length = keys.shape[2]
         else:
-            cache.key_cache[module.layer_idx] = keys
-            cache.value_cache[module.layer_idx] = values
+            cache.layers[module.layer_idx].keys = keys
+            cache.layers[module.layer_idx].values = values
 
         return output
 
