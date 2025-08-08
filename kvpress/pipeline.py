@@ -202,17 +202,17 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         context_kwargs = {
             'input_ids': context_ids,
-            'cache_position': cache_position,
-            'attention_mask': attention_mask,
-            'inputs_embeds': None,
+            #'cache_position': cache_position,
+            #'attention_mask': attention_mask,
+            #'inputs_embeds': None,
             'position_ids': torch.arange(context_length, device=self.model.device).unsqueeze(0),
             'past_key_values': cache,
             'logits_to_keep': 1,
-            'use_cache': True,
+            #'use_cache': True,
             'output_attentions': self.output_attentions(press),
         }
 
-        self.maybe_update_kwargs(context_kwargs, context_length, context_length)
+        #self.maybe_update_kwargs(context_kwargs, context_length, context_length)
 
         with press(self.model) if press is not None else contextlib.nullcontext():
             self.model(**context_kwargs)
