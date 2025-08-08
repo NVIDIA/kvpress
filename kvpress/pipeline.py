@@ -273,7 +273,8 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         model_kwargs = {
             'input_ids': input_ids,
-            'cache_position': torch.arange(cache.get_seq_length(), cache.get_seq_length() + question_length, device=self.model.device),
+            'cache_position': torch.arange(cache.get_seq_length(), cache.get_seq_length() + question_length,
+                                           device=self.model.device),
             'attention_mask': attention_mask,
             'position_ids': position_ids,
             'past_key_values': cache,
@@ -281,7 +282,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             'use_cache': True,
         }
 
-        self.maybe_update_kwargs(model_kwargs, question_length, cache.get_seq_length() + question_length)
+        self.maybe_update_kwargs(model_kwargs, question_length, cache.get_seq_length() + question_length + 1)
 
         # Initial forward pass
         outputs = self.model(**model_kwargs)
@@ -346,7 +347,26 @@ class KVPressTextGenerationPipeline(Pipeline):
         return {"answers": model_outputs}
 
     def maybe_update_kwargs(self, kwargs: dict, q_length: int, k_length: int) -> None:
-        """Update kwargs with flash attention specific parameters if flash attention is enabled."""
+        """
+        Update kwargs with flash attention specific parameters if flash attention is enabled.
+        Example input from model.generate greedy decoding loop after pre-filling:
+
+        kwargs = {
+         'cache_position': torch.tensor([8], device='cuda:0'),
+         'input_ids': torch.tensor([[12366]], device='cuda:0'),
+         "past_key_values": cache,
+         'inputs_embeds': None,
+         'position_ids': torch.tensor([[8]], device='cuda:0'),
+         'attention_mask': torch.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1]], device='cuda:0'),
+         'cu_seq_lens_q': torch.tensor([0, 1], device='cuda:0'),
+         'cu_seq_lens_k': torch.tensor([0, 9], device='cuda:0'),
+         'max_length_q': 1,
+         'max_length_k': 9,
+         'logits_to_keep': 1,
+         'use_cache': True
+         }
+
+        """
         if "flash" in self.model.config._attn_implementation and self.model._supports_attention_backend:
             kwargs.update({
                 'cu_seq_lens_q': torch.tensor([0, q_length], dtype=torch.int32, device=self.model.device),
@@ -354,17 +374,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 'max_length_q': q_length,
                 'max_length_k': k_length,
             })
-
-    def _update_kwargs_for_flash_attention(
-            self, model_kwargs: dict, cache_sequence_length: int, new_seq_len: int = 1
-    ) -> None:
-        """Update model kwargs with flash attention specific parameters."""
-        model_kwargs.update(
-            cu_seq_lens_q=torch.tensor([0, new_seq_len], dtype=torch.int32, device=self.model.device),
-            cu_seq_lens_k=torch.tensor([0, cache_sequence_length], dtype=torch.int32, device=self.model.device),
-            max_length_q=new_seq_len,
-            max_length_k=cache_sequence_length,
-        )
 
 
 PIPELINE_REGISTRY.register_pipeline(
