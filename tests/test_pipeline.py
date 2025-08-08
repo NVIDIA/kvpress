@@ -129,8 +129,44 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     values = [value.clone() for value in past_key_values.value_cache]
     compression_pipeline.generate_answer(input_ids_question, past_key_values, context_length=22, max_new_tokens=10)
     assert past_key_values.get_seq_length() == seq_len
+    assert past_key_values._seen_tokens == seq_len
     assert all([torch.allclose(key, new_key) for key, new_key in zip(keys, past_key_values.key_cache)])
     assert all([torch.allclose(value, new_value) for value, new_value in zip(values, past_key_values.value_cache)])
+
+
+@pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
+@torch.no_grad()
+def test_pipeline_quantized_cache_is_invariant(unit_test_model):  # noqa: F811
+    model = unit_test_model
+    questions = ["When was this article written?"]
+    tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+    compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=device)
+    input_ids_question = tokenizer(questions[0], return_tensors="pt", add_special_tokens=False)["input_ids"].to(
+        device
+    )
+
+    config = QuantizedCacheConfig(nbits=4)
+    past_key_values = model(
+        input_ids=torch.randint(0, 1000, (1, 256), device=device), past_key_values=QuantoQuantizedCache(config)
+    ).past_key_values
+    assert past_key_values.get_seq_length() == 256
+
+    keys = [key.clone() for key in past_key_values.key_cache]
+    values = [value.clone() for value in past_key_values.value_cache]
+    q_keys = [key.clone() for key in past_key_values._quantized_key_cache]
+    q_values = [value.clone() for value in past_key_values._quantized_value_cache]
+    compression_pipeline.generate_answer(input_ids_question, past_key_values, context_length=22, max_new_tokens=10)
+    assert past_key_values.get_seq_length() == 256
+    assert past_key_values._seen_tokens == 256
+    assert all(torch.allclose(key, new_key) for key, new_key in zip(keys, past_key_values.key_cache))
+    assert all(torch.allclose(value, new_value) for value, new_value in zip(values, past_key_values.value_cache))
+    assert all(torch.allclose(key, new_key) for key, new_key in zip(q_keys, past_key_values._quantized_key_cache))
+    assert all(
+        torch.allclose(value, new_value)
+        for value, new_value in zip(q_values, past_key_values._quantized_value_cache)
+    )
 
 
 def generate_answer(model):

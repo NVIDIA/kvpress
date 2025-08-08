@@ -312,6 +312,8 @@ class KVPressTextGenerationPipeline(Pipeline):
                 for layer_idx, sequence_length in enumerate(cache_seq_lengths)
             ]
 
+        cache._seen_tokens = cache_seq_lengths[0]
+
         return answer
 
 
