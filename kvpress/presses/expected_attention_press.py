@@ -92,10 +92,11 @@ class ExpectedAttentionPress(ScorerPress):
         cov = None
         if self.use_covariance:
             h = h - mean_h
-            cov = torch.matmul(h.transpose(1, 2), h) / h.shape[1]
-            cov = torch.matmul(Wq, torch.matmul(cov, Wq.T))  # TODO: not optimal
-            cov = cov.view(bsz, n, d, n, d).diagonal(dim1=1, dim2=3)
-            cov = cov.permute(0, 3, 1, 2)
+            q = torch.matmul(h, Wq.T).view(bsz, h.shape[1], n, d)
+            # Compute per-head query covariance directly in the projected space.
+            # This avoids forming an intermediate O((n * d)^2) covariance matrix
+            # for the full hidden states, reducing both memory and compute cost.
+            cov = torch.einsum("bsni,bsnj->bnij", q, q) / h.shape[1]
 
         # RoPE rotation matrix on next n_future_positions
         position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
