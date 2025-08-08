@@ -263,9 +263,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         input_ids = question_ids.to(self.model.device)
         question_length = question_ids.shape[1]
         # Prepare kwargs for initial question forward pass
-        cache_position = torch.arange(
-            context_length, context_length + question_length, device=self.model.device
-        )
+        cache_position = torch.arange(0, cache.get_seq_length(), device=self.model.device)
         position_ids = torch.arange(
             context_length, context_length + question_length, device=self.model.device
         ).unsqueeze(0)
@@ -276,7 +274,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         model_kwargs = {
             'input_ids': input_ids,
-            'cache_position': cache_position,
+            #'cache_position': cache_position,
             'attention_mask': attention_mask,
             'position_ids': position_ids,
             'past_key_values': cache,
@@ -302,7 +300,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
             model_kwargs = {
                 'input_ids': input_ids,
-                'cache_position': torch.tensor([current_position], device=self.model.device),
+                #'cache_position': torch.tensor([current_position], device=self.model.device),
                 'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
                 'position_ids': torch.tensor([[current_position]], device=self.model.device),
                 'past_key_values': cache,
