@@ -301,7 +301,7 @@ class KVPressTextGenerationPipeline(Pipeline):
                 'input_ids': input_ids,
                 'cache_position': torch.tensor([current_cache_length], device=self.model.device),
                 'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
-                'position_ids': torch.tensor([[current_cache_length]], device=self.model.device),
+                'position_ids': torch.tensor([[context_length + question_length + i]], device=self.model.device),
                 'past_key_values': cache,
                 'logits_to_keep': 1,
                 'use_cache': True,
