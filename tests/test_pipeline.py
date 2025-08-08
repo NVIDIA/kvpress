@@ -65,6 +65,7 @@ def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):
     kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
 
     assert answers_sdpa[0] == answers[0], f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
+    assert 1 ==0, f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
 
 
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
