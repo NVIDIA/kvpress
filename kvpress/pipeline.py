@@ -274,7 +274,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         model_kwargs = {
             'input_ids': input_ids,
-            #'cache_position': cache_position,
+            'cache_position': torch.arange(cache.get_seq_length(), cache.get_seq_length() + question_length, device=self.model.device),
             'attention_mask': attention_mask,
             'position_ids': position_ids,
             'past_key_values': cache,
@@ -295,14 +295,13 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         for i in range(max_new_tokens - 1):
             input_ids = generated_ids[-1].unsqueeze(0).unsqueeze(0)
-            current_position = context_length + question_length + i
             current_cache_length = cache.get_seq_length()
 
             model_kwargs = {
                 'input_ids': input_ids,
-                #'cache_position': torch.tensor([current_position], device=self.model.device),
+                'cache_position': torch.tensor([current_cache_length], device=self.model.device),
                 'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
-                'position_ids': torch.tensor([[current_position]], device=self.model.device),
+                'position_ids': torch.tensor([[current_cache_length]], device=self.model.device),
                 'past_key_values': cache,
                 'logits_to_keep': 1,
                 'use_cache': True,
@@ -362,8 +361,8 @@ class KVPressTextGenerationPipeline(Pipeline):
     ) -> None:
         """Update model kwargs with flash attention specific parameters."""
         model_kwargs.update(
-            cu_seq_lens_q=torch.tensor([0, new_seq_len], dtype=torch.int32, device=self.device),
-            cu_seq_lens_k=torch.tensor([0, cache_sequence_length], dtype=torch.int32, device=self.device),
+            cu_seq_lens_q=torch.tensor([0, new_seq_len], dtype=torch.int32, device=self.model.device),
+            cu_seq_lens_k=torch.tensor([0, cache_sequence_length], dtype=torch.int32, device=self.model.device),
             max_length_q=new_seq_len,
             max_length_k=cache_sequence_length,
         )
