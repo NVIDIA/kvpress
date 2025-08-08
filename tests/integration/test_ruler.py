@@ -23,15 +23,17 @@ def df_ruler():
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
-def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache):  # noqa: F811
+@pytest.mark.parametrize("compression_ratio", [0, 0.1])
+def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio):  # noqa: F811
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
     press = cls(**kwargs)
     if not hasattr(cls, "compression_ratio"):
         pytest.skip(reason="Press does not support compression_ratio")
-    # set compression ratio to a small value for testing
     try:
-        press.compression_ratio = 0.1
+        # set compression ratio to a small value for testing
+        # we don't want to max out compression, but rather test if cache compression works
+        press.compression_ratio = compression_ratio
     except AttributeError:
         pytest.skip(reason="Press does not support setting compression_ratio")
 
