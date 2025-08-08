@@ -262,8 +262,6 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         input_ids = question_ids.to(self.model.device)
         question_length = question_ids.shape[1]
-        cache_length = cache.get_seq_length()
-
         # Prepare kwargs for initial question forward pass
         cache_position = torch.arange(
             context_length, context_length + question_length, device=self.model.device
@@ -271,25 +269,26 @@ class KVPressTextGenerationPipeline(Pipeline):
         position_ids = torch.arange(
             context_length, context_length + question_length, device=self.model.device
         ).unsqueeze(0)
-        attention_mask = torch.ones(1, cache_length + question_length, device=self.model.device, dtype=torch.long)
+        attention_mask = torch.ones(1,
+                                    cache.get_seq_length() + question_length,
+                                    device=self.model.device,
+                                    dtype=torch.long)
 
         model_kwargs = {
             'input_ids': input_ids,
             'cache_position': cache_position,
             'attention_mask': attention_mask,
-            'inputs_embeds': None,
             'position_ids': position_ids,
             'past_key_values': cache,
             'logits_to_keep': 1,
             'use_cache': True,
         }
 
-        self.maybe_update_kwargs(model_kwargs, question_length, cache_length + question_length)
+        self.maybe_update_kwargs(model_kwargs, question_length, cache.get_seq_length() + question_length)
 
         # Initial forward pass
         outputs = self.model(**model_kwargs)
 
-        position_ids = position_ids[:, -1:] + 1
         generated_ids = [outputs.logits[0, -1].argmax()]
 
         should_stop_token_ids = self.model.generation_config.eos_token_id
@@ -305,7 +304,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 'input_ids': input_ids,
                 'cache_position': torch.tensor([current_position], device=self.model.device),
                 'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
-                'inputs_embeds': None,
                 'position_ids': torch.tensor([[current_position]], device=self.model.device),
                 'past_key_values': cache,
                 'logits_to_keep': 1,
