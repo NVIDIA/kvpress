@@ -172,8 +172,8 @@ class KVzipPress(BasePress):
             cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
             cache._seen_tokens = keys.shape[2]
         else:
-            cache.key_cache[module.layer_idx] = keys
-            cache.value_cache[module.layer_idx] = values
+            cache.layers[module.layer_idx].keys = keys
+            cache.layers[module.layer_idx].values = values
 
         return output
 
