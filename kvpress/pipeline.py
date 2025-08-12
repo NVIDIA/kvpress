@@ -259,34 +259,19 @@ class KVPressTextGenerationPipeline(Pipeline):
             The generated answer.
         """
         cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
-
-        input_ids = question_ids.to(self.model.device)
-        question_length = question_ids.shape[1]
-        # Prepare kwargs for initial question forward pass
         position_ids = torch.arange(
-            context_length, context_length + question_length, device=self.model.device
+            context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
-        attention_mask = torch.ones(1,
-                                    cache.get_seq_length() + question_length,
-                                    device=self.model.device,
-                                    dtype=torch.long)
 
-        model_kwargs = {
-            'input_ids': input_ids,
-            # 'cache_position': torch.arange(cache.get_seq_length(), cache.get_seq_length() + question_length,
-            #                                device=self.model.device),
-            # 'attention_mask': attention_mask,
-            'position_ids': position_ids,
-            'past_key_values': cache,
-            'logits_to_keep': 1,
-            'use_cache': True,
-        }
+        # if the user doesn't provide a question, skip forward pass
+        outputs = self.model(
+            input_ids=question_ids.to(self.model.device),
+            past_key_values=cache,
+            position_ids=position_ids,
+            num_logits_to_keep=1,
+        )
 
-        self.maybe_update_kwargs(model_kwargs, question_length, cache.get_seq_length() + question_length + 1)
-
-        # Initial forward pass
-        outputs = self.model(**model_kwargs)
-
+        position_ids = position_ids[:, -1:] + 1
         generated_ids = [outputs.logits[0, -1].argmax()]
 
         should_stop_token_ids = self.model.generation_config.eos_token_id
@@ -294,28 +279,16 @@ class KVPressTextGenerationPipeline(Pipeline):
             should_stop_token_ids = [should_stop_token_ids]
 
         for i in range(max_new_tokens - 1):
-            input_ids = generated_ids[-1].unsqueeze(0).unsqueeze(0)
-            current_cache_length = cache.get_seq_length()
-
-            model_kwargs = {
-                'input_ids': input_ids,
-                # 'cache_position': torch.tensor([current_cache_length], device=self.model.device),
-                # 'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
-                'position_ids': torch.tensor([[context_length + question_length + i]], device=self.model.device),
-                'past_key_values': cache,
-                'logits_to_keep': 1,
-                'use_cache': True,
-            }
-
-            self.maybe_update_kwargs(model_kwargs, 1, current_cache_length + 1)
-
-            outputs = self.model(**model_kwargs)
+            outputs = self.model(
+                input_ids=generated_ids[-1].unsqueeze(0).unsqueeze(0),
+                past_key_values=cache,
+                position_ids=position_ids + i,
+            )
             new_id = outputs.logits[0, -1].argmax()
             generated_ids.append(new_id)
             if new_id.item() in should_stop_token_ids:
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-
         # Remove the generated tokens from the cache
         for layer_idx, sequence_length in enumerate(cache_seq_lengths):
             cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
