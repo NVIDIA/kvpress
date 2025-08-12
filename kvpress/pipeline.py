@@ -202,13 +202,13 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         context_kwargs = {
             'input_ids': context_ids,
-            #'cache_position': cache_position,
-            #'attention_mask': attention_mask,
+            'cache_position': cache_position,
+            'attention_mask': attention_mask,
             #'inputs_embeds': None,
             'position_ids': torch.arange(context_length, device=self.model.device).unsqueeze(0),
             'past_key_values': cache,
             'logits_to_keep': 1,
-            #'use_cache': True,
+            'use_cache': True,
             'output_attentions': self.output_attentions(press),
         }
 
@@ -273,9 +273,9 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         model_kwargs = {
             'input_ids': input_ids,
-            'cache_position': torch.arange(cache.get_seq_length(), cache.get_seq_length() + question_length,
-                                           device=self.model.device),
-            'attention_mask': attention_mask,
+            # 'cache_position': torch.arange(cache.get_seq_length(), cache.get_seq_length() + question_length,
+            #                                device=self.model.device),
+            # 'attention_mask': attention_mask,
             'position_ids': position_ids,
             'past_key_values': cache,
             'logits_to_keep': 1,
@@ -299,8 +299,8 @@ class KVPressTextGenerationPipeline(Pipeline):
 
             model_kwargs = {
                 'input_ids': input_ids,
-                'cache_position': torch.tensor([current_cache_length], device=self.model.device),
-                'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
+                # 'cache_position': torch.tensor([current_cache_length], device=self.model.device),
+                # 'attention_mask': torch.ones(1, current_cache_length + 1, device=self.model.device, dtype=torch.long),
                 'position_ids': torch.tensor([[context_length + question_length + i]], device=self.model.device),
                 'past_key_values': cache,
                 'logits_to_keep': 1,
@@ -335,7 +335,7 @@ class KVPressTextGenerationPipeline(Pipeline):
     def output_attentions(self, press: BasePress):
         if isinstance(press, ObservedAttentionPress):
             return True
-        if isinstance(press, (KeyRerotationPress, PerLayerCompressionPress)) and isinstance(
+        if hasattr(press, "press") and isinstance(
                 press.press, ObservedAttentionPress
         ):
             return True
@@ -367,6 +367,7 @@ class KVPressTextGenerationPipeline(Pipeline):
          }
 
         """
+        return
         if "flash" in self.model.config._attn_implementation and self.model._supports_attention_backend:
             kwargs.update({
                 'cu_seq_lens_q': torch.tensor([0, q_length], dtype=torch.int32, device=self.model.device),
