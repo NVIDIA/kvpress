@@ -73,7 +73,7 @@ def test_ruler_is_correct_layerwise_presses(
     try:
         press.compression_ratio = 0.1
     except AttributeError:
-        pytest.skip(reason="Press does not support setting compression_ratio")
+        pytest.skip(reason=f"Press {cls.__name__} does not support setting compression_ratio")
 
     if not isinstance(press, (PyramidKVPress, KVzipPress)):
         pytest.skip()
@@ -83,7 +83,7 @@ def test_ruler_is_correct_layerwise_presses(
     elif cache == "quantized" and is_optimum_quanto_available():
         cache = QuantoQuantizedCache(nbits=4)
     elif cache == "quantized" and not is_optimum_quanto_available():
-        pytest.skip("Quanto is not installed")
+        pytest.skip("Quanto is not installed - skipping quantized cache test")
     else:
         raise ValueError(f"Unknown cache type: {cache}")
 
