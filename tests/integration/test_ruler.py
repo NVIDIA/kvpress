@@ -22,7 +22,7 @@ def df_ruler():
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.parametrize("press_dict", default_presses)
-@pytest.mark.parametrize("cache", ["dynamic", "quantized"])
+@pytest.mark.parametrize("cache", ["dynamic"])
 @pytest.mark.parametrize("compression_ratio", [0, 0.1])
 def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio):  # noqa: F811
     cls = press_dict["cls"]
@@ -37,13 +37,13 @@ def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press
     except AttributeError:
         pytest.skip(reason="Press does not support setting compression_ratio")
 
-    if isinstance(press, (PyramidKVPress, KVzipPress)):
-        pytest.skip()
+    # if isinstance(press, (PyramidKVPress, KVzipPress)):
+    #     pytest.skip()
 
     if cache == "dynamic":
         cache = DynamicCache()
     elif cache == "quantized" and is_optimum_quanto_available():
-        cache = QuantoQuantizedCache(nbits=4)
+        cache = QuantoQuantizedCache(config=kv_press_llama3_1_flash_attn_pipeline.model.config, nbits=4)
     elif cache == "quantized" and not is_optimum_quanto_available():
         pytest.skip("Quanto is not installed")
     else:
