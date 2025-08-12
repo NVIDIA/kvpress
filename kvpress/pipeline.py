@@ -208,9 +208,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         logger.debug(f"Context Length: {context_length}")
         logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
-        logger.debug(f"Context Length: {context_length}")
-        logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
-
         # Greedy decoding for each question
         answers = []
         for question_ids in input_tensors["questions_ids"]:
