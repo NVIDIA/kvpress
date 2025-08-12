@@ -39,9 +39,6 @@ def test_ruler_is_correct(
     except AttributeError:
         pytest.skip(reason="Press does not support setting compression_ratio")
 
-    # if isinstance(press, (PyramidKVPress, KVzipPress)):
-    #     pytest.skip()
-
     if cache == "dynamic":
         cache = DynamicCache()
     elif cache == "quantized" and is_optimum_quanto_available():
