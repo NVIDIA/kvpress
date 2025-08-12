@@ -39,7 +39,9 @@ class ObservedAttentionPress(ScorerPress):
 
     def __post_init__(self):
         if not self.output_attentions:
-            raise ValueError("ObservedAttentionPress requires output_attentions=True")
+            # keep for backward compatibility, remove in version 1.0
+            raise ValueError("With transformers >= 4.54, "
+                             "ObservedAttentionPress will only work with output_attentions=True")
 
     def score(
         self,
