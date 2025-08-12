@@ -193,26 +193,17 @@ class KVPressTextGenerationPipeline(Pipeline):
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
 
+        # Prefilling using the press on the context
         if cache is None:
             cache = DynamicCache()
 
-        # Prepare kwargs for context pre-filling
-        cache_position = torch.arange(context_length, device=self.model.device)
-        attention_mask = torch.ones(1, context_length, device=self.model.device, dtype=torch.long)
-
-        context_kwargs = {
-            'input_ids': context_ids,
-            'cache_position': cache_position,
-            'attention_mask': attention_mask,
-            'position_ids': torch.arange(context_length, device=self.model.device).unsqueeze(0),
-            'past_key_values': cache,
-            'logits_to_keep': 1,
-            'use_cache': True,
-            'output_attentions': self.output_attentions(press),
-        }
-
         with press(self.model) if press is not None else contextlib.nullcontext():
-            self.model(**context_kwargs)
+            # We run the model without the lm head for pre-filling.
+            self.model.model(
+                input_ids=context_ids,
+                past_key_values=cache,
+                output_attentions=self.output_attentions(press),
+            )
 
         logger.debug(f"Context Length: {context_length}")
         logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
