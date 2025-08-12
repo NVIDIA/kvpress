@@ -7,7 +7,7 @@ import torch
 from transformers import DynamicCache, QuantoQuantizedCache, QuantizedCacheConfig
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
-from kvpress import PyramidKVPress, KVzipPress
+from kvpress import KVzipPress, PyramidKVPress
 from tests.default_presses import default_presses
 from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
@@ -24,7 +24,9 @@ def df_ruler():
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize("cache", ["dynamic"])
 @pytest.mark.parametrize("compression_ratio", [0, 0.1])
-def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio):  # noqa: F811
+def test_ruler_is_correct(
+    kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio
+):  # noqa: F811
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
     press = cls(**kwargs)
@@ -62,8 +64,9 @@ def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
-def test_ruler_is_correct_layerwise_presses(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict,
-                                            cache):  # noqa: F811
+def test_ruler_is_correct_layerwise_presses(
+    kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache
+):  # noqa: F811
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
     press = cls(**kwargs)

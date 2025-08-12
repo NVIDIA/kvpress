@@ -51,8 +51,9 @@ def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):
     questions = ["Repeat the last sentence"]
     press = ExpectedAttentionPress(compression_ratio=compression_ratio)
     cache = DynamicCache()
-    answers = kv_press_llama3_2_flash_attn_pipeline(context, questions=questions, press=press, cache=cache,
-                                                    max_new_tokens=100)["answers"]
+    answers = kv_press_llama3_2_flash_attn_pipeline(
+        context, questions=questions, press=press, cache=cache, max_new_tokens=100
+    )["answers"]
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
@@ -60,12 +61,16 @@ def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):
     kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("sdpa")
     press = ExpectedAttentionPress(compression_ratio=compression_ratio)
     cache = DynamicCache()
-    answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(context, questions=questions, press=press, cache=cache,
-                                                         max_new_tokens=100)["answers"]
+    answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(
+        context, questions=questions, press=press, cache=cache, max_new_tokens=100
+    )["answers"]
     kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
 
-    assert answers_sdpa[0] == answers[0], f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
+    assert (
+        answers_sdpa[0] == answers[0]
+    ), f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
     assert "This is a test" in answers[0], f"The answer should contain the context sentence, but got {answers[0]}."
+
 
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
 def test_pipeline_single_or_no_question(kv_press_unit_test_pipeline, question, caplog):  # noqa: F811
