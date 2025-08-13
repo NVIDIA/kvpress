@@ -6,7 +6,7 @@ import logging
 
 import pytest
 import torch
-from transformers import AutoTokenizer, DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
+from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache
 from transformers.utils import is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
@@ -82,8 +82,7 @@ def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noq
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        config = QuantizedCacheConfig(nbits=4)
-        cache = QuantoQuantizedCache(config)
+        cache = QuantoQuantizedCache(nbits=4)
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
