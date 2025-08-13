@@ -224,4 +224,4 @@ cd kvpress
 uv sync --extra eval
 ```
 
-Notice that optional dependecies can be combined.
+Notice that optional dependencies can be combined.
