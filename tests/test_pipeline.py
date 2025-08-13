@@ -6,7 +6,7 @@ import logging
 
 import pytest
 import torch
-from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache, pipeline
+from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
