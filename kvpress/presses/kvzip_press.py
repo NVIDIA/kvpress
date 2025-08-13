@@ -101,7 +101,10 @@ class KVzipPress(BasePress):
             dummy_context = "dummy context"
             separator = "\n" + "#" * len(dummy_context)
             temp_context = tokenizer.apply_chat_template(
-                [{"role": "user", "content": dummy_context + separator}], add_generation_prompt=True, tokenize=False
+                [{"role": "user", "content": dummy_context + separator}],
+                add_generation_prompt=True,
+                tokenize=False,
+                enable_thinking=False,
             )
             context, suffix_text = temp_context.split(separator)
             prefix_text = context.split(dummy_context)[0]
@@ -148,14 +151,14 @@ class KVzipPress(BasePress):
         """
 
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_value"]
+        cache = kwargs["past_key_values"]
 
         if isinstance(cache, QuantizedCache):
             keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])  # type: ignore[attr-defined]
             values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])  # type: ignore[attr-defined]
         else:
-            keys = cache.key_cache[module.layer_idx]
-            values = cache.value_cache[module.layer_idx]
+            keys = cache.layers[module.layer_idx].keys
+            values = cache.layers[module.layer_idx].values
 
         # Compute importance scores for KV pairs in the prefilled context,
         # retaining only the originally prefilled KV pairs.
@@ -169,8 +172,8 @@ class KVzipPress(BasePress):
             cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
             cache._seen_tokens = keys.shape[2]
         else:
-            cache.key_cache[module.layer_idx] = keys
-            cache.value_cache[module.layer_idx] = values
+            cache.layers[module.layer_idx].keys = keys
+            cache.layers[module.layer_idx].values = values
 
         return output
 

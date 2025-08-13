@@ -43,19 +43,19 @@ def test_block_press_is_streaming_top_k(unit_test_model):  # noqa: F811
             cache = DynamicCache()
             unit_test_model(input_ids, past_key_values=cache).past_key_values
             assert cache.get_seq_length() == 128
-            keys = cache.key_cache
-            values = cache.value_cache
-            keys_hash.append(torch.cat(keys).sum().item())
-            values_hash.append(torch.cat(values).sum().item())
+            keys = torch.cat([cache.layers[layer_idx].keys for layer_idx in range(len(cache.layers))])
+            values = torch.cat([cache.layers[layer_idx].values for layer_idx in range(len(cache.layers))])
+            keys_hash.append(keys.sum().item())
+            values_hash.append(values.sum().item())
 
     with press(unit_test_model):
         cache = DynamicCache()
         unit_test_model(input_ids, past_key_values=cache).past_key_values
         assert cache.get_seq_length() == 128
-        keys = cache.key_cache
-        values = cache.value_cache
-        keys_hash.append(torch.cat(keys).sum().item())
-        values_hash.append(torch.cat(values).sum().item())
+        keys = torch.cat([cache.layers[layer_idx].keys for layer_idx in range(len(cache.layers))])
+        values = torch.cat([cache.layers[layer_idx].values for layer_idx in range(len(cache.layers))])
+        keys_hash.append(keys.sum().item())
+        values_hash.append(values.sum().item())
 
     keys_tensor = torch.tensor(keys_hash)
     values_tensor = torch.tensor(values_hash)

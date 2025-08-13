@@ -6,15 +6,15 @@ import logging
 
 import pytest
 import torch
-from transformers import AutoTokenizer, DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
-from transformers.utils import is_optimum_quanto_available
+from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache, pipeline
+from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from tests.fixtures import danube_500m_model  # noqa: F401
 from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
-from tests.fixtures import kv_press_unit_test_pipeline  # noqa: F401
 from tests.fixtures import unit_test_model  # noqa: F401
+from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_unit_test_pipeline  # noqa: F401
 
 
 def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
@@ -32,7 +32,7 @@ def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     assert "Compressed Context Length: 13" in messages, messages
 
 
-def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
+def test_pipeline_with_cache(kv_press_unit_test_pipeline):  # noqa: F811
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?"]
     press = ExpectedAttentionPress(compression_ratio=0.4)
@@ -41,6 +41,35 @@ def test_pipeline_with_cache(kv_press_unit_test_pipeline, caplog):  # noqa: F811
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
+@pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
+@pytest.mark.parametrize("compression_ratio", [0.0, 0.2, 0.4])
+def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):  # noqa: F811
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["Repeat the last sentence"]
+    press = ExpectedAttentionPress(compression_ratio=compression_ratio)
+    cache = DynamicCache()
+    answers = kv_press_llama3_2_flash_attn_pipeline(
+        context, questions=questions, press=press, cache=cache, max_new_tokens=100
+    )["answers"]
+
+    assert len(answers) == 1
+    assert isinstance(answers[0], str)
+
+    kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("sdpa")
+    press = ExpectedAttentionPress(compression_ratio=compression_ratio)
+    cache = DynamicCache()
+    answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(
+        context, questions=questions, press=press, cache=cache, max_new_tokens=100
+    )["answers"]
+    kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
+
+    assert (
+        answers_sdpa[0] == answers[0]
+    ), f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
+    assert "This is a test" in answers[0], f"The answer should contain the context sentence, but got {answers[0]}."
 
 
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
@@ -82,8 +111,7 @@ def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noq
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        config = QuantizedCacheConfig(nbits=4)
-        cache = QuantoQuantizedCache(config)
+        cache = QuantoQuantizedCache(nbits=4)
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1

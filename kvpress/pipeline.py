@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -38,15 +38,15 @@ class KVPressTextGenerationPipeline(Pipeline):
     """
 
     def _sanitize_parameters(
-        self,
-        question: Optional[str] = None,
-        questions: Optional[list[str]] = None,
-        answer_prefix: Optional[str] = None,
-        press: Optional[BasePress] = None,
-        max_new_tokens: int = 50,
-        max_context_length: Optional[int] = None,
-        cache: Optional[Cache] = None,
-        **kwargs,
+            self,
+            question: Optional[str] = None,
+            questions: Optional[list[str]] = None,
+            answer_prefix: Optional[str] = None,
+            press: Optional[BasePress] = None,
+            max_new_tokens: int = 50,
+            max_context_length: Optional[int] = None,
+            cache: Optional[Cache] = None,
+            **kwargs,
     ):
         """
         Sanitize the input parameters for the pipeline.
@@ -99,11 +99,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
 
     def preprocess(
-        self,
-        context: str,
-        questions: list[str],
-        answer_prefix: str,
-        max_context_length: int,
+            self,
+            context: str,
+            questions: list[str],
+            answer_prefix: str,
+            max_context_length: int,
     ):
         """
         Apply chat template and tokenize the context and questions.
@@ -164,11 +164,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         return {"context_ids": context_ids, "questions_ids": question_ids}
 
     def _forward(
-        self,
-        input_tensors: dict[str, GenericTensor],
-        max_new_tokens: int = 50,
-        press: Optional[BasePress] = None,
-        cache: Optional[Cache] = None,
+            self,
+            input_tensors: dict[str, GenericTensor],
+            max_new_tokens: int = 50,
+            press: Optional[BasePress] = None,
+            cache: Optional[Cache] = None,
     ):
         """
         Execute KV cache compression and text generation pipeline.
@@ -234,22 +234,8 @@ class KVPressTextGenerationPipeline(Pipeline):
                 answers.append(answer)
         return answers
 
-    def output_attentions(self, press: BasePress):
-        if isinstance(press, ObservedAttentionPress):
-            return True
-        if isinstance(press, (KeyRerotationPress, PerLayerCompressionPress)) and isinstance(
-            press.press, ObservedAttentionPress
-        ):
-            return True
-        return False
-
-    def postprocess(self, model_outputs, single_question):
-        if single_question:
-            return {"answer": model_outputs[0]}
-        return {"answers": model_outputs}
-
     def generate_answer(
-        self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
+            self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
     ) -> str:
         """
         Generate an answer to a question using greedy decoding.
@@ -270,7 +256,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         str
             The generated answer.
         """
-
+        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -302,34 +288,36 @@ class KVPressTextGenerationPipeline(Pipeline):
                 break
 
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
+        # Remove the generated tokens from the cache
+        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
+            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
+
+        if isinstance(cache, QuantizedCache):
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+                cache.cache_processor._quantized_keys[layer_idx] = cache.cache_processor._quantized_keys[layer_idx][
+                                                                   :, :, :sequence_length
+                                                                   ]
+                cache.cache_processor._quantized_values[layer_idx] = cache.cache_processor._quantized_values[layer_idx][
+                                                                     :, :, :sequence_length
+                                                                     ]
 
         return answer
 
-    def remove_answer_from_cache(self, cache, cache_seq_lengths):
-        """
-        Remove the generated tokens from the cache
-        This is needed if multiple answers are generated
-        as the cache is shared between the forward passes.
-        Note that for compression during decoding, we do not allow multiple questions;
-        thus this method is not called
-        """
-        cache.key_cache = [
-            cache.key_cache[layer_idx][:, :, :sequence_length]
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-        ]
-        cache.value_cache = [
-            cache.value_cache[layer_idx][:, :, :sequence_length]
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-        ]
-        if hasattr(cache, "_quantized_key_cache"):
-            cache._quantized_key_cache = [
-                cache._quantized_key_cache[layer_idx][:, :, :sequence_length]
-                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-            ]
-            cache._quantized_value_cache = [
-                cache._quantized_value_cache[layer_idx][:, :, :sequence_length]
-                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-            ]
+    def output_attentions(self, press: BasePress):
+        if isinstance(press, ObservedAttentionPress):
+            return True
+        if hasattr(press, "press") and isinstance(
+                press.press, ObservedAttentionPress
+        ):
+            return True
+        return False
+
+    def postprocess(self, model_outputs, single_question):
+        if single_question:
+            return {"answer": model_outputs[0]}
+        return {"answers": model_outputs}
+
 
 
 PIPELINE_REGISTRY.register_pipeline(
