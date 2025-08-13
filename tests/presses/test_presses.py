@@ -57,6 +57,16 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
             assert cache.get_seq_length() == 128
 
 
+def test_cache_length_matches_key_shape(unit_test_model):  # noqa: F811
+    """Ensure cache.get_seq_length reflects the compressed key length."""
+    press = KnormPress(compression_ratio=0.5)
+    cache = DynamicCache()
+    with press(unit_test_model):
+        input_ids = torch.randint(0, 1024, (1, 256))
+        unit_test_model(input_ids, past_key_values=cache)
+    assert cache.get_seq_length() == cache.key_cache[0].shape[2]
+
+
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize(
     "wrapper_press",
