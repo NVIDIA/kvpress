@@ -79,6 +79,7 @@ def attention_patch(func):
             key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
 
         # see https://github.com/NVIDIA/kvpress/pull/115#issuecomment-3183785597
+        # test_fa_works will fail if we don't update cu_seq_lens_k
         if "cu_seq_lens_k" in kwargs:
             kwargs["cu_seq_lens_k"][-1] = key.shape[-2]
         return func(module, query, key, value, attention_mask, dropout, **kwargs)

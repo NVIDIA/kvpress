@@ -12,7 +12,7 @@ from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
-def test_fa(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
+def test_fa_works(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
     # test if fa2 runs, see https://github.com/huggingface/transformers/releases/tag/v4.55.2
     # and https://github.com/NVIDIA/kvpress/pull/115
     model = kv_press_llama3_1_flash_attn_pipeline.model

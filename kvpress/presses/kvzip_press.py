@@ -118,7 +118,7 @@ class KVzipPress(BasePress):
 
         def wrapped_forward(model_self, *args, **kwargs):
             self._context_ids = kwargs["input_ids"]
-            self._cache = kwargs["past_key_value"]
+            self._cache = kwargs["past_key_values"]
             return original_forward(*args, **kwargs)
 
         model.model.forward = MethodType(wrapped_forward, model.model)
