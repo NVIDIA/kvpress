@@ -1,16 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
-import os
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import pytest
+import torch
+from transformers import AutoTokenizer
+from transformers.utils import is_flash_attn_2_available
+
 from kvpress import KnormPress
+from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
-ckpt = "meta-llama/Meta-Llama-3-8B-Instruct"
-device = "cuda"
 
-model = AutoModelForCausalLM.from_pretrained(ckpt, torch_dtype="auto").to(device)
-model.set_attn_implementation("flash_attention_2")
-tok = AutoTokenizer.from_pretrained(ckpt)
-inputs = tok("Hello, how are you? bla bla how are you? this is some text lala ddd", return_tensors="pt").to(device)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
+@pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
+def test_fa(kv_press_llama3_1_flash_attn_pipeline):  # noqa: F811
+    # test if fa2 runs, see https://github.com/huggingface/transformers/releases/tag/v4.55.2
+    # and https://github.com/NVIDIA/kvpress/pull/115
+    model = kv_press_llama3_1_flash_attn_pipeline.model
+    tok = AutoTokenizer.from_pretrained("h2oai/h2o-danube3-500m-chat")
+    inputs = tok("Hello, how are you? bla bla how are you? this is some text lala ddd", return_tensors="pt").to(
+        model.device
+    )
 
-with KnormPress(0.8)(model):
-    outputs = model.generate(**inputs, max_new_tokens=10, do_sample=False)
+    with KnormPress(0.8)(model):
+        model.generate(**inputs, max_new_tokens=10, do_sample=False)
