@@ -118,7 +118,7 @@ class KVzipPress(BasePress):
 
         def wrapped_forward(model_self, *args, **kwargs):
             self._context_ids = kwargs["input_ids"]
-            self._cache = kwargs["past_key_values"]
+            self._cache = kwargs["past_key_value"]
             return original_forward(*args, **kwargs)
 
         model.model.forward = MethodType(wrapped_forward, model.model)
@@ -151,7 +151,7 @@ class KVzipPress(BasePress):
         """
 
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_values"]
+        cache = kwargs["past_key_value"]
 
         if isinstance(cache, QuantizedCache):
             keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])  # type: ignore[attr-defined]
