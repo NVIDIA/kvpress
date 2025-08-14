@@ -23,6 +23,27 @@ git clone https://github.com/NVIDIA/kvpress.git
 cd kvpress
 uv sync --all-groups
 ```
+<details><summary>
+Advanced installation settings
+</summary>
+
+To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
+To install with flash attention, just run:
+
+```bash
+git clone https://github.com/NVIDIA/kvpress.git
+cd kvpress
+uv sync --extra flash-attn
+```
+
+To install with dependencies for evaluation, run 
+
+```bash
+git clone https://github.com/NVIDIA/kvpress.git
+cd kvpress
+uv sync --extra eval
+```
+</details>
 
 ## Usage
 
@@ -204,24 +225,3 @@ with press(model):
 However, the `generate` method does not allow to exclude the question from the compression, which would artificially favors methods such as SnapKV. Ideally, we want a compression method that works whatever comes after the context (_e.g._ for use cases such as chat or document question answering). Finally the `generate` method does not allow to provide generation for multiple questions at once.
 
 </details>
-
-
-## Advanced installation settings
-To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
-To install with flash attention, just run:
-
-```bash
-git clone https://github.com/NVIDIA/kvpress.git
-cd kvpress
-uv sync --extra flash-attn
-```
-
-To install with dependencies for evaluation, run 
-
-```bash
-git clone https://github.com/NVIDIA/kvpress.git
-cd kvpress
-uv sync --extra eval
-```
-
-Notice that optional dependecies can be combined.
