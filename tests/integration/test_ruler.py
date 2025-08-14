@@ -42,7 +42,7 @@ def test_ruler_is_correct(
     if cache == "dynamic":
         cache = DynamicCache()
     elif cache == "quantized" and is_optimum_quanto_available():
-        cache = QuantoQuantizedCache(nbits=4)
+        cache = QuantoQuantizedCache(config=kv_press_llama3_1_flash_attn_pipeline.model.config, nbits=4)
     elif cache == "quantized" and not is_optimum_quanto_available():
         pytest.skip("Quanto is not installed")
     else:

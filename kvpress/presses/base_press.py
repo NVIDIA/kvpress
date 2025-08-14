@@ -123,7 +123,7 @@ class BasePress:
         """
 
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_value"]
+        cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
@@ -145,11 +145,11 @@ class BasePress:
         keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
-            cache.cache_processor._quantized_keys[module.layer_idx] = cache.cache_processor._quantize(
-                keys, axis=cache.cache_processor.axis_key
+            cache.layers[module.layer_idx]._quantized_keys = cache.layers[module.layer_idx]._quantize(
+                keys, axis=cache.layers[module.layer_idx].axis_key
             )
-            cache.cache_processor._quantized_values[module.layer_idx] = cache.cache_processor._quantize(
-                values, axis=cache.cache_processor.axis_value
+            cache.layers[module.layer_idx]._quantized_values = cache.layers[module.layer_idx]._quantize(
+                values, axis=cache.layers[module.layer_idx].axis_value
             )
             cache.layers[module.layer_idx].keys = torch.zeros(  # type: ignore[index]
                 0, dtype=keys.dtype, device=keys.device
@@ -157,7 +157,7 @@ class BasePress:
             cache.layers[module.layer_idx].values = torch.zeros(  # type: ignore[index]
                 0, dtype=keys.dtype, device=keys.device
             )
-            cache.cache_processor.erased_length = keys.shape[2]
+            cache.cumulative_length = keys.shape[2]
         else:
             cache.layers[module.layer_idx].keys = keys
             cache.layers[module.layer_idx].values = values

@@ -286,7 +286,7 @@ class KVPressTextGenerationPipeline(Pipeline):
                 cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
                     :, :, :sequence_length
                 ]
-                cache.cache_processor._quantized_values[layer_idx] = cache.cache_processor._quantized_values[layer_idx][
+                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
                     :, :, :sequence_length
                 ]
 
