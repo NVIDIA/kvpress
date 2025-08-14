@@ -182,7 +182,7 @@ class KVzipPress(BasePress):
             cache.layers[module.layer_idx].values = torch.zeros(  # type: ignore[index]
                 0, dtype=keys.dtype, device=keys.device
             )
-            cache.cumulative_length = keys.shape[2]
+            cache.layers[module.layer_idx].cumulative_length = keys.shape[2]
         else:
             cache.layers[module.layer_idx].keys = keys
             cache.layers[module.layer_idx].values = values
