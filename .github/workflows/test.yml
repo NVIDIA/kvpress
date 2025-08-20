@@ -2,8 +2,8 @@ name: Test
 
 on:
   push:
-      branches: [ main ]
-  pull_request:
+    branches:
+      - "pull-request/[0-9]+"
 
 jobs:
   test:
