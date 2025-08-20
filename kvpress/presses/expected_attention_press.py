@@ -2,17 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import logging
 import math
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import List
+from typing import Any, Dict, Optional
 
 import torch
-from datasets import load_dataset
+from huggingface_hub import PyTorchModelHubMixin, get_collection
 from torch import nn
 from torch.nn import functional as F
-from tqdm import tqdm
-from transformers import AutoTokenizer
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import repeat_kv
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
@@ -20,6 +19,33 @@ from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.utils import collect_queries
+
+logger = logging.getLogger(__name__)
+
+
+class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
+    """
+    Module that stores the mean and covariance matrix of the queries. We use this to manage the query statistics and load them from the HF hub.
+    In general, a user should not need to use this class directly.
+    To compute new stats and push the to the HF hub, one should do:
+    
+    ```
+    from kvpress.presses.utils import collect_queries
+    
+    # Collect query statistics
+    dataset, n_samples, n_future_positions, n_sink = "kmfoda/booksum", 100, 4000, 4
+    _, mu, cov = collect_queries(model, dataset_name=dataset, n_samples=n_samples, n_future_positions=n_future_positions, n_sink=n_sink, return_stats=True)
+    stats = ExpectedAttentionStats(num_layers=model.config.num_hidden_layers, num_heads=model.config.num_attention_heads, head_dim=model.config.head_dim, metadata={"model": model.config.name_or_path, "dataset": dataset, "n_samples": n_samples, "n_future_positions": n_future_positions, "n_sink": n_sink})
+    stats.query_mean.data = mu
+    stats.query_cov.data = cov
+    stats.push_to_hub(f"repo_id/exp_att_stats_{model.config.name_or_path.replace('/', '_')}_{dataset.replace('/', '_')}_{n_samples}_{n_future_positions}_{n_sink}", private=False)
+    ```
+    """
+    def __init__(self, num_layers: int, num_heads: int, head_dim: int, metadata: Dict[str, Any] = None):
+        super().__init__()
+        self.query_mean = torch.nn.Parameter(torch.zeros(num_layers, num_heads, head_dim))
+        self.query_cov = torch.nn.Parameter(torch.zeros(num_layers, num_heads, head_dim, head_dim))
+        self.metadata = metadata
 
 
 @dataclass
@@ -58,20 +84,29 @@ class ExpectedAttentionPress(ScorerPress):
         (scores + epsilon) * ||V||₂. Accounts for magnitude of attended information.
     epsilon : float, default=0.0
         Small constant added to scores before value norm rescaling for numerical stability.
+    use_stats : bool, default=False
+        Whether to use statistics of the queries to compute the expected attention.
+        If True, the statistics are downloaded from the HF hub or computed on a small calibration dataset.
+        If False, the statistics are computed on the fly.
+    n_samples : int, default=100
+        Number of samples to use to compute the statistics.
+    stats_dataset : str, default="kmfoda/booksum"
+        Dataset to use to compute the statistics.
     """
 
     compression_ratio: float = 0.0
     n_future_positions: int = 4000
-    n_samples: int = 10
     n_sink: int = 4
     use_covariance: bool = True
     use_vnorm: bool = True
     epsilon: float = 0.0
-
-    mu: torch.Tensor = None  # (num_layers, num_heads, head_dim)
-    cov: torch.Tensor = None  # (num_layers, num_heads, head_dim, head_dim)
-
     use_stats: bool = False
+
+    # These are only used if use_stats is True
+    stats_dataset: str = "kmfoda/booksum"
+    n_samples: int = 100
+    mu: torch.Tensor = None  # populated by __post_init_from_model__ (num_layers, num_heads, head_dim)
+    cov: torch.Tensor = None  # populated by __post_init_from_model__ (num_layers, num_heads, head_dim, head_dim)
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
@@ -80,7 +115,7 @@ class ExpectedAttentionPress(ScorerPress):
         if self.use_stats:
             if self.mu is None or self.cov is None:
                 raise ValueError(
-                    "ExpectedAttentionPress: mu and cov must be set before calling get_query_statistics. Please initialize this press with the model."
+                    "ExpectedAttentionPress: mu and cov must be set before calling get_query_statistics. Please initialize this press with the model by calling __post_init_from_model__."
                 )
             return self.mu[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype), self.cov[
                 module.layer_idx
@@ -112,8 +147,8 @@ class ExpectedAttentionPress(ScorerPress):
         # Query covariance
         cov = None
         if self.use_covariance:
-            h = h - mean_h 
-            cov = torch.matmul(h.transpose(1, 2), h) / h.shape[1] 
+            h = h - mean_h
+            cov = torch.matmul(h.transpose(1, 2), h) / h.shape[1]
             cov = torch.matmul(Wq, torch.matmul(cov, Wq.T))  # TODO: not optimal
             cov = cov.view(bsz, n, d, n, d).diagonal(dim1=1, dim2=3)
             cov = cov.permute(0, 3, 1, 2)
@@ -143,7 +178,7 @@ class ExpectedAttentionPress(ScorerPress):
         #     cov = cov.mean(dim=2)
         #     cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
         # mu = mean_mu.squeeze(2)
-        print(mu.shape, cov.shape)
+
         return mu, cov
 
     def score(
@@ -188,12 +223,33 @@ class ExpectedAttentionPress(ScorerPress):
 
         return scores
 
+    @staticmethod
+    def available_stats():
+        collection = get_collection("alessiodevoto/expectedattentionstats-68a59de021388c9eafd906ee", token=False)
+        return [x.item_id for x in collection.items]
+
     def __post_init_from_model__(self, model):
-        # Only is use_stats is True, we compute the query statistics on a small calibration dataset.
+        """
+        If use_stats is True, we download the query statistics from the HF hub or compute them on a small calibration dataset if they are not available.
+        """
         if self.use_stats and (self.mu is None or self.cov is None):
-            _, self.mu, self.cov = collect_queries(
-                model, num_samples=self.n_samples, q_len=self.n_future_positions, n_sink=self.n_sink, return_stats=True
-            )
+            stats_id = f"alessiodevoto/exp_att_stats_{model.config.name_or_path.replace('/', '_')}_{self.stats_dataset.replace('/', '_')}_{self.n_samples}_{self.n_future_positions}_{self.n_sink}"
+            if stats_id in self.available_stats():
+                self.stats = ExpectedAttentionStats.from_pretrained(stats_id)
+                self.mu = self.stats.query_mean
+                self.cov = self.stats.query_cov
+            else:
+                print(f"Could not load query statistics for {stats_id} from the HF hub.")
+                print("Available stats:")
+                print(self.available_stats())
+                print("Computing query statistics on a small calibration dataset...")
+                _, self.mu, self.cov = collect_queries(
+                    model,
+                    n_samples=self.n_samples,
+                    n_future_positions=self.n_future_positions,
+                    n_sink=self.n_sink,
+                    return_stats=True,
+                )
 
     @contextmanager
     def __call__(self, model):

@@ -64,7 +64,14 @@ def patch_rotary_embedding(model):
 
 @torch.inference_mode()
 def collect_queries(
-    model: PreTrainedModel, num_samples: int, q_len: int, n_sink: int, return_stats: bool = False
+    model: PreTrainedModel,
+    dataset_name: str = "kmfoda/booksum",
+    text_column: str = "chapter",
+    n_samples: int = 100,
+    n_future_positions: int = 4000,
+    n_sink: int = 4,
+    return_stats: bool = False,
+    tokenizer: AutoTokenizer = None,
 ) -> list[torch.Tensor]:
     """
     Collects query representations from a transformer model using a calibration dataset.
@@ -84,24 +91,24 @@ def collect_queries(
     Returns:
         list or tuple:
             collected_queries (list): List of query tensors, each of shape (num_layers, num_heads, seq_len, head_dim)
-            mean_query (torch.Tensor): Mean query vector for each layer and head.
-            cov_query (torch.Tensor): Covariance matrix of queries for each layer and head.
+            mean_query (torch.Tensor): Mean query vector for each layer and head. Shape (num_layers, num_heads, head_dim)
+            cov_query (torch.Tensor): Covariance matrix of queries for each layer and head. Shape (num_layers, num_heads, head_dim, head_dim)
             If return_stats is False, only the list of query tensors is returned.
     """
 
     # Load dataset and tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
-    dataset = load_dataset("kmfoda/booksum", split=f"train[:{num_samples}]")
+    tokenizer = tokenizer or AutoTokenizer.from_pretrained(model.config.name_or_path)
+    dataset = load_dataset(dataset_name, split=f"train[:{n_samples}]")
 
     # Cut to max q_len
-    dataset = dataset.map(lambda x: {"chapter": x["chapter"][:q_len]})
+    dataset = dataset.map(lambda x: {text_column: x[text_column][:n_future_positions]})
 
     collected_queries = []
-    for text in tqdm(dataset["chapter"], desc="Collecting queries"):
+    for text in tqdm(dataset[text_column], desc="Collecting queries"):
         inputs = tokenizer(text, return_tensors="pt").to(model.device)
         with patch_rotary_embedding(model) as captured_queries:
             model(**inputs)
-        collected_queries.append(torch.cat(captured_queries, dim=0)[:, :, n_sink:, :])
+        collected_queries.append(torch.cat(captured_queries, dim=0)[:, :, n_sink:, :].cpu())
 
     if return_stats:
         cat_queries = torch.cat(collected_queries, dim=-2)
@@ -114,11 +121,8 @@ def collect_queries(
     else:
         return collected_queries
 
-# example cov for one layer
-# q = torch.matmul(h, Wq.T).view(bsz, h.shape[1], n, d)
-# cov = torch.einsum("bsni,bsnj->bnij", q, q) / h.shape[1]
 
-
+@torch.inference_mode()
 def compute_query_covariance(queries: list[torch.Tensor]) -> torch.Tensor:
     """
     Computes the covariance matrix of query representations across a calibration dataset.
