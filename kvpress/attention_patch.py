@@ -7,7 +7,7 @@ from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 def search_hyperplane(X, max_iter: int = 1000):
     """
-    Given a tensor X of shape (bsz, seq_len, head_dim), search for an hyperplane Y (bsz, head_dim)
+    Given a tensor X of shape (bsz, seq_len, head_dim), search for a hyperplane Y (bsz, head_dim)
     such that for every i, <X[:, i], Y> <= 0. Returns - 1e5 * Y / ||Y|| ** 2 to ensure exp(<X, Y>) = 0
     Raises a ValueError if no such hyperplane is found
 
@@ -42,9 +42,9 @@ def search_hyperplane(X, max_iter: int = 1000):
 
 def attention_patch(func):
     """
-    Decorator to udpate the keys before the attention computation at the indices provided in module.masked_key_indices
+    Decorator to update the keys before the attention computation at the indices provided in module.masked_key_indices
     The keys are updated with a fake key k such that exp(<q, k>) = 0 to fake head-wise compression
-    This solution is not optimal as it does not reduce peak memory and slightly increase runtime
+    This solution is not optimal as it does not reduce peak memory and slightly increases runtime
 
     Parameters
     ----------
