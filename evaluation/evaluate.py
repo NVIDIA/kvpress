@@ -208,7 +208,8 @@ class EvaluationRunner:
     def _setup_logging(self):
         """Configures the logging level based on the config."""
         log_level = self.config.log_level.upper()
-        logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.INFO)
+        # logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
 
     def _setup_directories(self) -> Path:
         """
@@ -299,7 +300,6 @@ class EvaluationRunner:
             logger.info(f"No device specified, auto-detected device: {device}")
 
         model_kwargs = self.config.model_kwargs or {}
-        print(model_kwargs)
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
@@ -337,20 +337,34 @@ class EvaluationRunner:
 
         logger.info("Model pipeline loaded.")
 
+    
+    def _insert_needle_in_haystack(self):
+        """
+        Inserts the needle in the haystack at the depth specified in the config.
+        Adapted from the original implementation: https://github.com/gkamradt/LLMTest_NeedleInAHaystack
+        To insert the needle, we need to tokenize the context, insert the needle at the depth specified in the config, and then detokenize it.
+        """
+        logger.info(f"Preparing dataset for inference with needle in haystack. Needle: {self.df['needle'][0]}")
+        tokenized_needle = self.pipeline.tokenizer.encode(self.df["needle"][0], add_special_tokens=False)
+        context_length = self.config.max_context_length - len(tokenized_needle) - 150 # account for system prompts
+        needle_index = int(context_length * self.config.needle_depth / 100)
+        # tokenize the context
+        self.df["context"] = self.df["context"].apply(lambda x: self.pipeline.tokenizer.encode(x, add_special_tokens=False)[:context_length])
+        # insert the needle at the depth specified in the config
+        self.df["context"] = self.df["context"].apply(lambda x: x[:needle_index] + tokenized_needle + x[needle_index:])
+        # detokenize the context
+        self.df["context"] = "This is a very long story book: <book> " + self.df["context"].apply(lambda x: self.pipeline.tokenizer.decode(x, skip_special_tokens=True)) + " </book>."
+
     def _prepare_data_for_inference(self):
         """
         Prepares the dataset for inference, handling `compress_questions` and `FinchPress` specifics.
         """
         compress_questions = self.config.compress_questions
         
+        
         # if we have needle in a haystack, we need to tokenize the dataset, cut it to max_context_length, insert the needle at depth n%max_context_length, and then detokenize it
         if self.config.dataset == "needle_in_haystack":
-            tokenized_needle = self.pipeline.tokenizer.encode(self.df["needle"], add_special_tokens=False)
-            context_length = self.config.max_context_length - len(tokenized_needle) - 150 # account for system prompts
-            self.df["context"] = self.df["context"].apply(lambda x: self.pipeline.tokenizer.encode(x, add_special_tokens=False)[:context_length])
-            needle_index = int(context_length * self.config.needle_depth / 100)
-            self.df["context"] = self.df["context"].apply(lambda x: x[:needle_index] + tokenized_needle + x[needle_index:])
-            self.df["context"] = "This is a very long story book: <book> " + self.df["context"].apply(lambda x: self.pipeline.tokenizer.decode(x, skip_special_tokens=True)) + " </book>."
+            self._insert_needle_in_haystack()
 
         if isinstance(self.press, FinchPress):
             if not compress_questions:
