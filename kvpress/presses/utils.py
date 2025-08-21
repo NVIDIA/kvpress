@@ -72,7 +72,7 @@ def collect_queries(
     n_sink: int = 4,
     return_stats: bool = False,
     tokenizer: AutoTokenizer = None,
-) -> list[torch.Tensor]:
+) -> list[torch.Tensor] | tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
     """
     Collects query representations from a transformer model using a calibration dataset.
 
@@ -91,8 +91,10 @@ def collect_queries(
     Returns:
         list or tuple:
             collected_queries (list): List of query tensors, each of shape (num_layers, num_heads, seq_len, head_dim)
-            mean_query (torch.Tensor): Mean query vector for each layer and head. Shape (num_layers, num_heads, head_dim)
-            cov_query (torch.Tensor): Covariance matrix of queries for each layer and head. Shape (num_layers, num_heads, head_dim, head_dim)
+            mean_query (torch.Tensor): Mean query vector for each layer and head.
+                                    Shape: (num_layers, num_heads, head_dim)
+            cov_query (torch.Tensor): Covariance matrix of queries for each layer and head.
+                                    Shape: (num_layers, num_heads, head_dim, head_dim)
             If return_stats is False, only the list of query tensors is returned.
     """
 
@@ -148,12 +150,12 @@ def compute_query_covariance(queries: list[torch.Tensor]) -> torch.Tensor:
         batch_covs = []
         sample_queries = queries[b]  # (num_layers, num_heads, seq_len, head_dim)
         # Compute the covariance for each head
-        for l in range(sample_queries.shape[0]):
+        for layer in range(sample_queries.shape[0]):
             layer_covs = []
             for h in range(sample_queries.shape[1]):
                 # Queries[b, h] has shape (seq_len, head_dim)
                 # torch.cov expects features as rows, so transpose
-                cov = torch.cov(sample_queries[l, h].T)  # (head_dim, head_dim)
+                cov = torch.cov(sample_queries[layer, h].T)  # (head_dim, head_dim)
                 layer_covs.append(cov)
             batch_covs.append(torch.stack(layer_covs))
         covariances.append(torch.stack(batch_covs))

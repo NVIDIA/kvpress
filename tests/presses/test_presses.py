@@ -56,6 +56,7 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
             assert cache.get_seq_length() == 128
 
 
+@torch.inference_mode()
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize(
     "wrapper_press",

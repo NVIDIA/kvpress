@@ -6,7 +6,7 @@ import logging
 import math
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import torch
 from huggingface_hub import PyTorchModelHubMixin, get_collection
@@ -25,22 +25,25 @@ logger = logging.getLogger(__name__)
 
 class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
     """
-    Module that stores the mean and covariance matrix of the queries. We use this to manage the query statistics and load them from the HF hub.
+    Module that stores the mean and covariance matrix of the queries, possibly uploaded to the HF hub.
     In general, a user should not need to use this class directly.
     To compute new stats and push the to the HF hub, one should do:
-    
+
     ```
     from kvpress.presses.utils import collect_queries
-    
+
     # Collect query statistics
     dataset, n_samples, n_future_positions, n_sink = "kmfoda/booksum", 100, 4000, 4
-    _, mu, cov = collect_queries(model, dataset_name=dataset, n_samples=n_samples, n_future_positions=n_future_positions, n_sink=n_sink, return_stats=True)
-    stats = ExpectedAttentionStats(num_layers=model.config.num_hidden_layers, num_heads=model.config.num_attention_heads, head_dim=model.config.head_dim, metadata={"model": model.config.name_or_path, "dataset": dataset, "n_samples": n_samples, "n_future_positions": n_future_positions, "n_sink": n_sink})
-    stats.query_mean.data = mu
-    stats.query_cov.data = cov
-    stats.push_to_hub(f"repo_id/exp_att_stats_{model.config.name_or_path.replace('/', '_')}_{dataset.replace('/', '_')}_{n_samples}_{n_future_positions}_{n_sink}", private=False)
+    _, mu, cov = collect_queries(model, dataset_name=dataset, n_samples=n_samples,
+                                n_future_positions=n_future_positions, n_sink=n_sink, return_stats=True)
+    stats = ExpectedAttentionStats(num_layers=model.config.num_hidden_layers,
+                                num_heads=model.config.num_attention_heads, head_dim=model.config.head_dim)
+    stats.query_mean.data, stats.query_cov.data = mu, cov
+    id = f"repo_id/exp_att_stats_{model.config.name_or_path.replace('/', '_')}_{dataset.replace('/', '_')}_{n_samples}_{n_future_positions}_{n_sink}" # noqa: E501
+    stats.push_to_hub(id)
     ```
     """
+
     def __init__(self, num_layers: int, num_heads: int, head_dim: int, metadata: Dict[str, Any] = None):
         super().__init__()
         self.query_mean = torch.nn.Parameter(torch.zeros(num_layers, num_heads, head_dim))
@@ -115,11 +118,12 @@ class ExpectedAttentionPress(ScorerPress):
         if self.use_stats:
             if self.mu is None or self.cov is None:
                 raise ValueError(
-                    "ExpectedAttentionPress: mu and cov must be set before calling get_query_statistics. Please initialize this press with the model by calling __post_init_from_model__."
+                    "ExpectedAttentionPress: mu and cov must be set before calling get_query_statistics. "
+                    "Please initialize this press with the model by calling __post_init_from_model__."
                 )
-            return self.mu[module.layer_idx].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype), self.cov[
-                module.layer_idx
-            ].unsqueeze(0).to(hidden_states.device, dtype=hidden_states.dtype)
+            mu = self.mu[module.layer_idx].unsqueeze(0).to(hidden_states.device, hidden_states.dtype)  # type: ignore
+            cov = self.cov[module.layer_idx].unsqueeze(0).to(hidden_states.device, hidden_states.dtype)  # type: ignore
+            return mu, cov
 
         bsz, q_len, _ = hidden_states.shape
         n, d = module.config.num_attention_heads, module.head_dim
@@ -230,10 +234,11 @@ class ExpectedAttentionPress(ScorerPress):
 
     def __post_init_from_model__(self, model):
         """
-        If use_stats is True, we download the query statistics from the HF hub or compute them on a small calibration dataset if they are not available.
+        If use_stats is True, we download the query statistics from the HF hub or
+        compute them on a small calibration dataset if they are not available.
         """
         if self.use_stats and (self.mu is None or self.cov is None):
-            stats_id = f"alessiodevoto/exp_att_stats_{model.config.name_or_path.replace('/', '_')}_{self.stats_dataset.replace('/', '_')}_{self.n_samples}_{self.n_future_positions}_{self.n_sink}"
+            stats_id = f"alessiodevoto/exp_att_stats_{model.config.name_or_path.replace('/', '_')}_{self.stats_dataset.replace('/', '_')}_{self.n_samples}_{self.n_future_positions}_{self.n_sink}"  # noqa: E501
             if stats_id in self.available_stats():
                 self.stats = ExpectedAttentionStats.from_pretrained(stats_id)
                 self.mu = self.stats.query_mean

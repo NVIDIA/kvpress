@@ -3,7 +3,6 @@
 
 
 from dataclasses import dataclass
-from contextlib import contextmanager
 
 import torch
 
@@ -74,9 +73,3 @@ class AdaKVPress(BasePress):
         seq_indices = indices % q_len
         module.masked_key_indices = (batch_indices, head_indices, seq_indices)
         return keys, values
-
-    @contextmanager
-    def __call__(self, model):
-        self.press.__post_init_from_model__(model)
-        with super().__call__(model):
-            yield
