@@ -98,7 +98,7 @@ class ExpectedAttentionPress(ScorerPress):
     """
 
     compression_ratio: float = 0.0
-    n_future_positions: int = 4000
+    n_future_positions: int = 512
     n_sink: int = 4
     use_covariance: bool = True
     use_vnorm: bool = True
