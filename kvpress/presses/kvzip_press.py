@@ -6,7 +6,7 @@ import math
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import MethodType
-from typing import Any, Generator, List, cast
+from typing import Generator, List
 
 import torch
 from torch import nn
@@ -153,39 +153,32 @@ class KVzipPress(BasePress):
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_values"]
 
+        cache_layer = cache.layers[module.layer_idx]
         if isinstance(cache, QuantizedCache):
-            keys = cache.layers[module.layer_idx]._dequantize(  # type: ignore[index]
-                cache.layers[module.layer_idx]._quantized_keys  # type: ignore[index]
+            keys = cache_layer._dequantize(  # type: ignore[index]
+                cache_layer._quantized_keys  # type: ignore[index]
             )
-            values = cache.layers[module.layer_idx]._dequantize(  # type: ignore[index]
-                cache.layers[module.layer_idx]._quantized_values  # type: ignore[index]
+            values = cache_layer._dequantize(  # type: ignore[index]
+                cache_layer._quantized_values  # type: ignore[index]
             )
 
         else:
-            keys = cache.layers[module.layer_idx].keys
-            values = cache.layers[module.layer_idx].values
+            keys = cache_layer.keys
+            values = cache_layer.values
 
         # Compute importance scores for KV pairs in the prefilled context,
         # retaining only the originally prefilled KV pairs.
         keys, values = self.score_kvzip(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
-            cache.layers[module.layer_idx]._quantized_keys = cache.layers[module.layer_idx]._quantize(
-                keys, axis=cache.layers[module.layer_idx].axis_key
-            )
-            cache.layers[module.layer_idx]._quantized_values = cache.layers[module.layer_idx]._quantize(
-                values, axis=cache.layers[module.layer_idx].axis_value
-            )
-            cache.layers[module.layer_idx].keys = torch.zeros(  # type: ignore[index]
-                0, dtype=keys.dtype, device=keys.device
-            )
-            cache.layers[module.layer_idx].values = torch.zeros(  # type: ignore[index]
-                0, dtype=keys.dtype, device=keys.device
-            )
-            cache.layers[module.layer_idx].cumulative_length = keys.shape[2]
+            cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
+            cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
+            cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+            cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+            cache_layer.cumulative_length = keys.shape[2]
         else:
-            cache.layers[module.layer_idx].keys = keys
-            cache.layers[module.layer_idx].values = values
+            cache_layer.keys = keys
+            cache_layer.values = values
 
         return output
 
