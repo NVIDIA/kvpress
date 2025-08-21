@@ -41,6 +41,7 @@ DATASET_REGISTRY = {
     "longbench": "Xnhyacinth/LongBench",
     "longbench-e": "Xnhyacinth/LongBench",
     "longbench-v2": "Xnhyacinth/LongBench-v2",
+    "needle_in_haystack": "alessiodevoto/paul_graham_essays",
 }
 
 SCORER_REGISTRY = {

@@ -42,6 +42,7 @@ class EvaluationConfig:
     max_new_tokens: Optional[int] = None
     max_context_length: Optional[int] = None
     compress_questions: bool = False
+    needle_depth: Optional[int] = None
 
     # Output and logging
     output_dir: str = "./results"
@@ -87,6 +88,9 @@ class EvaluationConfig:
         # Initialize model_kwargs if None
         if self.model_kwargs is None:
             self.model_kwargs = {}
+        
+        if self.dataset == "needle_in_haystack":
+            assert self.needle_depth is not None, "needle_depth must be set for needle_in_haystack"
 
     def get_results_dir(self, output_dir: Path) -> Path:
         """
@@ -338,6 +342,15 @@ class EvaluationRunner:
         Prepares the dataset for inference, handling `compress_questions` and `FinchPress` specifics.
         """
         compress_questions = self.config.compress_questions
+        
+        # if we have needle in a haystack, we need to tokenize the dataset, cut it to max_context_length, insert the needle at depth n%max_context_length, and then detokenize it
+        if self.config.dataset == "needle_in_haystack":
+            tokenized_needle = self.pipeline.tokenizer.encode(self.df["needle"], add_special_tokens=False)
+            context_length = self.config.max_context_length - len(tokenized_needle) - 150 # account for system prompts
+            self.df["context"] = self.df["context"].apply(lambda x: self.pipeline.tokenizer.encode(x, add_special_tokens=False)[:context_length])
+            needle_index = int(context_length * self.config.needle_depth / 100)
+            self.df["context"] = self.df["context"].apply(lambda x: x[:needle_index] + tokenized_needle + x[needle_index:])
+            self.df["context"] = "This is a very long story book: <book> " + self.df["context"].apply(lambda x: self.pipeline.tokenizer.decode(x, skip_special_tokens=True)) + " </book>."
 
         if isinstance(self.press, FinchPress):
             if not compress_questions:
@@ -400,7 +413,7 @@ class EvaluationRunner:
         if save_filename.exists():
             logger.warning(f"Results CSV already exists at {save_filename}. Overwriting.")
 
-        self.df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)  # type: ignore[index]
+        self.df[list(set(self.df.columns) - set(["context"]))].to_csv(str(save_filename), index=False)  # type: ignore[index]
         logger.info(f"Results saved to {save_filename}")
 
     def _calculate_and_save_metrics(self, save_filename: Path):
