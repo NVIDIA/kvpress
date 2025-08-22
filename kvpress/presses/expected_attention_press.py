@@ -94,10 +94,6 @@ class ExpectedAttentionPress(ScorerPress):
         if self.use_covariance:
             centered_states = query_states - mu
             centered_states = centered_states.transpose(1, 2)
-            # q = torch.matmul(h, Wq.T).view(bsz, h.shape[1], num_heads, head_dim)
-            # Compute per-head query covariance directly in the projected space.
-            # This avoids forming an intermediate O((n * d)^2) covariance matrix
-            # for the full hidden states, reducing both memory and compute cost.
             cov = torch.einsum("bsni,bsnj->bnij", centered_states, centered_states) / h.shape[1]
         mu = mu.squeeze(2)
 
