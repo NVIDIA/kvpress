@@ -44,6 +44,10 @@ class BasePress:
     The compression is applied only during pre-filling (not during generation).
     """
 
+    def __post_init_from_model__(self, model: PreTrainedModel):
+        """Some presses need to be initialized based on the model"""
+        pass
+
     def compress(
         self,
         module: nn.Module,
@@ -175,6 +179,10 @@ class BasePress:
         ...     # Forward pass with compression applied
         ...     outputs = model(input_ids, past_key_values=cache)
         """
+        if hasattr(self, "press"):
+            """Some presses contain a press object that needs to be initialized based on the model"""
+            self.press.__post_init_from_model__(model)
+
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 

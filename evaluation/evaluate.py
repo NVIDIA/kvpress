@@ -285,6 +285,7 @@ class EvaluationRunner:
         # Set the press info in the config for saving to YAML
         self.config.press_init_command = str(press)
         logger.info(f"KV Press '{press_name}' setup.")
+        logger.info(f"Press init command: {self.config.press_init_command}")
 
     def _setup_model_pipeline(self):
         model_name = self.config.model

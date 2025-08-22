@@ -69,6 +69,10 @@ default_presses = [
     },
     {"cls": KeyDiffPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {
+        "cls": ExpectedAttentionPress,
+        "kwargs": [{"compression_ratio": 0.2, "use_stats": True, "n_future_positions": 100, "n_samples": 2}],
+    },
+    {
         "cls": KVzipPress,
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },

@@ -57,6 +57,9 @@ SCORER_REGISTRY = {
 PRESS_REGISTRY = {
     "adakv_expected_attention": AdaKVPress(ExpectedAttentionPress()),
     "adakv_expected_attention_e2": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
+    "adakv_expected_attention_with_stats_e2": AdaKVPress(
+        ExpectedAttentionPress(epsilon=1e-2, use_stats=True)
+    ),
     "adakv_snapkv": AdaKVPress(SnapKVPress()),
     "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
@@ -67,6 +70,7 @@ PRESS_REGISTRY = {
     "duo_attention": DuoAttentionPress(),
     "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
     "expected_attention": ExpectedAttentionPress(),
+    "expected_attention_with_stats": ExpectedAttentionPress(use_stats=True),
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
     "kvzip": KVzipPress(),
