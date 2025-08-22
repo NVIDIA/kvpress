@@ -203,7 +203,6 @@ class ExpectedAttentionPress(ScorerPress):
 
         # Compute query statistics
         mean_query, cov_query = self.get_query_statistics(module, hidden_states)
-        # print(mean_query.shape, cov_query.shape)
 
         # Compute scores
         bsz, num_key_value_heads, q_len, d = keys.shape
