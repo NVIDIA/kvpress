@@ -206,12 +206,10 @@ class EvaluationRunner:
             torch.backends.cudnn.benchmark = False
         logger.info(f"Set deterministic seeds to {self.config.seed}")
 
-
     def _setup_logging(self):
         """Configures the logging level based on the config."""
         log_level = self.config.log_level.upper()
         logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
-
 
     def _setup_directories(self) -> Path:
         """
@@ -226,7 +224,6 @@ class EvaluationRunner:
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output directory set to: {output_dir}")
         return output_dir
-
 
     def _setup_press(self):
         """
@@ -277,7 +274,6 @@ class EvaluationRunner:
         self.config.press_init_command = str(press)
         logger.info(f"KV Press '{press_name}' setup.")
 
-
     def _load_and_prepare_dataset(self):
         """
         Loads the dataset specified in the config and applies sampling/filtering.
@@ -320,7 +316,6 @@ class EvaluationRunner:
         self.df = df
         logger.info(f"Dataset processed with {len(self.df)} entries.")
 
-
     def _setup_model_pipeline(self):
         model_name = self.config.model
         device = self.config.device
@@ -357,7 +352,6 @@ class EvaluationRunner:
 
         self.pipeline.model.eval()
         logger.info("Model pipeline loaded.")
-
 
     @torch.inference_mode()
     def _run_inference(self):
