@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pandas as pd
-from rouge_score import rouge_scorer
+from rouge import Rouge
 
-scorer = rouge_scorer.RougeScorer(["rouge1", "rougeL"], use_stemmer=True)
+scorer = Rouge()
 
-def calculate_metrics(df: pd.DataFrame) -> dict:
+
+def calculate_metrics(df: pd.DataFrame) -> list[dict]:
     scores = []
     for index, row in df.iterrows():
-        score = scorer.score(row["needle"], row["predicted_answer"])["rouge1"].fmeasure * 10
+        score = scorer.get_scores(row["needle"], row["predicted_answer"])[0]
         scores.append(score)
-    return {"rouge1": sum(scores) / len(scores)}
+    return scores

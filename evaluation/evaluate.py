@@ -88,9 +88,10 @@ class EvaluationConfig:
         # Initialize model_kwargs if None
         if self.model_kwargs is None:
             self.model_kwargs = {}
-        
+
         if self.dataset == "needle_in_haystack":
             assert self.needle_depth is not None, "needle_depth must be set for needle_in_haystack"
+            assert self.max_context_length is not None, "max_context_length must be set for needle_in_haystack"
 
     def get_results_dir(self, output_dir: Path) -> Path:
         """
@@ -125,6 +126,8 @@ class EvaluationConfig:
             components.append("compressed_questions")
         if self.key_channel_compression_ratio is not None:
             components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
+        if self.needle_depth is not None:
+            components.append(f"needle_depth{self.needle_depth:.1f}")
 
         dir_name = "__".join(filter(None, components))  # Filter None/empty strings
         config_dir = output_dir / dir_name
@@ -208,8 +211,7 @@ class EvaluationRunner:
     def _setup_logging(self):
         """Configures the logging level based on the config."""
         log_level = self.config.log_level.upper()
-        logging.basicConfig(level=logging.INFO)
-        # logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
 
     def _setup_directories(self) -> Path:
         """
@@ -337,7 +339,6 @@ class EvaluationRunner:
 
         logger.info("Model pipeline loaded.")
 
-    
     def _insert_needle_in_haystack(self):
         """
         Inserts the needle in the haystack at the depth specified in the config.
@@ -346,23 +347,28 @@ class EvaluationRunner:
         """
         logger.info(f"Preparing dataset for inference with needle in haystack. Needle: {self.df['needle'][0]}")
         tokenized_needle = self.pipeline.tokenizer.encode(self.df["needle"][0], add_special_tokens=False)
-        context_length = self.config.max_context_length - len(tokenized_needle) - 150 # account for system prompts
+        context_length = self.config.max_context_length - len(tokenized_needle) - 150  # account for system prompts
         needle_index = int(context_length * self.config.needle_depth / 100)
         # tokenize the context
-        self.df["context"] = self.df["context"].apply(lambda x: self.pipeline.tokenizer.encode(x, add_special_tokens=False)[:context_length])
+        self.df["context"] = self.df["context"].apply(
+            lambda x: self.pipeline.tokenizer.encode(x, add_special_tokens=False)[:context_length]
+        )
         # insert the needle at the depth specified in the config
         self.df["context"] = self.df["context"].apply(lambda x: x[:needle_index] + tokenized_needle + x[needle_index:])
         # detokenize the context
-        self.df["context"] = "This is a very long story book: <book> " + self.df["context"].apply(lambda x: self.pipeline.tokenizer.decode(x, skip_special_tokens=True)) + " </book>."
+        self.df["context"] = (
+            "This is a very long story book: <book> "
+            + self.df["context"].apply(lambda x: self.pipeline.tokenizer.decode(x, skip_special_tokens=True))
+            + " </book>."
+        )
 
     def _prepare_data_for_inference(self):
         """
         Prepares the dataset for inference, handling `compress_questions` and `FinchPress` specifics.
         """
         compress_questions = self.config.compress_questions
-        
-        
-        # if we have needle in a haystack, we need to tokenize the dataset, cut it to max_context_length, insert the needle at depth n%max_context_length, and then detokenize it
+
+        # if we have needle in a haystack, we need to insert it in the context
         if self.config.dataset == "needle_in_haystack":
             self._insert_needle_in_haystack()
 

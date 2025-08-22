@@ -6,9 +6,9 @@ from benchmarks.longbench.calculate_metrics import calculate_metrics as longbenc
 from benchmarks.longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
 from benchmarks.longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
 from benchmarks.loogle.calculate_metrics import calculate_metrics as loogle_scorer
+from benchmarks.needle_in_haystack.calculate_metrics import calculate_metrics as needle_in_haystack_scorer
 from benchmarks.ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
-from benchmarks.needle_in_haystack.calculate_metrics import calculate_metrics as needle_in_haystack_scorer
 
 from kvpress import (
     AdaKVPress,
