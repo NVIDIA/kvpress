@@ -104,7 +104,9 @@ class ExpectedAttentionPress(ScorerPress):
 
         Id = torch.eye(head_dim, device=cos.device, dtype=cos.dtype)
         P = torch.zeros((head_dim, head_dim), device=cos.device, dtype=cos.dtype)
-        P[head_dim // 2 :, : head_dim // 2], P[: head_dim // 2, head_dim // 2 :] = torch.eye(head_dim // 2), -torch.eye(head_dim // 2)
+        P[head_dim // 2 :, : head_dim // 2], P[: head_dim // 2, head_dim // 2 :] = torch.eye(head_dim // 2), -torch.eye(
+            head_dim // 2
+        )
         R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
 
         # Apply average rotation to the mean and covariance
