@@ -78,6 +78,7 @@ def attention_patch(func):
             batch_indices, head_indices, seq_indices = module.masked_key_indices
             key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
 
+        kwargs["cu_seq_lens_k"][-1] = key.shape[-2]
         return func(module, query, key, value, attention_mask, dropout, **kwargs)
 
     return wrapper
