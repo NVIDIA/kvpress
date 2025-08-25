@@ -3,6 +3,7 @@ name: Test
 on:
   push:
     branches:
+      - main
       - "pull-request/[0-9]+"
 
 jobs:
