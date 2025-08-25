@@ -62,7 +62,7 @@ def attention_patch(func):
         if query.shape[2] == key.shape[2]:
             # Prefilling
             module.masked_key_indices = None
-        elif module.masked_key_indices is not None:
+        elif getattr(module, "masked_key_indices", None) is not None:
             # Decoding: build fake keys k s.t. exp(<q, k>) = 0
             bsz, num_heads, seq_len, head_dim = query.shape
             num_key_value_heads = key.shape[1]
