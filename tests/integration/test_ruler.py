@@ -4,7 +4,7 @@
 import datasets
 import pytest
 import torch
-from transformers import DynamicCache, QuantoQuantizedCache, QuantizedCacheConfig
+from transformers import DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from tests.default_presses import default_presses

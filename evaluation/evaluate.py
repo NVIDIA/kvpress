@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
-import pandas as pd  # Import pandas for DataFrame type hinting
+import pandas as pd
 import torch
 import yaml  # type: ignore[import-untyped]
+from benchmarks.needle_in_haystack.utils import insert_needle_in_haystack
 from datasets import load_dataset
 from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
@@ -42,6 +43,7 @@ class EvaluationConfig:
     max_new_tokens: Optional[int] = None
     max_context_length: Optional[int] = None
     compress_questions: bool = False
+    needle_depth: Optional[int] = None
 
     # Output and logging
     output_dir: str = "./results"
@@ -88,6 +90,10 @@ class EvaluationConfig:
         if self.model_kwargs is None:
             self.model_kwargs = {}
 
+        if self.dataset == "needle_in_haystack":
+            assert self.needle_depth is not None, "needle_depth must be set for needle_in_haystack"
+            assert self.max_context_length is not None, "max_context_length must be set for needle_in_haystack"
+
     def get_results_dir(self, output_dir: Path) -> Path:
         """
         Generates the unique save directory and filenames based on configuration parameters.
@@ -121,6 +127,8 @@ class EvaluationConfig:
             components.append("compressed_questions")
         if self.key_channel_compression_ratio is not None:
             components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
+        if self.needle_depth is not None:
+            components.append(f"needle_depth{self.needle_depth:.1f}")
 
         dir_name = "__".join(filter(None, components))  # Filter None/empty strings
         config_dir = output_dir / dir_name
@@ -187,19 +195,16 @@ class EvaluationRunner:
 
     def _setup_deterministic_seeds(self):
         """Set deterministic seeds for reproducible results."""
-        seed = self.config.seed
-
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
+        torch.manual_seed(self.config.seed)
+        np.random.seed(self.config.seed)
+        random.seed(self.config.seed)
 
         if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
+            torch.cuda.manual_seed(self.config.seed)
+            torch.cuda.manual_seed_all(self.config.seed)
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
-
-        logger.info(f"Set deterministic seeds to {seed}")
+        logger.info(f"Set deterministic seeds to {self.config.seed}")
 
     def _setup_logging(self):
         """Configures the logging level based on the config."""
@@ -219,25 +224,6 @@ class EvaluationRunner:
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output directory set to: {output_dir}")
         return output_dir
-
-    def _load_dataset(self):
-        """
-        Loads the dataset specified in the config and applies sampling/filtering.
-        """
-        dataset_name = self.config.dataset
-        data_dir = str(self.config.data_dir) if self.config.data_dir else None
-        fraction = self.config.fraction
-
-        logger.info(f"Loading dataset: {DATASET_REGISTRY[dataset_name]} (data_dir: {data_dir})")
-        df = load_dataset(DATASET_REGISTRY[dataset_name], data_dir=data_dir, split="test").to_pandas()
-
-        if fraction < 1.0:
-            original_len = len(df)
-            df = df.sample(frac=fraction, random_state=self.config.seed)
-            logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
-
-        self.df = df
-        logger.info(f"Dataset loaded with {len(self.df)} entries.")
 
     def _setup_press(self):
         """
@@ -279,12 +265,56 @@ class EvaluationRunner:
                 press.compression_ratio = compression_ratio
                 logger.info(f"Set {press.__class__.__name__} compression_ratio to {compression_ratio}")
             else:
-                logger.warning(f"Press {press.__class__.__name__} has no 'compression_ratio' attribute.")
+                logger.warning(
+                    f"Press {press.__class__.__name__} has no 'compression_ratio' attribute. This is expected is you set `no_press`."
+                )
 
         self.press = press
         # Set the press info in the config for saving to YAML
         self.config.press_init_command = str(press)
         logger.info(f"KV Press '{press_name}' setup.")
+
+    def _load_and_prepare_dataset(self):
+        """
+        Loads the dataset specified in the config and applies sampling/filtering.
+        """
+        dataset_name = self.config.dataset
+        data_dir = str(self.config.data_dir) if self.config.data_dir else None
+        fraction = self.config.fraction
+
+        logger.info(f"Loading dataset: {DATASET_REGISTRY[dataset_name]} (data_dir: {data_dir})")
+        df = load_dataset(DATASET_REGISTRY[dataset_name], data_dir=data_dir, split="test").to_pandas()
+
+        if fraction < 1.0:
+            original_len = len(df)
+            df = df.sample(frac=fraction, random_state=self.config.seed)
+            logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
+
+        logger.info(f"Dataset loaded with {len(df)} entries.")
+
+        # if we have needle in a haystack, we need to insert it in the context
+        if self.config.dataset == "needle_in_haystack":
+            df = insert_needle_in_haystack(
+                df, self.pipeline.tokenizer, self.config.max_context_length, self.config.needle_depth
+            )
+
+        if isinstance(self.press, FinchPress):
+            if not self.config.compress_questions:
+                logger.error("FinchPress requires 'compress_questions' to be set to True.")
+                raise ValueError("FinchPress requires compress_questions to be set to True")
+            # FinchPress uses a delimiter token to separate context and question
+            # So we need to update the tokenizer and the model embeddings.
+            logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
+            self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
+            df["context"] = df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
+
+        if self.config.compress_questions:
+            logger.info("Compressing questions into context.")
+            df["context"] = df["context"] + df["question"]  # type: ignore[index]
+            df["question"] = ""  # type: ignore[index]
+
+        self.df = df
+        logger.info(f"Dataset processed with {len(self.df)} entries.")
 
     def _setup_model_pipeline(self):
         model_name = self.config.model
@@ -295,7 +325,6 @@ class EvaluationRunner:
             logger.info(f"No device specified, auto-detected device: {device}")
 
         model_kwargs = self.config.model_kwargs or {}
-        print(model_kwargs)
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
@@ -310,49 +339,19 @@ class EvaluationRunner:
                 pass
 
         logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
+        pipeline_kwargs = {
+            "model": model_name,
+            "model_kwargs": model_kwargs,
+            "trust_remote_code": True,
+        }
         if device == "auto":
-            self.pipeline = pipeline(
-                "kv-press-text-generation",
-                model=model_name,
-                device_map="auto",
-                model_kwargs=model_kwargs,
-                trust_remote_code=True,
-            )
+            pipeline_kwargs["device_map"] = "auto"
         else:
-            self.pipeline = pipeline(
-                "kv-press-text-generation",
-                model=model_name,
-                device=device,
-                model_kwargs=model_kwargs,
-                trust_remote_code=True,
-            )
+            pipeline_kwargs["device"] = device
+        self.pipeline = pipeline("kv-press-text-generation", **pipeline_kwargs)
 
-        # Ensure model is in eval mode for deterministic inference
-        if hasattr(self.pipeline, "model"):
-            self.pipeline.model.eval()
-
+        self.pipeline.model.eval()
         logger.info("Model pipeline loaded.")
-
-    def _prepare_data_for_inference(self):
-        """
-        Prepares the dataset for inference, handling `compress_questions` and `FinchPress` specifics.
-        """
-        compress_questions = self.config.compress_questions
-
-        if isinstance(self.press, FinchPress):
-            if not compress_questions:
-                logger.error("FinchPress requires 'compress_questions' to be set to True.")
-                raise ValueError("FinchPress requires compress_questions to be set to True")
-            # FinchPress uses a delimiter token to separate context and question
-            # So we need to update the tokenizer and the model embeddings.
-            logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
-            self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
-            self.df["context"] = self.df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
-
-        if compress_questions:
-            logger.info("Compressing questions into context.")
-            self.df["context"] = self.df["context"] + self.df["question"]  # type: ignore[index]
-            self.df["question"] = ""  # type: ignore[index]
 
     @torch.inference_mode()
     def _run_inference(self):
@@ -400,7 +399,7 @@ class EvaluationRunner:
         if save_filename.exists():
             logger.warning(f"Results CSV already exists at {save_filename}. Overwriting.")
 
-        self.df[["predicted_answer", "compression_ratio"]].to_csv(str(save_filename), index=False)  # type: ignore[index]
+        self.df[list(set(self.df.columns) - set(["context"]))].to_csv(str(save_filename), index=False)  # type: ignore[index]
         logger.info(f"Results saved to {save_filename}")
 
     def _calculate_and_save_metrics(self, save_filename: Path):
@@ -443,10 +442,9 @@ class EvaluationRunner:
             )
             return
 
-        self._load_dataset()
         self._setup_press()
         self._setup_model_pipeline()
-        self._prepare_data_for_inference()
+        self._load_and_prepare_dataset()
 
         self._run_inference()
         self._save_results(predictions_filename)
