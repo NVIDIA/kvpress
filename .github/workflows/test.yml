@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: linux-amd64-gpu-l4-latest-1
     steps:
       - uses: actions/checkout@v3
       - name: Setup Python

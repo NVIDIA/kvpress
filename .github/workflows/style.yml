@@ -2,9 +2,8 @@ name: Style
 
 on:
   push:
-    branches:
-      - main
-      - "pull-request/[0-9]+"
+    branches: [ main ]
+  pull_request:
 
 jobs:
   style:
