@@ -4,20 +4,30 @@
 output_dir: "./results"
 
 model: "meta-llama/Meta-Llama-3.1-8B-Instruct"
-dataset: "ruler"                                  # see DATASET_REGISTRY in evaluate_registry.py
-data_dir: "4096"                                  # Subdirectory of the dataset (if applicable) else leave "null"
+dataset: "needle_in_haystack"                                  # see DATASET_REGISTRY in evaluate_registry.py
+data_dir: null                                  # Subdirectory of the dataset (if applicable) else leave "null"
 
-press_name: "knorm"                                # see PRESS_REGISTRY in evaluate_registry.py
-compression_ratio: 0.5                             # Compression ratio for the press (0.0 to 1.0)
+press_name: "duo_attention"                                # see PRESS_REGISTRY in evaluate_registry.py
+compression_ratio: 0.25                             # Compression ratio for the press (0.0 to 1.0)
 key_channel_compression_ratio: null                # For ThinKPress and ComposedPress (0.0 to 1.0)
 
 fraction: 1.0                                     # Fraction of dataset to evaluate (0.0 to 1.0), for quick testing
 max_new_tokens: null                              # Maximum new tokens to generate (null = use dataset default)
-max_context_length: null                          # Maximum context length (null = use model maximum)
+max_context_length: 256000                          # Maximum context length (null = use model maximum)
 compress_questions: false                         # Whether to compress questions with context
-needle_depth: null                                # Depth percentage of the needle in the haystack (0 to 100), only for needle_in_haystack dataset
+needle_depth: 
+  - 10
+  - 20
+  - 30
+  - 40
+  - 50
+  - 60
+  - 70
+  - 80
+  - 90
+  - 100                                # Depth percentage of the needle in the haystack (0 to 100), only for needle_in_haystack dataset
 
-device: null  # Device to use (null = auto-detect, "cuda:0", "cpu", etc.)
+device: cuda:1  # Device to use (null = auto-detect, "cuda:0", "cpu", etc.)
 
 # You can add any model kwargs here.
 model_kwargs:

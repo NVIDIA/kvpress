@@ -128,7 +128,7 @@ class EvaluationConfig:
         if self.key_channel_compression_ratio is not None:
             components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
         if self.needle_depth is not None:
-            components.append(f"needle_depth{self.needle_depth:.1f}")
+            components.append(f"needle_depth{self.needle_depth}")
 
         dir_name = "__".join(filter(None, components))  # Filter None/empty strings
         config_dir = output_dir / dir_name
