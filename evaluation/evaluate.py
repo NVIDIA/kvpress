@@ -189,8 +189,8 @@ class EvaluationRunner:
         self.pipeline: Optional[Pipeline] = None  # Will be set by _setup_model_pipeline()
         self.press = None  # Will be set by _setup_press()
         self.df: Optional[pd.DataFrame] = None  # Will be set by _load_dataset()
-        self._setup_deterministic_seeds()
         self._setup_logging()
+        self._setup_deterministic_seeds()
         logger.info(f"Initialized EvaluationRunner with config:\n{json.dumps(asdict(self.config), indent=2)}")
 
     def _setup_deterministic_seeds(self):
@@ -209,7 +209,12 @@ class EvaluationRunner:
     def _setup_logging(self):
         """Configures the logging level based on the config."""
         log_level = self.config.log_level.upper()
-        logging.basicConfig(level=getattr(logging, log_level), format="%(asctime)s - %(levelname)s - %(message)s")
+        
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(log_level)
+
 
     def _setup_directories(self) -> Path:
         """

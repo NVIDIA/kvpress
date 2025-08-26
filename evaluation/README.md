@@ -22,7 +22,7 @@ python evaluate.py --dataset loogle --data_dir shortdep_qa --model meta-llama/Me
 or pass a custom configuration file:
 
 ```bash
-python evaluate.py --config_path <your_config.yaml>
+python evaluate.py --config_file <your_config.yaml>
 ```
 
 💡 Results (predictions & metrics) are automatically saved to the `output_dir` directory .
