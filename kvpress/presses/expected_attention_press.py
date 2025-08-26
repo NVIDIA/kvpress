@@ -93,8 +93,7 @@ class ExpectedAttentionPress(ScorerPress):
         cov = None
         if self.use_covariance:
             centered_states = query_states - mu
-            centered_states = centered_states.transpose(1, 2)
-            cov = torch.einsum("bsni,bsnj->bnij", centered_states, centered_states) / h.shape[1]
+            cov = torch.einsum("bnsi,bnsj->bnij", centered_states, centered_states) / h.shape[1]
         mu = mu.squeeze(2)
 
         # RoPE rotation matrix on next n_future_positions

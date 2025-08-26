@@ -183,12 +183,12 @@ class BasePress:
 
         hooks = []
         try:
-            lm = model.model.language_model if isinstance(model, Gemma3ForConditionalGeneration) else model.model
-            for layer in lm.layers:
+            language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model
+            for layer in language_model.layers:
                 if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
                     # Skip layers with sliding window attention, only for Gemma3
                     continue
-                layer.self_attn.rotary_emb = lm.rotary_emb
+                layer.self_attn.rotary_emb = language_model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield
         finally:
