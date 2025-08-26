@@ -8,12 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import repeat_kv
-from transformers.models.phi3.modeling_phi3 import Phi3Attention
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.utils import get_query_states
 
 
 @dataclass
@@ -66,27 +64,14 @@ class ExpectedAttentionPress(ScorerPress):
         Compute the mean and covariance matrix of the queries
         """
 
-        bsz, q_len, _ = hidden_states.shape
-        num_heads, head_dim = module.config.num_attention_heads, module.head_dim
+        q_len = hidden_states.shape[1]
+        head_dim = module.head_dim
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
+        query_states = get_query_states(module, h)
 
-        if isinstance(module, Phi3Attention):
-            qkv = module.qkv_proj(h)
-            query_states = qkv[..., : num_heads * head_dim]
-        elif hasattr(module, "q_proj"):
-            # Assume Llama-like attention layer
-            query_states = module.q_proj(h)
-        else:
-            raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
-
-        query_states = query_states.view(bsz, h.shape[1], num_heads, head_dim).transpose(1, 2)
-
-        # Support for Qwen3 and Gemma3 QK norm
-        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
-            query_states = module.q_norm(query_states)
-
+        # Query mean
         mu = query_states.mean(dim=2, keepdim=True)
 
         # Query covariance
