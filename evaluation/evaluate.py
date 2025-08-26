@@ -209,12 +209,11 @@ class EvaluationRunner:
     def _setup_logging(self):
         """Configures the logging level based on the config."""
         log_level = self.config.log_level.upper()
-        
+
         handler = logging.StreamHandler()
         handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
         logger.addHandler(handler)
         logger.setLevel(log_level)
-
 
     def _setup_directories(self) -> Path:
         """
