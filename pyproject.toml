@@ -22,9 +22,6 @@ dependencies = [
     "accelerate>=1.0.0,<2",
     "requests>=2.32.3,<3",
     "cachetools>=5.5.2,<6",
-    "optimum-quanto>=0.2.7",
-    "hatch>=1.14.1",
-    "flash-attn>=2.8.2",
 ]
 
 [project.optional-dependencies]

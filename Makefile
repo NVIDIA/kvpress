@@ -41,8 +41,8 @@ reports:
 
 .PHONY: test
 test: reports
-	$(UV) add optimum-quanto
-	$(UV) add flash-attn
+	$(UV) pip install optimum-quanto
+	$(UV) pip install flash-attn
 	PYTHONPATH=. \
 	$(UV) run pytest \
 		--cov-report xml:reports/coverage.xml \
