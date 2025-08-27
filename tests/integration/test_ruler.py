@@ -8,7 +8,7 @@ from transformers import DynamicCache, QuantizedCacheConfig, QuantoQuantizedCach
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from tests.default_presses import default_presses
-from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
+from tests.fixtures import kv_press_qwen3_flash_attn_pipeline  # noqa: F401
 
 
 @pytest.fixture(scope="session")
@@ -22,7 +22,7 @@ def df_ruler():
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
-def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache):  # noqa: F811
+def test_ruler_is_correct(kv_press_qwen3_flash_attn_pipeline, df_ruler, press_dict, cache):  # noqa: F811
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
     press = cls(**kwargs)
@@ -49,5 +49,5 @@ def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press
     question = df_ruler.iloc[idx]["question"]
     true_answer = df_ruler.iloc[idx]["answer"][0]
 
-    pred_answer = kv_press_llama3_1_flash_attn_pipeline(context, question=question, press=press, cache=cache)["answer"]
+    pred_answer = kv_press_qwen3_flash_attn_pipeline(context, question=question, press=press, cache=cache)["answer"]
     assert true_answer in pred_answer
