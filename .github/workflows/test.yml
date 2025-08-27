@@ -19,7 +19,7 @@ jobs:
       - name: Setup CUDA
         uses: Jimver/cuda-toolkit@v0.2.16
         with:
-          cuda: '12.1'
+          cuda: '12.5.0'
 
       - name: Set CUDA_HOME
         run: echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV
