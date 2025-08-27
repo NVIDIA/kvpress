@@ -59,8 +59,9 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         """
         Override the parent method to use the pre-computed query statistics.
         """
-        mu, cov = self.apply_avg_rope(module, self.mu, self.cov, hidden_states.shape[1])
-        return mu[module.layer_idx].unsqueeze(0), cov[module.layer_idx].unsqueeze(0)
+        q_len = hidden_states.shape[1]
+        mu, cov = self.apply_avg_rope(module, self.mu[module.layer_idx], self.cov[module.layer_idx], q_len)
+        return mu.unsqueeze(0), cov.unsqueeze(0)
 
     def __post_init_from_model__(self, model):
         """
