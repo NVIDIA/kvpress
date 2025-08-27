@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
 
+import fire
 import torch
 from datasets import load_dataset
 from huggingface_hub import PyTorchModelHubMixin
@@ -59,18 +60,19 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         Override the parent method to use the pre-computed query statistics.
         """
         mu, cov = self.apply_avg_rope(module, self.mu, self.cov, hidden_states.shape[1])
-        return mu, cov
+        return mu[module.layer_idx].unsqueeze(0), cov[module.layer_idx].unsqueeze(0)
 
     def __post_init_from_model__(self, model):
         """
         Automatically load or compute query statistics for the model.
         """
-        if self.stats_folder is not None:
-            stats = ExpectedAttentionStats.from_pretrained(self.stats_folder)
-        else:
-            stats = self._maybe_load_stats_from_hub(model)
-        self.mu = stats.query_mean.data.to(model.device)
-        self.cov = stats.query_cov.data.to(model.device)
+        if self.mu is None and self.cov is None:
+            if self.stats_folder is not None:
+                stats = ExpectedAttentionStats.from_pretrained(self.stats_folder)
+            else:
+                stats = self._maybe_load_stats_from_hub(model)
+            self.mu = stats.query_mean.data.to(model.device, dtype=model.dtype)
+            self.cov = stats.query_cov.data.to(model.device, dtype=model.dtype)
 
     def _maybe_load_stats_from_hub(self, model: PreTrainedModel):
         """Load statistics from the Hugging Face Hub."""
@@ -189,9 +191,8 @@ def collect_queries(
     num_samples: int,
     q_len: int,
     n_sink: int,
-    return_stats: bool = False,
     text_column: str = "chapter",
-) -> list[torch.Tensor] | tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
     """
     Collects query representations from a transformer model using a calibration dataset.
 
@@ -206,7 +207,6 @@ def collect_queries(
         num_samples (int): Number of samples to use from the calibration dataset.
         q_len (int): Maximum sequence length to consider for each sample.
         n_sink (int): Number of initial tokens to exclude from the collected queries.
-        return_stats (bool): Whether to return the mean and covariance of the queries.
         text_column (str): Name of the column in the dataset containing the text to tokenize.
 
     Returns:
@@ -214,7 +214,6 @@ def collect_queries(
             collected_queries (list): List of query tensors, each of shape (num_layers, num_heads, seq_len, head_dim)
             mean_query (torch.Tensor): Mean query vector for each layer and head.
             cov_query (torch.Tensor): Covariance matrix of queries for each layer and head.
-            If return_stats is False, only the list of query tensors is returned.
     """
 
     # Load dataset and tokenizer
@@ -231,47 +230,59 @@ def collect_queries(
             model(**inputs)
         collected_queries.append(torch.cat(captured_queries, dim=0)[:, :, n_sink:, :])
 
-    if return_stats:
-        cat_queries = torch.cat(collected_queries, dim=-2)
-        mean_query = cat_queries.mean(dim=-2)
-        # compute covariance manually
-        centered_queries = cat_queries - mean_query.unsqueeze(-2)
-        N = cat_queries.shape[-2]
-        cov_query = (centered_queries.transpose(-2, -1) @ centered_queries) / (N - 1)
-        return collected_queries, mean_query, cov_query
-    else:
-        return collected_queries
+    cat_queries = torch.cat(collected_queries, dim=-2)
+    mean_query = cat_queries.mean(dim=-2)
+    # compute covariance manually
+    centered_queries = cat_queries - mean_query.unsqueeze(-2)
+    N = cat_queries.shape[-2]
+    cov_query = (centered_queries.transpose(-2, -1) @ centered_queries) / (N - 1)
+    return collected_queries, mean_query, cov_query
 
 
-if __name__ == "__main__":
-    import argparse
+def main(
+    model_name: str = "meta-llama/Llama-3.1-8B-Instruct",
+    output_path: str = ".",
+    dataset_name: str = "kmfoda/booksum",
+    num_samples: int = 100,
+    sample_seq_len: int = 1000,
+    n_sink: int = 4,
+    text_column: str = "chapter",
+    device_map: str = "auto",
+):
+    """
+    Collect query statistics for a transformer model and save them.
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str, default="meta-llama/Llama-3.2-1B-Instruct")
-    parser.add_argument("--output_path", type=str, default=".")
-    parser.add_argument("--dataset_name", type=str, default="kmfoda/booksum")
-    parser.add_argument("--num_samples", type=int, default=100)
-    parser.add_argument("--sample_seq_len", type=int, default=1000)
-    parser.add_argument("--n_sink", type=int, default=4)
-    parser.add_argument("--text_column", type=str, default="chapter")
-    parser.add_argument("--device_map", type=str, default="auto")
-    args = parser.parse_args()
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model_name, device_map=args.device_map, torch_dtype=torch.bfloat16
-    ).eval()
-    _, mu, cov = collect_queries(
-        model, args.dataset_name, args.num_samples, args.sample_seq_len, args.n_sink, return_stats=True
-    )
+    Args:
+        model_name: Name of the model to collect statistics for
+        output_path: Directory to save the statistics
+        dataset_name: Dataset to use for collecting statistics
+        num_samples: Number of samples to use from the dataset
+        sample_seq_len: Sequence length for each sample
+        n_sink: Number of initial tokens to exclude
+        text_column: Column name containing text in the dataset
+        device_map: Device mapping for the model
+    """
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device_map, torch_dtype=torch.bfloat16).eval()
+
+    _, mu, cov = collect_queries(model, dataset_name, num_samples, sample_seq_len, n_sink, text_column)
 
     stats = ExpectedAttentionStats(
         num_layers=model.config.num_hidden_layers,
         num_heads=model.config.num_attention_heads,
         head_dim=model.config.head_dim,
-        dataset_name=args.dataset_name,
-        model_name=args.model_name,
-        num_samples=args.num_samples,
-        sample_seq_len=args.sample_seq_len,
-        n_sink=args.n_sink,
+        dataset_name=dataset_name,
+        model_name=model_name,
+        num_samples=num_samples,
+        sample_seq_len=sample_seq_len,
+        n_sink=n_sink,
     )
-    output_path = os.path.join(args.output_path, stats.stats_id())
+    stats.query_mean.data = mu
+    stats.query_cov.data = cov
+
+    output_path = os.path.join(output_path, stats.stats_id())
     stats.save_pretrained(output_path)
+    print(f"Statistics saved to: {output_path}")
+
+
+if __name__ == "__main__":
+    fire.Fire(main)
