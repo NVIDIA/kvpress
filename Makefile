@@ -41,6 +41,8 @@ reports:
 
 .PHONY: test
 test: reports
+	$(UV) add optimum-quanto
+	$(UV) add flash-attn --no-build-isolation
 	PYTHONPATH=. \
 	$(UV) run pytest \
 		--cov-report xml:reports/coverage.xml \

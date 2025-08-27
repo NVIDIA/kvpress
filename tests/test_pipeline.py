@@ -63,7 +63,6 @@ def test_pipeline_no_press_works(kv_press_unit_test_pipeline, caplog):  # noqa: 
     kv_press_unit_test_pipeline(context, question=question)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 def test_pipeline_answer_is_correct(danube_500m_model, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         answers = generate_answer(danube_500m_model)
@@ -114,7 +113,7 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     model = unit_test_model
     questions = ["When was this article written?"]
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = model.device
 
     compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=device)
     input_ids_question = tokenizer(questions[0], return_tensors="pt", add_special_tokens=False)["input_ids"].to(device)
@@ -134,14 +133,12 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
 
 
 def generate_answer(model):
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    model.to(device)
+    device = model.device
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?", "When was this article written?"]
     press = ExpectedAttentionPress(compression_ratio=0.4)
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
-    answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)(
+    answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=device)(
         context, questions=questions, press=press
     )["answers"]
-    model.to(torch.device("cpu"))
     return answers
