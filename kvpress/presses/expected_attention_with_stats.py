@@ -38,9 +38,9 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         Whether to rescale scores using value vector norms.
     epsilon : float, default=0.0
         Small constant added to scores before value norm rescaling.
-    stats_dataset : str, default="kmfoda/booksum"
+    dataset_name : str, default="kmfoda/booksum"
         Dataset used to compute the statistics.
-    n_samples : int, default=100
+    num_samples : int, default=100
         Number of samples used to compute the statistics.
     sample_seq_len : int, default=1000
         Sequence length used to compute the statistics.
@@ -48,8 +48,8 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
 
     # Override parent defaults to enable stats by default
     sample_seq_len: int = 1000
-    n_samples: int = 100
-    stats_dataset: str = "kmfoda/booksum"
+    num_samples: int = 100
+    dataset_name: str = "kmfoda/booksum"
     stats_folder: Optional[str] = None
 
     mu: torch.Tensor = field(init=False, default=None)  # initialized in __post_init_from_model__
@@ -81,8 +81,8 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
             num_layers=model.config.num_hidden_layers,
             num_heads=model.config.num_attention_heads,
             head_dim=model.config.head_dim,
-            dataset_name=self.stats_dataset,
-            num_samples=self.n_samples,
+            dataset_name=self.dataset_name,
+            num_samples=self.num_samples,
             sample_seq_len=self.sample_seq_len,
             n_sink=self.n_sink,
         ).stats_id()
@@ -189,7 +189,7 @@ def collect_queries(
     model: PreTrainedModel,
     dataset_name: str,
     num_samples: int,
-    q_len: int,
+    sample_seq_len: int,
     n_sink: int,
     text_column: str = "chapter",
 ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
@@ -221,7 +221,7 @@ def collect_queries(
     dataset = load_dataset(dataset_name, split=f"train[:{num_samples}]")
 
     # Cut to max q_len
-    dataset = dataset.map(lambda x: {text_column: x[text_column][:q_len]})
+    dataset = dataset.map(lambda x: {text_column: x[text_column][:sample_seq_len]})
 
     collected_queries = []
     for text in tqdm(dataset[text_column], desc="Collecting queries"):
