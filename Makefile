@@ -42,7 +42,7 @@ reports:
 .PHONY: test
 test: reports
 	$(UV) pip install optimum-quanto
-	$(UV) pip install flash-attn --no-build-isolation
+	$(UV) pip install flash-attn
 	PYTHONPATH=. \
 	$(UV) run pytest \
 		--cov-report xml:reports/coverage.xml \
@@ -53,5 +53,10 @@ test: reports
 	@if grep -q "SKIPPED" reports/pytest_output.log; then \
 		echo "Error: Tests were skipped. All tests must run."; \
 		grep "SKIPPED" reports/pytest_output.log; \
+		exit 1; \
+	fi
+	@if grep -q "FAILED" reports/pytest_output.log; then \
+		echo "Error: Some tests failed."; \
+		grep "FAILED" reports/pytest_output.log; \
 		exit 1; \
 	fi
