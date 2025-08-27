@@ -133,7 +133,6 @@ class ExpectedAttentionPress(ScorerPress):
             cov = torch.matmul(R, torch.matmul(cov, R.T))
         return mu, cov
 
-
     def score(
         self,
         module: nn.Module,

@@ -1,19 +1,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import importlib
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
-import importlib
-from contextlib import contextmanager
-import torch
-from torch import nn
 
+import torch
 from datasets import load_dataset
-from tqdm import tqdm
-from transformers import AutoTokenizer, PreTrainedModel
 from huggingface_hub import PyTorchModelHubMixin
-from transformers import AutoModelForCausalLM
+from torch import nn
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel
 
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 
@@ -22,8 +21,8 @@ from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 class ExpectedAttentionStatsPress(ExpectedAttentionPress):
     """
     Expected attention press that automatically loads pre-computed query statistics.
-    
-    
+
+
     Parameters
     ----------
     compression_ratio : float, default=0.0
@@ -52,19 +51,15 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
     stats_dataset: str = "kmfoda/booksum"
     stats_folder: Optional[str] = None
 
-    
     mu: torch.Tensor = field(init=False, default=None)  # initialized in __post_init_from_model__
     cov: torch.Tensor = field(init=False, default=None)  # initialized in __post_init_from_model__
-    
-    
+
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
         Compute the mean and covariance matrix of the queries and apply average RoPE to them.
         """
-        print(f"Applying average RoPE to the mean and covariance matrix of the queries")
         mu, cov = self.apply_avg_rope(module, self.mu, self.cov, hidden_states.shape[1])
         return mu, cov
-
 
     def _maybe_load_stats_from_hub(self, model: PreTrainedModel):
         """Load statistics from the Hugging Face Hub."""
@@ -82,7 +77,6 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
             return ExpectedAttentionStats.from_pretrained(stats_id)
         except ValueError:
             raise ValueError(f"No statistics found for model {stats_id} on the Hub. Please compute them first.")
-        
 
     def __post_init_from_model__(self, model):
         """
@@ -91,9 +85,7 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         if self.stats_folder is not None:
             stats = ExpectedAttentionStats.from_pretrained(self.stats_folder)
         else:
-            print(f"Loading statistics from the Hub")
             stats = self._maybe_load_stats_from_hub(model)
-            print(f"Loaded statistics from the Hub")
         self.mu = stats.query_mean.data.to(model.device)
         self.cov = stats.query_cov.data.to(model.device)
 
@@ -103,7 +95,6 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         with super().__call__(model):
             yield
 
-    
 
 class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
     """
@@ -112,15 +103,15 @@ class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
     """
 
     def __init__(
-            self,
-            num_layers: int,
-            num_heads: int,
-            head_dim: int,
-            dataset_name: str,
-            model_name: str,
-            num_samples: int,
-            sample_seq_len: int,
-            n_sink: int,
+        self,
+        num_layers: int,
+        num_heads: int,
+        head_dim: int,
+        dataset_name: str,
+        model_name: str,
+        num_samples: int,
+        sample_seq_len: int,
+        n_sink: int,
     ):
         super().__init__()
         self.query_mean = torch.nn.Parameter(torch.zeros(num_layers, num_heads, head_dim))
@@ -130,13 +121,14 @@ class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
         self.num_samples = num_samples
         self.sample_seq_len = sample_seq_len
         self.n_sink = n_sink
-    
+
     def stats_id(self) -> str:
         """Generate the statistics ID for the model and configuration."""
-        return f"alessiodevoto/exp_att_stats_{self.model_name.replace('/', '_')}_{self.dataset_name.replace('/', '_')}_{self.num_samples}_{self.sample_seq_len}_{self.n_sink}"
+        return f"alessiodevoto/exp_att_stats_{self.model_name.replace('/', '_')}_{self.dataset_name.replace('/', '_')}_{self.num_samples}_{self.sample_seq_len}_{self.n_sink}"  # noqa: E501
 
 
 # The code below is used to collect statistics on a dataset, and is not used in the press.
+
 
 @contextmanager
 def patch_rotary_embedding(model):
@@ -187,14 +179,14 @@ def patch_rotary_embedding(model):
 
 @torch.inference_mode()
 def collect_queries(
-    model: PreTrainedModel, 
+    model: PreTrainedModel,
     dataset_name: str,
-    num_samples: int, 
-    q_len: int, 
+    num_samples: int,
+    q_len: int,
     n_sink: int,
     return_stats: bool = False,
     text_column: str = "chapter",
-) -> list[torch.Tensor]:
+) -> list[torch.Tensor] | tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
     """
     Collects query representations from a transformer model using a calibration dataset.
 
@@ -248,6 +240,7 @@ def collect_queries(
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", type=str, default="meta-llama/Llama-3.2-1B-Instruct")
     parser.add_argument("--output_path", type=str, default=".")
@@ -258,8 +251,12 @@ if __name__ == "__main__":
     parser.add_argument("--text_column", type=str, default="chapter")
     parser.add_argument("--device_map", type=str, default="auto")
     args = parser.parse_args()
-    model = AutoModelForCausalLM.from_pretrained(args.model_name, device_map=args.device_map, torch_dtype=torch.bfloat16).eval()
-    _, mu, cov = collect_queries(model, args.dataset_name, args.num_samples, args.sample_seq_len, args.n_sink, return_stats=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        args.model_name, device_map=args.device_map, torch_dtype=torch.bfloat16
+    ).eval()
+    _, mu, cov = collect_queries(
+        model, args.dataset_name, args.num_samples, args.sample_seq_len, args.n_sink, return_stats=True
+    )
 
     stats = ExpectedAttentionStats(
         num_layers=model.config.num_hidden_layers,
