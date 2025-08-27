@@ -16,8 +16,18 @@ jobs:
         with:
           python-version: 3.10.11
 
-      - name: Set CUDA_HOME
-        run: echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV
+      - name: Find and set CUDA_HOME
+        run: |
+          NVCC_PATH=$(which nvcc)
+          if [ -n "$NVCC_PATH" ]; then
+            CUDA_HOME=$(dirname $(dirname $NVCC_PATH))
+            echo "Found nvcc at: $NVCC_PATH"
+            echo "Setting CUDA_HOME to: $CUDA_HOME"
+            echo "CUDA_HOME=$CUDA_HOME" >> $GITHUB_ENV
+          else
+            echo "nvcc not found in PATH"
+            exit 1
+          fi
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
