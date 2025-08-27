@@ -4,6 +4,8 @@ Description of your PR. Fixes # (issue) (if applicable)
 
 ## Checklist
 
+Before submitting a PR, please make sure:
+
 - Tests are working (`make test`)
 - Code is formatted correctly (`make style`, on errors try fix with `make format`)
 - Copyright header is included

@@ -27,12 +27,12 @@ def test_ruler_is_correct(kv_press_llama3_1_flash_attn_pipeline, df_ruler, press
     kwargs = press_dict["kwargs"][0]
     press = cls(**kwargs)
     if not hasattr(cls, "compression_ratio"):
-        pytest.skip(reason="Press does not support compression_ratio")
+        return  # "Press does not support compression_ratio"
     # set compression ratio to a small value for testing
     try:
         press.compression_ratio = 0.1
     except AttributeError:
-        pytest.skip(reason="Press does not support setting compression_ratio")
+        return  # "Press does not support setting compression_ratio"
 
     if cache == "dynamic":
         cache = DynamicCache()

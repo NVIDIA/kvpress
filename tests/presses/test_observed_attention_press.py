@@ -13,18 +13,18 @@ from tests.fixtures import unit_test_model, unit_test_model_output_attention  # 
 
 @torch.no_grad()
 def test_observed_drops_attention_output(unit_test_model, unit_test_model_output_attention, caplog):  # noqa: F811
-    input_ids = unit_test_model.dummy_inputs["input_ids"]
+    input_ids = unit_test_model.dummy_inputs["input_ids"].to(unit_test_model.device)
     output = unit_test_model(input_ids, past_key_values=DynamicCache())
     assert output.attentions is None
 
-    input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"]
+    input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"].to(unit_test_model.device)
     attentions = unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).attentions
     assert all([isinstance(attention, torch.Tensor) for attention in attentions])
 
     with caplog.at_level(logging.DEBUG):
         press = ObservedAttentionPress(compression_ratio=0.4)
         with press(unit_test_model_output_attention):
-            input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"]
+            input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"].to(unit_test_model.device)
             output = unit_test_model_output_attention(input_ids, past_key_values=DynamicCache())
 
             # There's a slight mismatch in outputs when using a model that has output_attentions=True
@@ -36,7 +36,7 @@ def test_observed_drops_attention_output(unit_test_model, unit_test_model_output
 
     press = ObservedAttentionPress(compression_ratio=0.4, output_attentions=True)
     with press(unit_test_model_output_attention):
-        input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"]
+        input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"].to(unit_test_model.device)
         output = unit_test_model_output_attention(input_ids, past_key_values=DynamicCache())
 
         assert all(

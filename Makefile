@@ -42,10 +42,16 @@ reports:
 .PHONY: test
 test: reports
 	$(UV) add optimum-quanto
-	$(UV) add flash-attn --no-build-isolation
+	$(UV) add flash-attn
 	PYTHONPATH=. \
 	$(UV) run pytest \
 		--cov-report xml:reports/coverage.xml \
 		--cov=kvpress/ \
 		--junitxml=./reports/junit.xml \
-		tests/
+		-v \
+		tests/ | tee reports/pytest_output.log
+	@if grep -q "SKIPPED" reports/pytest_output.log; then \
+		echo "Error: Tests were skipped. All tests must run."; \
+		grep "SKIPPED" reports/pytest_output.log; \
+		exit 1; \
+	fi
