@@ -56,10 +56,21 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
-        Compute the mean and covariance matrix of the queries and apply average RoPE to them.
+        Override the parent method to use the pre-computed query statistics.
         """
         mu, cov = self.apply_avg_rope(module, self.mu, self.cov, hidden_states.shape[1])
         return mu, cov
+
+    def __post_init_from_model__(self, model):
+        """
+        Automatically load or compute query statistics for the model.
+        """
+        if self.stats_folder is not None:
+            stats = ExpectedAttentionStats.from_pretrained(self.stats_folder)
+        else:
+            stats = self._maybe_load_stats_from_hub(model)
+        self.mu = stats.query_mean.data.to(model.device)
+        self.cov = stats.query_cov.data.to(model.device)
 
     def _maybe_load_stats_from_hub(self, model: PreTrainedModel):
         """Load statistics from the Hugging Face Hub."""
@@ -76,18 +87,13 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         try:
             return ExpectedAttentionStats.from_pretrained(stats_id)
         except ValueError:
-            raise ValueError(f"No statistics found for model {stats_id} on the Hub. Please compute them first.")
-
-    def __post_init_from_model__(self, model):
-        """
-        Automatically load or compute query statistics for the model.
-        """
-        if self.stats_folder is not None:
-            stats = ExpectedAttentionStats.from_pretrained(self.stats_folder)
-        else:
-            stats = self._maybe_load_stats_from_hub(model)
-        self.mu = stats.query_mean.data.to(model.device)
-        self.cov = stats.query_cov.data.to(model.device)
+            raise ValueError(
+                f"No statistics found for model {stats_id} on the Hub. Please compute them first. "
+                "You can do so by running the following code: "
+                "```"
+                "python expected_attention_with_stats.py --model_name <model_name>"
+                "```"
+            )
 
     @contextmanager
     def __call__(self, model):
@@ -99,7 +105,6 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
 class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
     """
     Module that stores the mean and covariance matrix of the queries, possibly uploaded to the HF hub.
-
     """
 
     def __init__(
@@ -127,7 +132,7 @@ class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
         return f"alessiodevoto/exp_att_stats_{self.model_name.replace('/', '_')}_{self.dataset_name.replace('/', '_')}_{self.num_samples}_{self.sample_seq_len}_{self.n_sink}"  # noqa: E501
 
 
-# The code below is used to collect statistics on a dataset, and is not used in the press.
+# The code below is used to collect statistics on a dataset.
 
 
 @contextmanager
