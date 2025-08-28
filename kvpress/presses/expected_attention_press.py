@@ -83,16 +83,6 @@ class ExpectedAttentionPress(ScorerPress):
         # Apply RoPE to the mean and covariance matrix of the queries
         mu, cov = self.apply_avg_rope(module, mu, cov, q_len)
 
-        # Instead of using the average rotation matrix, we could use a mixture of gaussian statistics to
-        # estimate mean and covariance. Estimation is better, but end-to-end performance was lower.
-        # mu = torch.einsum("bhj, fij -> bhfi", mu, R)
-        # mean_mu = mu.mean(dim=2, keepdim=True)
-        # if self.use_covariance:
-        #     cov = torch.einsum("fki, bhkl, fjl -> bhfij", R, cov, R)
-        #     cov = cov.mean(dim=2)
-        #     cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
-        # mu = mean_mu.squeeze(2)
-
         return mu, cov
 
     def apply_avg_rope(self, module: nn.Module, mu: torch.Tensor, cov: torch.Tensor, q_len: int):
