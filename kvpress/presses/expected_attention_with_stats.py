@@ -10,7 +10,7 @@ from typing import Optional
 import fire
 import torch
 from datasets import load_dataset
-from huggingface_hub import PyTorchModelHubMixin
+from huggingface_hub import PyTorchModelHubMixin, get_collection
 from torch import nn
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel
@@ -63,6 +63,11 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         layer_idx = module.layer_idx
         mu, cov = self.apply_avg_rope(module, self.mu[layer_idx], self.cov[layer_idx], q_len)  # type: ignore
         return mu.unsqueeze(0), cov.unsqueeze(0)
+
+    @staticmethod
+    def available_stats():
+        collection = get_collection("alessiodevoto/expectedattentionstats-68b0248d519303713320e2cf")
+        return [x.item_id for x in collection.items]
 
     def __post_init_from_model__(self, model):
         """
