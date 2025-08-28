@@ -60,7 +60,8 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         Override the parent method to use the pre-computed query statistics.
         """
         q_len = hidden_states.shape[1]
-        mu, cov = self.apply_avg_rope(module, self.mu[module.layer_idx], self.cov[module.layer_idx], q_len)
+        layer_idx = module.layer_idx
+        mu, cov = self.apply_avg_rope(module, self.mu[layer_idx], self.cov[layer_idx], q_len)  # type: ignore
         return mu.unsqueeze(0), cov.unsqueeze(0)
 
     def __post_init_from_model__(self, model):
@@ -172,7 +173,7 @@ def patch_rotary_embedding(model):
 
     def patched_function(q_embed, k_embed, *args, **kwargs):
         # Capture the query tensor before RoPE is applied
-        captured_tensors.append(q_embed.detach())
+        captured_tensors.append(q_embed.detach().cpu())
         q_embed, k_embed = original_function(q_embed, k_embed, *args, **kwargs)
         return q_embed, k_embed
 
