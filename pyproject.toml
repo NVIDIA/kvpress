@@ -22,6 +22,7 @@ dependencies = [
     "accelerate>=1.0.0,<2",
     "requests>=2.32.3,<3",
     "cachetools>=5.5.2,<6",
+    "fire>=0.6.0,<0.7",
 ]
 
 [project.optional-dependencies]
@@ -30,7 +31,6 @@ eval = [
     "nltk>=3.9.1,<4",
     "tqdm>=4.66.4,<5",
     "scipy>=1.13.1,<2",
-    "fire>=0.6.0,<0.7",
     "bert-score>=0.3.13,<0.4",
 ]
 flash-attn = [
