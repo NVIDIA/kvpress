@@ -23,27 +23,6 @@ git clone https://github.com/NVIDIA/kvpress.git
 cd kvpress
 uv sync --all-groups
 ```
-<details><summary>
-Advanced installation settings
-</summary>
-
-To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
-To install with flash attention, just run:
-
-```bash
-git clone https://github.com/NVIDIA/kvpress.git
-cd kvpress
-uv sync --extra flash-attn
-```
-
-To install with dependencies for evaluation, run 
-
-```bash
-git clone https://github.com/NVIDIA/kvpress.git
-cd kvpress
-uv sync --extra eval
-```
-</details>
 
 ## Usage
 
@@ -102,7 +81,7 @@ Some presses rely on a different logic:
 - `FinchPress` ([source](kvpress/presses/finch_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): similar to SnapKV with a dynamic window size and key value re-rotation
 - `KVzipPress` ([source](kvpress/presses/kvzip_press.py), [paper](https://arxiv.org/abs/2505.23416)): identifies redundant KV pairs through context reconstruction. Achieves near-lossless compression at the cost of multiple forward passes.
 
-We provide wrapper presses that can be combined with other presses:
+Finally we provide wrapper presses that can be combined with other presses:
 - `AdaKVPress` ([source](kvpress/presses/adakv_press.py), [paper](https://arxiv.org/abs/2407.11550)): prune bottom scores of any `ScorerPress` but across all heads, achieving head-wise compressions 
 - `PerLayerCompressionPress` ([source](kvpress/presses/per_layer_compression_press.py)): compress each layer with a different compression ratio (experimental)
 - `ComposedPress` ([source](kvpress/presses/composed_press.py)): compose multiple presses together by chaining their forward hooks
@@ -111,34 +90,6 @@ We provide wrapper presses that can be combined with other presses:
 - `ChunkPress` ([source](kvpress/presses/chunk_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): compress the KV cache on each sequence chunk separately. This can yield to more uniform compression across long sequences
 - `CriticalKVPress` and `CriticalAdaKVPress` ([source](kvpress/presses/criticalkv_press.py), [paper](https://arxiv.org/abs/2502.03805)): refine the scores using the L1 norm of Wo @ values, coupled with a two-stage selection.
 - `BlockPress` ([source](kvpress/presses/block_press.py), [paper](https://arxiv.org/abs/2504.15364)): segments input sequence into non-overlapping blocks and compresses iteratively.
-
-### Generation Presses (Experimental)
-
-We provide experimental presses that can compress the KV cache during token generation, enabling memory-efficient long-form text generation:
-
-- `DecodingPress` ([source](kvpress/presses/generation/decoding_press.py)): compresses the KV cache periodically during token generation by maintaining a buffer of recent hidden states. Only operates during decoding phase and applies compression every `compression_steps` using any ScorerPress.
-- `PrefillDecodingPress` ([source](kvpress/presses/generation/prefill_decoding_press.py)): combines separate presses for prefilling and decoding phases, allowing different compression strategies for each phase.
-
-These presses maintain a target cache size during generation through configurable compression frequency and buffer size.
-Unlike context compression presses that use `compression_ratio`, generation presses use `token_buffer_size` to specify the exact number of tokens to keep after compression.
-They are compatible with most ScorerPress implementations and allow separate compression strategies for prefill vs. decoding phases.
-
-**Example Usage:**
-```python
-from kvpress import DecodingPress, KnormPress
-
-# Compress every 128 steps during decoding, keeping 1024 tokens
-decoding_press = DecodingPress(
-    base_press=KnormPress(),  # No need to specify compression_ratio, will be derived from token_buffer_size
-    compression_steps=128,  # Compress every at every 128 generated tokens
-    token_buffer_size=1024, # Keep 1024 tokens after compression. Note there's no compression before the first 1024 generated tokens (even if tf the context is long).
-    hidden_states_buffer_size=0 # Don't buffer hidden states as a running buffer (as we are using KnormPress). For some presses, having a large enough buffer will benefit compression.
-)
-
-response = pipe("Generate a long story...", press=decoding_press)
-```
-
-For detailed documentation and compatibility notes, see [generation presses README](kvpress/presses/generation/README.md).
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
@@ -253,3 +204,24 @@ with press(model):
 However, the `generate` method does not allow to exclude the question from the compression, which would artificially favors methods such as SnapKV. Ideally, we want a compression method that works whatever comes after the context (_e.g._ for use cases such as chat or document question answering). Finally the `generate` method does not allow to provide generation for multiple questions at once.
 
 </details>
+
+
+## Advanced installation settings
+To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
+To install with flash attention, just run:
+
+```bash
+git clone https://github.com/NVIDIA/kvpress.git
+cd kvpress
+uv sync --extra flash-attn
+```
+
+To install with dependencies for evaluation, run 
+
+```bash
+git clone https://github.com/NVIDIA/kvpress.git
+cd kvpress
+uv sync --extra eval
+```
+
+Notice that optional dependecies can be combined.
