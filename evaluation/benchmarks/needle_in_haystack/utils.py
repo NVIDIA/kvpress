@@ -58,15 +58,11 @@ def insert_needle_in_haystack(
     max_new_tokens = df["max_new_tokens"][0]
 
     logger.info(f"Preparing dataset for inference. Needle: {needle_text}")
-
     tokenized_needle = tokenizer.encode(needle_text, add_special_tokens=False)
-
     # Account for system prompts and other overhead
     context_length_limit = max_context_length - len(tokenized_needle) - 150
-
     # Tokenize the original context once
     tokenized_context = tokenizer.encode(original_context, add_special_tokens=False)[:context_length_limit]
-
     # Initialize a list to hold the new rows
     new_rows = []
     needle_depth = [needle_depth] if isinstance(needle_depth, int) else needle_depth
@@ -74,17 +70,10 @@ def insert_needle_in_haystack(
     for depth in needle_depth:
         # Calculate the insertion index based on the current depth
         needle_index = int(len(tokenized_context) * depth / 100)
-
         # Create a new tokenized context with the needle inserted
         new_tokenized_context = tokenized_context[:needle_index] + tokenized_needle + tokenized_context[needle_index:]
-
-        # Detokenize the new context
         decoded_context = tokenizer.decode(new_tokenized_context, skip_special_tokens=True)
-
-        # Format the final context string
         final_context = context_wrapper.format(context=decoded_context)
-
-        # Create a new row dictionary, make sure to copy all the columns from the original dataframe
         new_row = {
             "context": final_context,
             "needle": needle_text,
@@ -93,8 +82,6 @@ def insert_needle_in_haystack(
             "answer_prefix": answer_prefix,
             "max_new_tokens": max_new_tokens,
         }
-
-        # Append the new row
         new_rows.append(new_row)
 
     # Create the new DataFrame from the list of rows
