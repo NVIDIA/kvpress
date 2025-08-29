@@ -15,9 +15,10 @@ def insert_needle_in_haystack(
     tokenizer: PreTrainedTokenizer, 
     max_context_length: int, 
     needle_depth: int | list[int],
+    context_wrapper: str = "This is a very long story book: <book> {context} </book>.",
     needle_text: Optional[str] = None,
     answer_prefix: Optional[str] = None,
-    question_text: Optional[str] = None,
+    question_text: Optional[str] = None
 ) -> pd.DataFrame:
     """
     Inserts the "needle" string into the "context" of each row in the DataFrame at specified depths.
@@ -81,7 +82,7 @@ def insert_needle_in_haystack(
         decoded_context = tokenizer.decode(new_tokenized_context, skip_special_tokens=True)
         
         # Format the final context string
-        final_context = f"This is a very long story book: <book> {decoded_context} </book>."
+        final_context = context_wrapper.format(context=decoded_context)
         
         # Create a new row dictionary, make sure to copy all the columns from the original dataframe
         new_row = {

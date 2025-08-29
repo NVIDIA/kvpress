@@ -321,7 +321,7 @@ class EvaluationRunner:
         device = self.config.device
 
         if device is None:
-            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            device = "auto" if torch.cuda.is_available() else "cpu"
             logger.info(f"No device specified, auto-detected device: {device}")
 
         model_kwargs = self.config.model_kwargs or {}
