@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+from typing import Optional
 
 import pandas as pd
 from transformers import PreTrainedTokenizer
@@ -13,7 +14,10 @@ def insert_needle_in_haystack(
     df: pd.DataFrame, 
     tokenizer: PreTrainedTokenizer, 
     max_context_length: int, 
-    needle_depth: int | list[int]
+    needle_depth: int | list[int],
+    needle_text: Optional[str] = None,
+    answer_prefix: Optional[str] = None,
+    question_text: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Inserts the "needle" string into the "context" of each row in the DataFrame at specified depths.
@@ -29,6 +33,14 @@ def insert_needle_in_haystack(
         The maximum allowed length (in tokens) for the context, including the needle.
     needle_depths : int | list[int]
         A list of percentages (0-100) indicating how deep into the context the needle should be inserted.
+    needle_text : Optional[str]
+        The text to insert as the needle. If None, the first row's "needle" column is used.
+    answer_prefix : Optional[str]
+        The prefix to add to the answer. If None, the first row's "answer_prefix" column is used.
+    question_text : Optional[str]
+        The text to insert as the question. If None, the first row's "question" column is used.
+    max_new_tokens : int
+        The maximum number of new tokens to generate. If None, the first row's "max_new_tokens" column is used.
 
     Returns
     -------
@@ -39,7 +51,10 @@ def insert_needle_in_haystack(
     
     # Store the original context and needle to be reused for each depth
     original_context = df['context'][0]
-    needle_text = df['needle'][0]
+    needle_text = needle_text or df['needle'][0]
+    question_text = question_text or df['question'][0]
+    answer_prefix = answer_prefix or df['answer_prefix'][0]
+    max_new_tokens = df['max_new_tokens'][0]
 
     logger.info(f"Preparing dataset for inference. Needle: {needle_text}")
     
@@ -73,7 +88,9 @@ def insert_needle_in_haystack(
             'context': final_context,
             'needle': needle_text,
             'needle_depth': depth,
-            **{col: df[col][0] for col in df.columns if col not in ['context', 'needle', 'needle_depth']}
+            'question': question_text,
+            'answer_prefix': answer_prefix,
+            'max_new_tokens': max_new_tokens,
         }
         
         # Append the new row
