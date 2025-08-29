@@ -11,12 +11,10 @@ from typing import Any, Generator, List, cast
 import torch
 from torch import nn
 from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import rotate_half
-from transformers.models.phi3.modeling_phi3 import Phi3Attention
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
+from kvpress.presses.utils import get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -306,20 +304,7 @@ class KVzipPress(BasePress):
         head_dim = module.head_dim
         num_key_value_groups = num_heads // num_heads_kv
 
-        if isinstance(module, Phi3Attention):
-            qkv = module.qkv_proj(hidden_states)
-            queries = qkv[..., : num_heads * head_dim]
-        elif hasattr(module, "q_proj"):
-            # Assume Llama-like attention layer
-            queries = module.q_proj(hidden_states)
-        else:
-            raise NotImplementedError(f"KVzip not yet implemented for {module.__class__}.")
-
-        queries = queries.view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
-
-        # Support for Qwen3 and Gemma3 QK norm
-        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
-            queries = module.q_norm(queries)
+        queries = get_query_states(module, hidden_states)
 
         # Apply RoPE
         cos, sin = kwargs["position_embeddings"]
