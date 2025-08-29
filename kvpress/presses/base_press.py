@@ -10,7 +10,7 @@ from typing import Generator
 import torch
 from torch import nn
 from transformers import (
-    Gemma3ForConditionalGeneration,
+    Gemma3ForCausalLM,
     LlamaForCausalLM,
     MistralForCausalLM,
     Phi3ForCausalLM,
@@ -28,7 +28,7 @@ SUPPORTED_MODELS = (
     Phi3ForCausalLM,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
-    Gemma3ForConditionalGeneration,
+    Gemma3ForCausalLM,
 )
 
 
@@ -178,17 +178,16 @@ class BasePress:
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
-        if isinstance(model, Gemma3ForConditionalGeneration):
-            logger.warning_once("Compression in Gemma3 is only applied to layer without sliding window attention")
+        if isinstance(model, Gemma3ForCausalLM):
+            logger.warning("Compression in Gemma3 is only applied to layer without sliding window attention")
 
         hooks = []
         try:
-            lm = model.model.language_model if isinstance(model, Gemma3ForConditionalGeneration) else model.model
-            for layer in lm.layers:
-                if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
+            for layer in model.model.layers:
+                if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
                     # Skip layers with sliding window attention, only for Gemma3
                     continue
-                layer.self_attn.rotary_emb = lm.rotary_emb
+                layer.self_attn.rotary_emb = model.model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield
         finally:

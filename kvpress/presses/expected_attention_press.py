@@ -67,46 +67,45 @@ class ExpectedAttentionPress(ScorerPress):
         """
 
         bsz, q_len, _ = hidden_states.shape
-        num_heads, head_dim = module.config.num_attention_heads, module.head_dim
+        n, d = module.config.num_attention_heads, module.head_dim
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
 
-        if isinstance(module, Phi3Attention):
-            qkv = module.qkv_proj(h)
-            query_states = qkv[..., : num_heads * head_dim]
+        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
+            # Qwen and Gemma use QK norm, which is not compatible with ExpectedAttentionPress (for now)
+            raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
+        elif isinstance(module, Phi3Attention):
+            Wq = module.qkv_proj.weight[: n * d]
         elif hasattr(module, "q_proj"):
             # Assume Llama-like attention layer
-            query_states = module.q_proj(h)
+            Wq = module.q_proj.weight  # type: ignore[assignment]
         else:
             raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
 
-        query_states = query_states.view(bsz, h.shape[1], num_heads, head_dim).transpose(1, 2)
-
-        # Support for Qwen3 and Gemma3 QK norm
-        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
-            query_states = module.q_norm(query_states)
-
-        mu = query_states.mean(dim=2, keepdim=True)
+        # Query mean
+        mean_h = torch.mean(h, dim=1, keepdim=True)
+        mu = torch.matmul(mean_h, Wq.T).squeeze(1)
+        mu = mu.view(bsz, n, d)
 
         # Query covariance
         cov = None
         if self.use_covariance:
-            centered_states = query_states - mu
-            centered_states = centered_states.transpose(1, 2)
-            cov = torch.einsum("bsni,bsnj->bnij", centered_states, centered_states) / h.shape[1]
-        mu = mu.squeeze(2)
+            h = h - mean_h
+            q = torch.matmul(h, Wq.T).view(bsz, h.shape[1], n, d)
+            # Compute per-head query covariance directly in the projected space.
+            # This avoids forming an intermediate O((n * d)^2) covariance matrix
+            # for the full hidden states, reducing both memory and compute cost.
+            cov = torch.einsum("bsni,bsnj->bnij", q, q) / h.shape[1]
 
         # RoPE rotation matrix on next n_future_positions
         position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
         cos, sin = module.rotary_emb(mu, position_ids)
         cos, sin = cos[0], sin[0]
 
-        Id = torch.eye(head_dim, device=cos.device, dtype=cos.dtype)
-        P = torch.zeros((head_dim, head_dim), device=cos.device, dtype=cos.dtype)
-        P[head_dim // 2 :, : head_dim // 2], P[: head_dim // 2, head_dim // 2 :] = torch.eye(head_dim // 2), -torch.eye(
-            head_dim // 2
-        )
+        Id = torch.eye(d, device=cos.device, dtype=cos.dtype)
+        P = torch.zeros((d, d), device=cos.device, dtype=cos.dtype)
+        P[d // 2 :, : d // 2], P[: d // 2, d // 2 :] = torch.eye(d // 2), -torch.eye(d // 2)
         R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
 
         # Apply average rotation to the mean and covariance
