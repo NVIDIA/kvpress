@@ -153,12 +153,12 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     ).past_key_values
     assert past_key_values.get_seq_length() == seq_len
 
-    keys = [key.clone() for key in past_key_values.key_cache]
-    values = [value.clone() for value in past_key_values.value_cache]
+    keys = [layer.keys.clone() for layer in past_key_values.layers]
+    values = [layer.values.clone() for layer in past_key_values.layers]
     compression_pipeline.generate_answer(input_ids_question, past_key_values, context_length=22, max_new_tokens=10)
     assert past_key_values.get_seq_length() == seq_len
-    assert all([torch.allclose(key, new_key) for key, new_key in zip(keys, past_key_values.key_cache)])
-    assert all([torch.allclose(value, new_value) for value, new_value in zip(values, past_key_values.value_cache)])
+    assert all([torch.allclose(key, layer.keys) for key, layer in zip(keys, past_key_values.layers)])
+    assert all([torch.allclose(value, layer.values) for value, layer in zip(values, past_key_values.layers)])
 
 
 def generate_answer(model):

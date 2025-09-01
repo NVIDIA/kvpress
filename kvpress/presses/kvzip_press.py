@@ -118,9 +118,9 @@ class KVzipPress(BasePress):
 
         def wrapped_forward(model_self, *args, **kwargs):
             self._context_ids = kwargs["input_ids"]
-            assert "past_key_value" in kwargs or "past_key_values" in kwargs, (
-                f"KVzipPress requires 'past_key_value' or 'past_key_values' to be passed during prefilling. got {kwargs.keys()}"
-            )
+            assert (
+                "past_key_value" in kwargs or "past_key_values" in kwargs
+            ), f"KVzipPress requires 'past_key_value' or 'past_key_values' during prefilling. Got {kwargs.keys()}"
             self._cache = kwargs.get("past_key_values", None) or kwargs.get("past_key_value", None)
             return original_forward(*args, **kwargs)
 
@@ -154,7 +154,7 @@ class KVzipPress(BasePress):
         """
 
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_value"]
+        cache = kwargs.get("past_key_values", None) or kwargs.get("past_key_value", None)
 
         cache_layer = cache.layers[module.layer_idx]
         if isinstance(cache, QuantizedCache):

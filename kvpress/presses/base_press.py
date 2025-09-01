@@ -107,7 +107,7 @@ class BasePress:
         kwargs : dict
             Keyword arguments passed to the attention layer's forward method, including:
             - hidden_states: Input embeddings to the attention layer
-            - past_key_value: The KV cache object being modified
+            - past_key_values: The KV cache object being modified
             - cache_position: Position indices indicating where we are in the sequence
             - position_embeddings: RoPE embeddings if applicable
         output : list
@@ -123,7 +123,7 @@ class BasePress:
         """
 
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_value"]
+        cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
