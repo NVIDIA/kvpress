@@ -2,12 +2,13 @@ name: Test
 
 on:
   push:
-      branches: [ main ]
-  pull_request:
+    branches:
+      - main
+      - "pull-request/[0-9]+"
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: linux-amd64-gpu-l4-latest-1
     steps:
       - uses: actions/checkout@v3
       - name: Setup Python

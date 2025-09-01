@@ -6,6 +6,7 @@ from benchmarks.longbench.calculate_metrics import calculate_metrics as longbenc
 from benchmarks.longbench.calculate_metrics import calculate_metrics_e as longbench_scorer_e
 from benchmarks.longbenchv2.calculate_metrics import calculate_metrics as longbenchv2_scorer
 from benchmarks.loogle.calculate_metrics import calculate_metrics as loogle_scorer
+from benchmarks.needle_in_haystack.calculate_metrics import calculate_metrics as needle_in_haystack_scorer
 from benchmarks.ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
 
@@ -41,6 +42,7 @@ DATASET_REGISTRY = {
     "longbench": "Xnhyacinth/LongBench",
     "longbench-e": "Xnhyacinth/LongBench",
     "longbench-v2": "Xnhyacinth/LongBench-v2",
+    "needle_in_haystack": "alessiodevoto/paul_graham_essays",
 }
 
 SCORER_REGISTRY = {
@@ -51,6 +53,7 @@ SCORER_REGISTRY = {
     "longbench": longbench_scorer,
     "longbench-e": longbench_scorer_e,
     "longbench-v2": longbenchv2_scorer,
+    "needle_in_haystack": needle_in_haystack_scorer,
 }
 
 

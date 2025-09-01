@@ -8,12 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
-from transformers.models.phi3.modeling_phi3 import Phi3Attention
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.utils import get_query_states
 
 
 @dataclass
@@ -52,20 +50,7 @@ class SnapKVPress(ScorerPress):
         num_key_value_groups = num_heads // module.config.num_key_value_heads
 
         # Get last window_size queries
-        if isinstance(module, Phi3Attention):
-            qkv = module.qkv_proj(hidden_states[:, -window_size:])
-            query_states = qkv[..., : num_heads * head_dim]
-        elif hasattr(module, "q_proj"):
-            # Assume Llama-like attention layer
-            query_states = module.q_proj(hidden_states[:, -window_size:])
-        else:
-            raise NotImplementedError(f"SnapKV not yet implemented for {module.__class__}.")
-
-        query_states = query_states.view(bsz, window_size, num_heads, head_dim).transpose(1, 2)
-
-        # Support for Qwen3 and Gemma3 QK norm
-        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
-            query_states = module.q_norm(query_states)
+        query_states = get_query_states(module, hidden_states[:, -window_size:])
 
         # Apply RoPE
         cos, sin = position_embeddings
