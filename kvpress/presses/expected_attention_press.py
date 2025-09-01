@@ -8,12 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import repeat_kv
-from transformers.models.phi3.modeling_phi3 import Phi3Attention
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.utils import get_query_states
 
 
 @dataclass
@@ -66,64 +64,63 @@ class ExpectedAttentionPress(ScorerPress):
         Compute the mean and covariance matrix of the queries
         """
 
-        bsz, q_len, _ = hidden_states.shape
-        n, d = module.config.num_attention_heads, module.head_dim
+        q_len = hidden_states.shape[1]
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
-
-        if isinstance(module, (Qwen3Attention, Gemma3Attention)):
-            # Qwen and Gemma use QK norm, which is not compatible with ExpectedAttentionPress (for now)
-            raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
-        elif isinstance(module, Phi3Attention):
-            Wq = module.qkv_proj.weight[: n * d]
-        elif hasattr(module, "q_proj"):
-            # Assume Llama-like attention layer
-            Wq = module.q_proj.weight  # type: ignore[assignment]
-        else:
-            raise NotImplementedError(f"ExpectedAttentionPress not yet implemented for {module.__class__}.")
+        query_states = get_query_states(module, h)
 
         # Query mean
-        mean_h = torch.mean(h, dim=1, keepdim=True)
-        mu = torch.matmul(mean_h, Wq.T).squeeze(1)
-        mu = mu.view(bsz, n, d)
+        mu = query_states.mean(dim=2, keepdim=True)
 
         # Query covariance
         cov = None
         if self.use_covariance:
-            h = h - mean_h
-            q = torch.matmul(h, Wq.T).view(bsz, h.shape[1], n, d)
-            # Compute per-head query covariance directly in the projected space.
-            # This avoids forming an intermediate O((n * d)^2) covariance matrix
-            # for the full hidden states, reducing both memory and compute cost.
-            cov = torch.einsum("bsni,bsnj->bnij", q, q) / h.shape[1]
+            centered_states = query_states - mu
+            cov = torch.einsum("bnsi,bnsj->bnij", centered_states, centered_states) / h.shape[1]
+        mu = mu.squeeze(2)
 
-        # RoPE rotation matrix on next n_future_positions
+        # Apply RoPE to the mean and covariance matrix of the queries
+        mu, cov = self.apply_avg_rope(module, mu, cov, q_len)
+
+        return mu, cov
+
+    def apply_avg_rope(self, module: nn.Module, mu: torch.Tensor, cov: torch.Tensor, q_len: int):
+        """
+        Apply average RoPE to the mean and covariance matrix of the queries
+
+        Parameters
+        ----------
+        module : nn.Module
+            The module to apply RoPE to.
+        mu : torch.Tensor
+            The mean of the queries.
+        cov : torch.Tensor
+            The covariance matrix of the queries.
+        q_len : int
+            The length of the queries.
+
+        Returns
+        -------
+        mu : torch.Tensor
+            The mean of the queries after RoPE.
+        cov : torch.Tensor
+            The covariance matrix of the queries after RoPE.
+        """
         position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
+        head_dim = module.head_dim
         cos, sin = module.rotary_emb(mu, position_ids)
         cos, sin = cos[0], sin[0]
-
-        Id = torch.eye(d, device=cos.device, dtype=cos.dtype)
-        P = torch.zeros((d, d), device=cos.device, dtype=cos.dtype)
-        P[d // 2 :, : d // 2], P[: d // 2, d // 2 :] = torch.eye(d // 2), -torch.eye(d // 2)
+        Id = torch.eye(head_dim, device=cos.device, dtype=cos.dtype)
+        P = torch.zeros((head_dim, head_dim), device=cos.device, dtype=cos.dtype)
+        P[head_dim // 2 :, : head_dim // 2], P[: head_dim // 2, head_dim // 2 :] = torch.eye(head_dim // 2), -torch.eye(
+            head_dim // 2
+        )
         R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
-
-        # Apply average rotation to the mean and covariance
         R = R.mean(dim=0).to(mu.device)
         mu = torch.matmul(mu, R.T)
-        if self.use_covariance:
+        if cov is not None:
             cov = torch.matmul(R, torch.matmul(cov, R.T))
-
-        # Instead of using the average rotation matrix, we could use a mixture of gaussian statistics to
-        # estimate mean and covariance. Estimation is better, but end-to-end performance was lower.
-        # mu = torch.einsum("bhj, fij -> bhfi", mu, R)
-        # mean_mu = mu.mean(dim=2, keepdim=True)
-        # if self.use_covariance:
-        #     cov = torch.einsum("fki, bhkl, fjl -> bhfij", R, cov, R)
-        #     cov = cov.mean(dim=2)
-        #     cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
-        # mu = mean_mu.squeeze(2)
-
         return mu, cov
 
     def score(
