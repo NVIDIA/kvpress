@@ -129,7 +129,8 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
             input_ids = torch.randint(0, 3_000, (5, 256))
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
-        for scores, key in zip(press.scores, past_key_values.key_cache):
+        keys = [layer.keys for layer in past_key_values.layers]
+        for scores, key in zip(press.scores, keys):
             max_scores = -key.norm(dim=-1)
             for batch_idx in range(scores.shape[0]):
                 for head_idx in range(scores.shape[1]):
