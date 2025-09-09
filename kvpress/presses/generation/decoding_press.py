@@ -53,7 +53,7 @@ class DecodingPress(BasePress):
         # TODO: would it make sense to not reset the buffer?
         if self.hidden_states_buffer_size > 0 and self.compression_interval < self.hidden_states_buffer_size:
             logger.warning(
-                f"compression_interval ({self.compression_interval}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). " # noqa: E501
+                f"compression_interval ({self.compression_interval}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "  # noqa: E501
                 f"Buffer will be reset before reaching full capacity, potentially reducing compression quality."
             )
 
@@ -139,7 +139,7 @@ class DecodingPress(BasePress):
         # Apply compression if we've reached the compression step threshold
         if (self.layer_step_counts[layer_idx] >= self.compression_interval) or (q_len >= self.target_size):
             logger.debug(
-                f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})" # noqa: E501
+                f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})"  # noqa: E501
             )
 
             cache_layer = cache.layers[module.layer_idx]

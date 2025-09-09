@@ -9,7 +9,7 @@ import pytest
 import torch
 from transformers import DynamicCache, pipeline
 
-from kvpress import PyramidKVPress, QFilterPress, ScorerPress
+from kvpress import PyramidKVPress, ScorerPress
 from kvpress.presses.generation.decoding_press import DecodingPress
 from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.knorm_press import KnormPress
