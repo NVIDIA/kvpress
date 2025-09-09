@@ -37,15 +37,15 @@ class KVPressTextGenerationPipeline(Pipeline):
     """
 
     def _sanitize_parameters(
-            self,
-            question: Optional[str] = None,
-            questions: Optional[list[str]] = None,
-            answer_prefix: Optional[str] = None,
-            press: Optional[BasePress] = None,
-            max_new_tokens: int = 50,
-            max_context_length: Optional[int] = None,
-            cache: Optional[Cache] = None,
-            **kwargs,
+        self,
+        question: Optional[str] = None,
+        questions: Optional[list[str]] = None,
+        answer_prefix: Optional[str] = None,
+        press: Optional[BasePress] = None,
+        max_new_tokens: int = 50,
+        max_context_length: Optional[int] = None,
+        cache: Optional[Cache] = None,
+        **kwargs,
     ):
         """
         Sanitize the input parameters for the pipeline.
@@ -98,11 +98,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
 
     def preprocess(
-            self,
-            context: str,
-            questions: list[str],
-            answer_prefix: str,
-            max_context_length: int,
+        self,
+        context: str,
+        questions: list[str],
+        answer_prefix: str,
+        max_context_length: int,
     ):
         """
         Apply chat template and tokenize the context and questions.
@@ -163,11 +163,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         return {"context_ids": context_ids, "questions_ids": question_ids}
 
     def _forward(
-            self,
-            input_tensors: dict[str, GenericTensor],
-            max_new_tokens: int = 50,
-            press: Optional[BasePress] = None,
-            cache: Optional[Cache] = None,
+        self,
+        input_tensors: dict[str, GenericTensor],
+        max_new_tokens: int = 50,
+        press: Optional[BasePress] = None,
+        cache: Optional[Cache] = None,
     ):
         """
         Execute KV cache compression and text generation pipeline.
@@ -233,9 +233,9 @@ class KVPressTextGenerationPipeline(Pipeline):
 
                 answers.append(answer)
         return answers
-    
+
     def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
-        
+
         for layer_idx, sequence_length in enumerate(cache_seq_lengths):
             cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
             cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
@@ -249,9 +249,8 @@ class KVPressTextGenerationPipeline(Pipeline):
                     :, :, :sequence_length
                 ]
 
-
     def generate_answer(
-            self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
+        self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
     ) -> str:
         """
         Generate an answer to a question using greedy decoding.
@@ -272,7 +271,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         str
             The generated answer.
         """
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -303,7 +301,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             if new_id.item() in should_stop_token_ids:
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-         
         return answer
 
     def output_attentions(self, press: BasePress):

@@ -9,7 +9,7 @@ import pytest
 import torch
 from transformers import DynamicCache, pipeline
 
-from kvpress import PyramidKVPress, QFilterPress, ScorerPress, SnapKVPress
+from kvpress import PyramidKVPress, QFilterPress, ScorerPress
 from kvpress.presses.generation.decoding_press import DecodingPress
 from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.knorm_press import KnormPress
@@ -40,7 +40,7 @@ def test_decoding_compression(token_buffer_size):
     question = "What animal jumps over the dog?"
 
     # Run pipeline
-    result = pipe(context, question=question, press=press, cache=cache, max_new_tokens=20)
+    pipe(context, question=question, press=press, cache=cache, max_new_tokens=20)
 
     # Assert that all layers have the expected cache size
     for layer_idx, cache_layer in enumerate(cache.layers):
@@ -71,7 +71,7 @@ def test_prefill_decoding_press_calls_both_phases():
 
     # Run pipeline
     cache = DynamicCache()
-    result = pipe(context, question=question, press=combined_press, cache=cache, max_new_tokens=15)
+    pipe(context, question=question, press=combined_press, cache=cache, max_new_tokens=15)
 
     # Check that cache was compressed during both phases
     # Final cache should be compressed to decoding press target size
@@ -94,9 +94,7 @@ def test_decoding_press_without_prefill():
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create DecodingPress only
-    decoding_press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.4), compression_interval=5, target_size=64
-    )
+    decoding_press = DecodingPress(base_press=KnormPress(compression_ratio=0.4), compression_interval=5, target_size=64)
 
     # Test context and question
     context = "The quick brown fox jumps over the lazy dog. " * 8
@@ -104,7 +102,7 @@ def test_decoding_press_without_prefill():
 
     # Run pipeline
     cache = DynamicCache()
-    result = pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=25)
+    pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=25)
 
     # Check that cache was compressed during decoding
     for layer_idx, cache_layer in enumerate(cache.layers):
@@ -139,7 +137,7 @@ def test_prefill_decoding_press_decoding_only():
 
     # Run pipeline
     cache = DynamicCache()
-    result = pipe(context, question=question, press=combined_press, cache=cache, max_new_tokens=12)
+    pipe(context, question=question, press=combined_press, cache=cache, max_new_tokens=12)
 
     # Check that only decoding compression was applied
     for layer_idx, cache_layer in enumerate(cache.layers):
@@ -164,9 +162,7 @@ def test_decoding_press_equivalence():
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create standalone decoding press
-    decoding_press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52
-    )
+    decoding_press = DecodingPress(base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52)
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
@@ -228,8 +224,7 @@ def test_all_presses_work_with_decoding_press(press_config):
     if not isinstance(base_press, ScorerPress):
         logger.info(f"Press {press_cls.__name__} is not a ScorerPress, skipping test")
         return
-    if isinstance(base_press, (QFilterPress, PyramidKVPress)):
-        # Qfilter: __post_init__ not called
+    if isinstance(base_press, (PyramidKVPress)):
         # PyramidKVPress -> Pyramid shape, not compatible with token_buffer_size=48
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
         return
@@ -260,7 +255,7 @@ def test_all_presses_work_with_decoding_press(press_config):
             max_expected_size = target_size + compression_steps - 1
             assert (
                 target_size <= layer_seq_len <= max_expected_size
-            ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"
+            ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"  # noqa: E501
 
     except Exception as e:
         pytest.fail(f"DecodingPress failed with {press_cls.__name__}: {e}")
@@ -289,10 +284,12 @@ def test_compression_actually_reduces_memory():
 
     # Calculate memory usage (approximate)
     uncompressed_memory = sum(
-        (cache_layer.values.numel() + cache_layer.keys.numel()) * cache_layer.keys.element_size() for cache_layer in cache_uncompressed.layers 
+        (cache_layer.values.numel() + cache_layer.keys.numel()) * cache_layer.keys.element_size()
+        for cache_layer in cache_uncompressed.layers
     )
     compressed_memory = sum(
-        (cache_layer.values.numel() + cache_layer.keys.numel()) * cache_layer.keys.element_size() for cache_layer in cache_compressed.layers
+        (cache_layer.values.numel() + cache_layer.keys.numel()) * cache_layer.keys.element_size()
+        for cache_layer in cache_compressed.layers
     )
 
     # Compression should significantly reduce memory usage

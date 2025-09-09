@@ -53,16 +53,18 @@ class DecodingPress(BasePress):
         # TODO: would it make sense to not reset the buffer?
         if self.hidden_states_buffer_size > 0 and self.compression_interval < self.hidden_states_buffer_size:
             logger.warning(
-                f"compression_interval ({self.compression_interval}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "
+                f"compression_interval ({self.compression_interval}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). " # noqa: E501
                 f"Buffer will be reset before reaching full capacity, potentially reducing compression quality."
             )
-        
+
         assert self.compression_interval > 0, "compression_interval must be greater than 0"
         assert self.target_size > 0, "target_size must be greater than 0"
-            
+
         if self.base_press.compression_ratio:
-            logger.warning(f"compression_ratio is set for base press ({self.base_press.compression_ratio}). "
-                           f"This will be overridden by the decoding press.")
+            logger.warning(
+                f"compression_ratio is set for base press ({self.base_press.compression_ratio}). "
+                f"This will be overridden by the decoding press."
+            )
 
     def compress(
         self,
@@ -137,10 +139,9 @@ class DecodingPress(BasePress):
         # Apply compression if we've reached the compression step threshold
         if (self.layer_step_counts[layer_idx] >= self.compression_interval) or (q_len >= self.target_size):
             logger.debug(
-                f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_interval}"
+                f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})" # noqa: E501
             )
-            # print(f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}")
-            
+
             cache_layer = cache.layers[module.layer_idx]
             if isinstance(cache, QuantizedCache):
                 keys = cache_layer._dequantize(  # type: ignore[index]
