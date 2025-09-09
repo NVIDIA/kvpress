@@ -28,9 +28,9 @@ class DecodingPress(BasePress):
     ----------
     base_press : ScorerPress
         The scorer press used to compute importance scores for tokens.
-    compression_steps : int, default=10
-        Number of decoding steps between compression operations
-    token_buffer_size : int, default=1024
+    compression_interval : int, default=10
+        Number of decoding steps between compression, i.e. compression will be applied every compression_interval steps.
+    target_size : int, default=1024
         Target number of tokens to keep after compression.
     hidden_states_buffer_size : int, default=128
         Maximum number of hidden states to keep before compression. Larger values use more GPU memory.
@@ -39,8 +39,8 @@ class DecodingPress(BasePress):
     """
 
     base_press: ScorerPress
-    compression_steps: int = 128
-    token_buffer_size: int = 1024
+    compression_interval: int = 128
+    target_size: int = 1024
     hidden_states_buffer_size: int = 128
 
     def __post_init__(self):
@@ -51,11 +51,18 @@ class DecodingPress(BasePress):
 
         # Warn if compression happens before buffer is fully utilized
         # TODO: would it make sense to not reset the buffer?
-        if self.hidden_states_buffer_size > 0 and self.compression_steps < self.hidden_states_buffer_size:
+        if self.hidden_states_buffer_size > 0 and self.compression_interval < self.hidden_states_buffer_size:
             logger.warning(
-                f"compression_steps ({self.compression_steps}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "
+                f"compression_interval ({self.compression_interval}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "
                 f"Buffer will be reset before reaching full capacity, potentially reducing compression quality."
             )
+        
+        assert self.compression_interval > 0, "compression_interval must be greater than 0"
+        assert self.target_size > 0, "target_size must be greater than 0"
+            
+        if self.base_press.compression_ratio:
+            logger.warning(f"compression_ratio is set for base press ({self.base_press.compression_ratio}). "
+                           f"This will be overridden by the decoding press.")
 
     def compress(
         self,
@@ -92,8 +99,8 @@ class DecodingPress(BasePress):
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
         """
         q_len = keys.shape[2]
-        target_compression_ratio = self._find_target_compression_ratio(q_len, self.token_buffer_size)
-        logger.debug(f"Compressing {q_len} to {self.token_buffer_size} with ratio {target_compression_ratio}")
+        target_compression_ratio = self._find_target_compression_ratio(q_len, self.target_size)
+        logger.debug(f"Compressing {q_len} to {self.target_size} with ratio {target_compression_ratio}")
 
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio
@@ -112,7 +119,7 @@ class DecodingPress(BasePress):
         4. Clears the buffer after compression
         """
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_value"]
+        cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
         layer_idx = module.layer_idx
 
@@ -120,25 +127,31 @@ class DecodingPress(BasePress):
         if kwargs["cache_position"][-1] <= q_len:
             # We're still in prefilling phase, don't do anything
             return output
-
+        # print(f"Adding hidden states to buffer: {hidden_states.shape}")
         # Add current hidden states to buffer for this layer
         self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
 
+        # print(f"Layer step counts: {self.layer_step_counts[layer_idx]}")
         self.layer_step_counts[layer_idx] += 1
 
         # Apply compression if we've reached the compression step threshold
-        if (self.layer_step_counts[layer_idx] >= self.compression_steps) or (q_len >= self.token_buffer_size):
+        if (self.layer_step_counts[layer_idx] >= self.compression_interval) or (q_len >= self.target_size):
             logger.debug(
-                f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}"
+                f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_interval}"
             )
-
-            # Get keys and values from cache
+            # print(f"Applying decoding compression: layer_step_count={self.layer_step_counts[layer_idx]} >= compression_steps={self.compression_steps}")
+            
+            cache_layer = cache.layers[module.layer_idx]
             if isinstance(cache, QuantizedCache):
-                keys = cache._dequantize(cache._quantized_key_cache[layer_idx])
-                values = cache._dequantize(cache._quantized_value_cache[layer_idx])
+                keys = cache_layer._dequantize(  # type: ignore[index]
+                    cache_layer._quantized_keys  # type: ignore[index]
+                )
+                values = cache_layer._dequantize(  # type: ignore[index]
+                    cache_layer._quantized_values  # type: ignore[index]
+                )
             else:
-                keys = cache.key_cache[layer_idx]
-                values = cache.value_cache[layer_idx]
+                keys = cache_layer.keys
+                values = cache_layer.values
 
             # Get attention weights from output
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
@@ -150,11 +163,14 @@ class DecodingPress(BasePress):
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
-                cache._quantized_key_cache[layer_idx] = cache._quantize(keys, axis=-1)
-                cache._quantized_value_cache[layer_idx] = cache._quantize(values, axis=-1)
+                cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
+                cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
+                cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+                cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+                cache_layer.cumulative_length = keys.shape[2]
             else:
-                cache.key_cache[layer_idx] = keys
-                cache.value_cache[layer_idx] = values
+                cache_layer.keys = keys
+                cache_layer.values = values
 
             # Reset step count and clear buffer for this layer
             self.layer_step_counts[layer_idx] = 0

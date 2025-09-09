@@ -14,7 +14,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from kvpress.pipeline import KVPressTextGenerationPipeline
-from kvpress.presses import DecodingPress, PrefillDecodingPress
+from kvpress import DecodingPress, PrefillDecodingPress, KnormPress, RandomPress, StreamingLLMPress
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
     )
 
     # Create a decoding press that compresses every 5 steps
-    decoding_press = DecodingPress(base_press=scorer_press, compression_steps=5, compression_ratio=0.3)
+    decoding_press = DecodingPress(base_press=scorer_press, compression_interval=5)
 
     context = "The weather today is sunny and warm. Many people are enjoying outdoor activities."
     question = "What is the weather like?"
@@ -60,7 +60,7 @@ def main():
 
     random_scorer = RandomPress(compression_ratio=0.2)
 
-    decoding_press_random = DecodingPress(base_press=random_scorer, compression_steps=3, compression_ratio=0.2)
+    decoding_press_random = DecodingPress(base_press=random_scorer, compression_interval=3)
 
     try:
         result_random = pipeline(
@@ -82,7 +82,7 @@ def main():
 
     # Use KnormPress for decoding
     decoding_scorer = KnormPress(compression_ratio=0.2)
-    decoding_press_2 = DecodingPress(base_press=decoding_scorer, compression_steps=3, compression_ratio=0.2)
+    decoding_press_2 = DecodingPress(base_press=decoding_scorer, compression_interval=3, compression_ratio=0.2)
 
     # Combine them
     combined_press = PrefillDecodingPress(prefilling_press=prefilling_press, decoding_press=decoding_press_2)

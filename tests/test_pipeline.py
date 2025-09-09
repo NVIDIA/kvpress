@@ -6,11 +6,7 @@ import logging
 
 import pytest
 import torch
-<<<<<<< HEAD
-from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache, pipeline
-=======
 from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache
->>>>>>> main
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
@@ -49,22 +45,14 @@ def test_pipeline_with_cache(kv_press_unit_test_pipeline):  # noqa: F811
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
-<<<<<<< HEAD
-@pytest.mark.parametrize("compression_ratio", [0.0, 0.2, 0.4])
-=======
 @pytest.mark.parametrize("compression_ratio", [0.0, 0.2])
->>>>>>> main
 def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):  # noqa: F811
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["Repeat the last sentence"]
     press = ExpectedAttentionPress(compression_ratio=compression_ratio)
     cache = DynamicCache()
     answers = kv_press_llama3_2_flash_attn_pipeline(
-<<<<<<< HEAD
-        context, questions=questions, press=press, cache=cache, max_new_tokens=100
-=======
         context, questions=questions, press=press, cache=cache, max_new_tokens=6
->>>>>>> main
     )["answers"]
 
     assert len(answers) == 1
@@ -74,11 +62,7 @@ def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):
     press = ExpectedAttentionPress(compression_ratio=compression_ratio)
     cache = DynamicCache()
     answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(
-<<<<<<< HEAD
-        context, questions=questions, press=press, cache=cache, max_new_tokens=100
-=======
         context, questions=questions, press=press, cache=cache, max_new_tokens=6
->>>>>>> main
     )["answers"]
     kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
 
@@ -127,11 +111,7 @@ def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noq
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-<<<<<<< HEAD
-        cache = QuantoQuantizedCache(nbits=4)
-=======
         cache = QuantoQuantizedCache(config=kv_press_danube_pipeline.model.config, nbits=4)
->>>>>>> main
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
@@ -173,17 +153,10 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     ).past_key_values
     assert past_key_values.get_seq_length() == seq_len
 
-<<<<<<< HEAD
-    keys = [key.clone() for key in past_key_values.key_cache]
-    values = [value.clone() for value in past_key_values.value_cache]
-    compression_pipeline.generate_answer(
-        input_ids_question, past_key_values, context_length=22, max_new_tokens=10
-    )
-=======
     keys = [layer.keys.clone() for layer in past_key_values.layers]
     values = [layer.values.clone() for layer in past_key_values.layers]
     compression_pipeline.generate_answer(input_ids_question, past_key_values, context_length=22, max_new_tokens=10)
->>>>>>> main
+    # compression_pipeline._remove_answer_from_cache(past_key_values, [past_key_values.get_seq_length(layer_idx) for layer_idx in range(len(past_key_values))])
     assert past_key_values.get_seq_length() == seq_len
     assert all([torch.allclose(key, layer.keys) for key, layer in zip(keys, past_key_values.layers)])
     assert all([torch.allclose(value, layer.values) for value, layer in zip(values, past_key_values.layers)])

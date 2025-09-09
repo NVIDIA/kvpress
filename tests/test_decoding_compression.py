@@ -28,8 +28,8 @@ def test_decoding_compression(token_buffer_size):
     # Create a DecodingPress with KnormPress
     press = DecodingPress(
         base_press=KnormPress(compression_ratio=0.5),  # Remove 50% of tokens
-        compression_steps=4,  # Compress every 4 tokens
-        token_buffer_size=token_buffer_size,
+        compression_interval=4,  # Compress every 4 tokens
+        target_size=token_buffer_size,
     )
 
     # Create cache
@@ -43,10 +43,10 @@ def test_decoding_compression(token_buffer_size):
     result = pipe(context, question=question, press=press, cache=cache, max_new_tokens=20)
 
     # Assert that all layers have the expected cache size
-    for layer_idx, key_tensor in enumerate(cache.key_cache):
-        layer_seq_len = key_tensor.shape[2]
+    for layer_idx, cache_layer in enumerate(cache.layers):
+        layer_seq_len = cache_layer.keys.shape[2]
         # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
-        max_expected_size = token_buffer_size + press.compression_steps - 1
+        max_expected_size = token_buffer_size + press.compression_interval - 1
         assert token_buffer_size <= layer_seq_len <= max_expected_size, (
             f"Layer {layer_idx}: Expected cache sequence length to be between {token_buffer_size} "
             f"and {max_expected_size}, but got {layer_seq_len}"
@@ -62,7 +62,7 @@ def test_prefill_decoding_press_calls_both_phases():
     # Create PrefillDecodingPress with both presses
     combined_press = PrefillDecodingPress(
         prefilling_press=KnormPress(compression_ratio=0.6),  # Compress to 60% during prefill
-        decoding_press=DecodingPress(base_press=KnormPress(), compression_steps=3, token_buffer_size=48),
+        decoding_press=DecodingPress(base_press=KnormPress(), compression_interval=3, target_size=48),
     )
 
     # Test context and question
@@ -75,8 +75,8 @@ def test_prefill_decoding_press_calls_both_phases():
 
     # Check that cache was compressed during both phases
     # Final cache should be compressed to decoding press target size
-    for layer_idx, key_tensor in enumerate(cache.key_cache):
-        layer_seq_len = key_tensor.shape[2]
+    for layer_idx, cache_layer in enumerate(cache.layers):
+        layer_seq_len = cache_layer.keys.shape[2]
         # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
         target_size = 48  # token_buffer_size from decoding press
         compression_steps = 3  # from the decoding press configuration
@@ -95,7 +95,7 @@ def test_decoding_press_without_prefill():
 
     # Create DecodingPress only
     decoding_press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.4), compression_steps=5, token_buffer_size=64
+        base_press=KnormPress(compression_ratio=0.4), compression_interval=5, target_size=64
     )
 
     # Test context and question
@@ -107,8 +107,8 @@ def test_decoding_press_without_prefill():
     result = pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=25)
 
     # Check that cache was compressed during decoding
-    for layer_idx, key_tensor in enumerate(cache.key_cache):
-        layer_seq_len = key_tensor.shape[2]
+    for layer_idx, cache_layer in enumerate(cache.layers):
+        layer_seq_len = cache_layer.keys.shape[2]
         # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
         target_size = 64
         compression_steps = 5  # from the decoding press configuration
@@ -129,7 +129,7 @@ def test_prefill_decoding_press_decoding_only():
     combined_press = PrefillDecodingPress(
         prefilling_press=None,
         decoding_press=DecodingPress(
-            base_press=KnormPress(compression_ratio=0.6), compression_steps=4, token_buffer_size=56
+            base_press=KnormPress(compression_ratio=0.6), compression_interval=4, target_size=56
         ),
     )
 
@@ -142,8 +142,8 @@ def test_prefill_decoding_press_decoding_only():
     result = pipe(context, question=question, press=combined_press, cache=cache, max_new_tokens=12)
 
     # Check that only decoding compression was applied
-    for layer_idx, key_tensor in enumerate(cache.key_cache):
-        layer_seq_len = key_tensor.shape[2]
+    for layer_idx, cache_layer in enumerate(cache.layers):
+        layer_seq_len = cache_layer.keys.shape[2]
         # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
         target_size = 56
         compression_steps = 4  # from the decoding press configuration
@@ -165,14 +165,14 @@ def test_decoding_press_equivalence():
 
     # Create standalone decoding press
     decoding_press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.5), compression_steps=3, token_buffer_size=52
+        base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52
     )
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
         prefilling_press=None,
         decoding_press=DecodingPress(
-            base_press=KnormPress(compression_ratio=0.5), compression_steps=3, token_buffer_size=52
+            base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52
         ),
     )
 
@@ -189,9 +189,9 @@ def test_decoding_press_equivalence():
     result2 = pipe(context, question=question, press=combined_press, cache=cache2, max_new_tokens=10)
 
     # Compare cache sizes (should be identical)
-    for layer_idx in range(len(cache1.key_cache)):
-        cache1_size = cache1.key_cache[layer_idx].shape[2]
-        cache2_size = cache2.key_cache[layer_idx].shape[2]
+    for layer_idx in range(len(cache1.layers)):
+        cache1_size = cache1.layers[layer_idx].keys.shape[2]
+        cache2_size = cache2.layers[layer_idx].keys.shape[2]
         assert cache1_size == cache2_size, (
             f"Layer {layer_idx}: Standalone decoding cache size {cache1_size} != "
             f"combined press cache size {cache2_size}"
@@ -233,9 +233,11 @@ def test_all_presses_work_with_decoding_press(press_config):
         # PyramidKVPress -> Pyramid shape, not compatible with token_buffer_size=48
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
         return
+    if hasattr(base_press, "__post_init_from_model__"):
+        base_press.__post_init_from_model__(pipe.model)
 
     # Create DecodingPress with this base press
-    decoding_press = DecodingPress(base_press=base_press, compression_steps=3, token_buffer_size=48)
+    decoding_press = DecodingPress(base_press=base_press, compression_interval=3, target_size=48)
 
     # Test context and question
     context = "The quick brown fox jumps over the lazy dog. " * 8
@@ -250,8 +252,8 @@ def test_all_presses_work_with_decoding_press(press_config):
         assert len(result["answer"]) > 0, f"No answer generated with {press_cls.__name__}"
 
         # Check that cache was compressed (allow some tolerance for rounding)
-        for layer_idx, key_tensor in enumerate(cache.key_cache):
-            layer_seq_len = key_tensor.shape[2]
+        for layer_idx, cache_layer in enumerate(cache.layers):
+            layer_seq_len = cache_layer.keys.shape[2]
             # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
             target_size = 48
             compression_steps = 3  # from the decoding press configuration
@@ -279,19 +281,18 @@ def test_compression_actually_reduces_memory():
     # Run with compression
     press = DecodingPress(
         base_press=KnormPress(compression_ratio=0.3),  # Aggressive compression
-        compression_steps=3,
-        token_buffer_size=40,
+        compression_interval=3,
+        target_size=40,
     )
     cache_compressed = DynamicCache()
     result_compressed = pipe(context, question=question, press=press, cache=cache_compressed, max_new_tokens=25)
 
     # Calculate memory usage (approximate)
     uncompressed_memory = sum(
-        tensor.numel() * tensor.element_size()
-        for tensor in cache_uncompressed.key_cache + cache_uncompressed.value_cache
+        (cache_layer.values.numel() + cache_layer.keys.numel()) * cache_layer.keys.element_size() for cache_layer in cache_uncompressed.layers 
     )
     compressed_memory = sum(
-        tensor.numel() * tensor.element_size() for tensor in cache_compressed.key_cache + cache_compressed.value_cache
+        (cache_layer.values.numel() + cache_layer.keys.numel()) * cache_layer.keys.element_size() for cache_layer in cache_compressed.layers
     )
 
     # Compression should significantly reduce memory usage

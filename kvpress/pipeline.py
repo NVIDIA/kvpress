@@ -228,10 +228,27 @@ class KVPressTextGenerationPipeline(Pipeline):
                     max_new_tokens=max_new_tokens,
                 )
                 if len(input_tensors["questions_ids"]) > 1:
-                    self.remove_answer_from_cache(cache, cache_seq_lengths)
+                    print(f"Removing answer from cache: {cache_seq_lengths}")
+                    self._remove_answer_from_cache(cache, cache_seq_lengths)
 
                 answers.append(answer)
         return answers
+    
+    def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
+        
+        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
+            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
+
+        if isinstance(cache, QuantizedCache):
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
+                    :, :, :sequence_length
+                ]
+                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
+                    :, :, :sequence_length
+                ]
+
 
     def generate_answer(
             self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
@@ -286,20 +303,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             if new_id.item() in should_stop_token_ids:
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-        # Remove the generated tokens from the cache
-        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
-            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
-
-        if isinstance(cache, QuantizedCache):
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
-                    :, :, :sequence_length
-                ]
-                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
-                    :, :, :sequence_length
-                ]
-
+         
         return answer
 
     def output_attentions(self, press: BasePress):
