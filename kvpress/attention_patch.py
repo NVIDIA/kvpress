@@ -78,6 +78,10 @@ def attention_patch(func):
             batch_indices, head_indices, seq_indices = module.masked_key_indices
             key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
 
+        # see https://github.com/NVIDIA/kvpress/pull/115#issuecomment-3183785597
+        # cu_seq_lens_k are only in kwargs if model.generate is used.
+        if "cu_seq_lens_k" in kwargs:
+            kwargs["cu_seq_lens_k"][-1] = key.shape[-2]
         return func(module, query, key, value, attention_mask, dropout, **kwargs)
 
     return wrapper

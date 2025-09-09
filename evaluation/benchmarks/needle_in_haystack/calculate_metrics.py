@@ -10,6 +10,6 @@ scorer = Rouge()
 def calculate_metrics(df: pd.DataFrame) -> list[dict]:
     scores = []
     for index, row in df.iterrows():
-        score = scorer.get_scores(row["needle"], row["predicted_answer"])[0]
+        score = scorer.get_scores(row["needle"].strip(), row["predicted_answer"].strip())[0]
         scores.append(score)
     return scores

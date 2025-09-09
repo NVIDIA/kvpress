@@ -4,7 +4,7 @@
 import datasets
 import pytest
 import torch
-from transformers import DynamicCache, QuantizedCacheConfig, QuantoQuantizedCache
+from transformers import DynamicCache, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from tests.default_presses import default_presses
@@ -21,11 +21,19 @@ def df_ruler():
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
 @pytest.mark.parametrize("press_dict", default_presses)
+<<<<<<< HEAD
 @pytest.mark.parametrize("cache", ["dynamic"])
 @pytest.mark.parametrize("compression_ratio", [0, 0.1])
 def test_ruler_is_correct(
         kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio
 ):  # noqa: F811
+=======
+@pytest.mark.parametrize("cache", ["dynamic", "quantized"])
+@pytest.mark.parametrize("compression_ratio", [0, 0.1])
+def test_ruler_is_correct(
+    kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
+):
+>>>>>>> main
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
     press = cls(**kwargs)
@@ -36,7 +44,11 @@ def test_ruler_is_correct(
         # we don't want to max out compression, but rather test if cache compression works
         press.compression_ratio = compression_ratio
     except AttributeError:
+<<<<<<< HEAD
         #pytest.skip(reason="Press does not support setting compression_ratio")
+=======
+        # pytest.skip(reason="Press does not support setting compression_ratio")
+>>>>>>> main
         pass
 
     if cache == "dynamic":

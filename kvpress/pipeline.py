@@ -17,7 +17,6 @@ from kvpress.presses.generation.decoding_press import DecodingPress
 from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
-from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 
 logger = logging.getLogger(__name__)
 
@@ -286,7 +285,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             generated_ids.append(new_id)
             if new_id.item() in should_stop_token_ids:
                 break
-
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
         # Remove the generated tokens from the cache
         for layer_idx, sequence_length in enumerate(cache_seq_lengths):
@@ -295,21 +293,19 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         if isinstance(cache, QuantizedCache):
             for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                cache.cache_processor._quantized_keys[layer_idx] = cache.cache_processor._quantized_keys[layer_idx][
-                                                                   :, :, :sequence_length
-                                                                   ]
-                cache.cache_processor._quantized_values[layer_idx] = cache.cache_processor._quantized_values[layer_idx][
-                                                                     :, :, :sequence_length
-                                                                     ]
+                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
+                    :, :, :sequence_length
+                ]
+                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
+                    :, :, :sequence_length
+                ]
 
         return answer
 
     def output_attentions(self, press: BasePress):
         if isinstance(press, ObservedAttentionPress):
             return True
-        if hasattr(press, "press") and isinstance(
-                press.press, ObservedAttentionPress
-        ):
+        if hasattr(press, "press") and isinstance(press.press, ObservedAttentionPress):
             return True
         return False
 
@@ -317,7 +313,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         if single_question:
             return {"answer": model_outputs[0]}
         return {"answers": model_outputs}
-
 
 
 PIPELINE_REGISTRY.register_pipeline(

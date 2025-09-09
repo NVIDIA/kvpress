@@ -107,7 +107,7 @@ class BasePress:
         kwargs : dict
             Keyword arguments passed to the attention layer's forward method, including:
             - hidden_states: Input embeddings to the attention layer
-            - past_key_value: The KV cache object being modified
+            - past_key_values: The KV cache object being modified
             - cache_position: Position indices indicating where we are in the sequence
             - position_embeddings: RoPE embeddings if applicable
         output : list
@@ -130,28 +130,30 @@ class BasePress:
         if kwargs["cache_position"][-1] > q_len:
             return output
 
+        cache_layer = cache.layers[module.layer_idx]
         if isinstance(cache, QuantizedCache):
-            keys = cache.cache_processor._dequantize(cache.cache_processor._quantized_keys[module.layer_idx])
-            values = cache.cache_processor._dequantize(cache.cache_processor._quantized_values[module.layer_idx])
+            keys = cache_layer._dequantize(  # type: ignore[index]
+                cache_layer._quantized_keys  # type: ignore[index]
+            )
+            values = cache_layer._dequantize(  # type: ignore[index]
+                cache_layer._quantized_values  # type: ignore[index]
+            )
+
         else:
-            keys = cache.layers[module.layer_idx].keys
-            values = cache.layers[module.layer_idx].values
+            keys = cache_layer.keys
+            values = cache_layer.values
 
         keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
-            cache.cache_processor._quantized_keys[module.layer_idx] = cache.cache_processor._quantize(
-                keys, axis=cache.cache_processor.axis_key
-            )
-            cache.cache_processor._quantized_values[module.layer_idx] = cache.cache_processor._quantize(
-                values, axis=cache.cache_processor.axis_value
-            )
-            cache.layers[module.layer_idx].keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache.layers[module.layer_idx].values = torch.zeros(0, dtype=keys.dtype, device=keys.device)
-            cache.cache_processor.erased_length = keys.shape[2]
+            cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
+            cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
+            cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+            cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+            cache_layer.cumulative_length = keys.shape[2]
         else:
-            cache.layers[module.layer_idx].keys = keys
-            cache.layers[module.layer_idx].values = values
+            cache_layer.keys = keys
+            cache_layer.values = values
 
         return output
 
