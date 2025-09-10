@@ -228,7 +228,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                     max_new_tokens=max_new_tokens,
                 )
                 if len(input_tensors["questions_ids"]) > 1:
-                    print(f"Removing answer from cache: {cache_seq_lengths}")
                     self._remove_answer_from_cache(cache, cache_seq_lengths)
 
                 answers.append(answer)

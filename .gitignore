@@ -1,6 +1,7 @@
 dev_notebooks/
 results/
 reports/
+aime25*
 .DS_Store
 uv.lock
 *.parquet

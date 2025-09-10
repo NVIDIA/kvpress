@@ -45,7 +45,7 @@ class DecodingPress(BasePress):
 
     def __post_init__(self):
         # Buffer to store hidden states during decoding (per layer)
-        assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
+        # assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
