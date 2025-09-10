@@ -9,6 +9,7 @@ from benchmarks.loogle.calculate_metrics import calculate_metrics as loogle_scor
 from benchmarks.needle_in_haystack.calculate_metrics import calculate_metrics as needle_in_haystack_scorer
 from benchmarks.ruler.calculate_metrics import calculate_metrics as ruler_scorer
 from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_scrolls_scorer
+from benchmarks.aime25.calculate_metrics import calculate_metrics as aime25_scorer
 
 from kvpress import (
     AdaKVPress,
@@ -43,6 +44,7 @@ DATASET_REGISTRY = {
     "longbench-e": "Xnhyacinth/LongBench",
     "longbench-v2": "Xnhyacinth/LongBench-v2",
     "needle_in_haystack": "alessiodevoto/paul_graham_essays",
+    "aime25": "alessiodevoto/aime25",
 }
 
 SCORER_REGISTRY = {
@@ -54,6 +56,7 @@ SCORER_REGISTRY = {
     "longbench-e": longbench_scorer_e,
     "longbench-v2": longbenchv2_scorer,
     "needle_in_haystack": needle_in_haystack_scorer,
+    "aime25": aime25_scorer,
 }
 
 
