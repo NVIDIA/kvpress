@@ -33,6 +33,7 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
 )
+from kvpress.presses.generation.decoding_press import DecodingPress
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
 DATASET_REGISTRY = {
@@ -87,4 +88,12 @@ PRESS_REGISTRY = {
     "think": ThinKPress(),
     "tova": TOVAPress(),
     "no_press": None,
+
+    "decoding_knorm": DecodingPress(base_press=KnormPress()),
+    "decoding_streaming_llm": DecodingPress(base_press=StreamingLLMPress()),
+    "decoding_tova": DecodingPress(base_press=TOVAPress()),
+    "decoding_qfilter": DecodingPress(base_press=QFilterPress()),
+    "decoding_adakv_expected_attention_e2": DecodingPress(base_press=AdaKVPress(ExpectedAttentionPress(epsilon=1e-2))),
+    "decoding_adakv_snapkv": DecodingPress(base_press=AdaKVPress(SnapKVPress())),
+    "decoding_keydiff": DecodingPress(base_press=KeyDiffPress()),
 }

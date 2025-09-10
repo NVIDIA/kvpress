@@ -21,6 +21,7 @@ from tqdm import tqdm
 from transformers import Pipeline, pipeline
 
 from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ThinKPress
+from kvpress.presses.generation.decoding_press import DecodingPress
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,11 @@ class EvaluationConfig:
     max_context_length: Optional[int] = None
     compress_questions: bool = False
     needle_depth: Optional[int] = None
+
+    # Decoding parameters
+    compression_interval: Optional[int] = None
+    target_size: Optional[int] = None
+    hidden_states_buffer_size: Optional[int] = None
 
     # Output and logging
     output_dir: str = "./results"
@@ -264,6 +270,11 @@ class EvaluationRunner:
             assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress"
             press.key_channel_compression_ratio = key_channel_compression_ratio
             logger.info(f"Set ThinKPress key_channel_compression_ratio to {key_channel_compression_ratio}")
+        elif isinstance(press, DecodingPress):
+            press.compression_interval = self.config.compression_interval or press.compression_interval
+            press.target_size = self.config.target_size or press.target_size
+            press.hidden_states_buffer_size = self.config.hidden_states_buffer_size or press.hidden_states_buffer_size
+            logger.info(f"Set DecodingPress compression_interval to {self.config.compression_interval}, target_size to {self.config.target_size}, hidden_states_buffer_size to {self.config.hidden_states_buffer_size}")
         else:
             if hasattr(press, "compression_ratio"):
                 press.compression_ratio = compression_ratio
@@ -364,30 +375,44 @@ class EvaluationRunner:
         """
 
         self.df["predicted_answer"] = None  # type: ignore[index]
-        df_context_grouped = self.df.groupby("context")  # type: ignore[union-attr]
-        assert all(
-            df_context_grouped["answer_prefix"].nunique() == 1
-        ), "Inconsistent 'answer_prefix' within the same context group detected."
+        
 
-        logger.info("Starting inference...")
-        for context, df_group in tqdm(df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"):  # type: ignore[union-attr]
-            questions = df_group["question"].to_list()
-            # Use max_new_tokens from config, or fallback to dataset's default for the task
-            max_new_tokens = self.config.max_new_tokens or df_group["max_new_tokens"].iloc[0]
-            answer_prefix = df_group["answer_prefix"].iloc[0]
+        if isinstance(self.press, DecodingPress):
+            logger.info("DecodingPress detected, running inference for each context-question pair.")
+            for index, row in tqdm(self.df.iterrows(), total=len(self.df), desc="Running Inference"):
+                context = row["context"]
+                question = row["question"]
+                answer_prefix = row["answer_prefix"]
+                max_new_tokens = self.config.max_new_tokens or row["max_new_tokens"]
+                output = self.pipeline(context, question=question, answer_prefix=answer_prefix, press=self.press, max_new_tokens=max_new_tokens, max_context_length=self.config.max_context_length)
+                self.df.loc[index, "predicted_answer"] = output["answer"]  # type: ignore[union-attr]
+                torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
-            output = self.pipeline(  # type: ignore[misc]
-                context,
-                questions=questions,
-                answer_prefix=answer_prefix,
-                press=self.press,
-                max_new_tokens=max_new_tokens,
-                max_context_length=self.config.max_context_length,
-            )
-            self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
-            # Store the actual compression ratio used (if the press has one)
-            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio if self.press is not None else 0.0  # type: ignore[union-attr, attr-defined]
-            torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
+        else:
+            df_context_grouped = self.df.groupby("context")  # type: ignore[union-attr]
+            assert all(
+                df_context_grouped["answer_prefix"].nunique() == 1
+            ), "Inconsistent 'answer_prefix' within the same context group detected."
+
+            logger.info("Starting inference...")
+            for context, df_group in tqdm(df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"):  # type: ignore[union-attr]
+                questions = df_group["question"].to_list()
+                # Use max_new_tokens from config, or fallback to dataset's default for the task
+                max_new_tokens = self.config.max_new_tokens or df_group["max_new_tokens"].iloc[0]
+                answer_prefix = df_group["answer_prefix"].iloc[0]
+
+                output = self.pipeline(  # type: ignore[misc]
+                    context,
+                    questions=questions,
+                    answer_prefix=answer_prefix,
+                    press=self.press,
+                    max_new_tokens=max_new_tokens,
+                    max_context_length=self.config.max_context_length,
+                )
+                self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
+                # Store the actual compression ratio used (if the press has one)
+                self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio if self.press is not None else 0.0  # type: ignore[union-attr, attr-defined]
+                torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
         logger.info("Inference completed.")
 
@@ -425,7 +450,6 @@ class EvaluationRunner:
             json.dump(metrics, f, indent=4)  # Pretty print JSON
 
         logger.info(f"Metrics saved to {save_filename}")
-        logger.info(f"Average compression ratio: {self.df['compression_ratio'].mean():.2f}")  # type: ignore[index]
         logger.info(f"Metrics:\n{json.dumps(metrics, indent=2)}")
 
     def run_evaluation(self):
