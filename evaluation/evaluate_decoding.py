@@ -12,7 +12,7 @@ from kvpress import KnormPress, ExpectedAttentionPress, StreamingLLMPress, SnapK
 
 press_dict = {
     "knorm": DecodingPress(base_press=KnormPress(), compression_interval=256, target_size=4096),
-    # "adakv_expected_attention_e2": DecodingPress(base_press=AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)), compression_interval=256, target_size=4096, hidden_states_buffer_size=256),
+    "adakv_expected_attention_e2": DecodingPress(base_press=AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)), compression_interval=256, target_size=4096, hidden_states_buffer_size=256),
     "streaming_llm": DecodingPress(base_press=StreamingLLMPress(), compression_interval=256, target_size=4096),
     "tova": DecodingPress(base_press=TOVAPress(), compression_interval=256, target_size=4096, hidden_states_buffer_size=256),
     "qfilter": DecodingPress(base_press=QFilterPress(), compression_interval=256, target_size=4096),
@@ -20,7 +20,14 @@ press_dict = {
     "streaming_llm_8": DecodingPress(base_press=StreamingLLMPress(), compression_interval=256, target_size=8192),
     "tova_8": DecodingPress(base_press=TOVAPress(), compression_interval=256, target_size=8192, hidden_states_buffer_size=256),
     "qfilter_8": DecodingPress(base_press=QFilterPress(), compression_interval=256, target_size=8192),
+    "knorm_2": DecodingPress(base_press=KnormPress(), compression_interval=256, target_size=2048),
+    "streaming_llm_2": DecodingPress(base_press=StreamingLLMPress(), compression_interval=256, target_size=2048),
+    "tova_2": DecodingPress(base_press=TOVAPress(), compression_interval=256, target_size=2048, hidden_states_buffer_size=256),
+    "qfilter_2": DecodingPress(base_press=QFilterPress(), compression_interval=256, target_size=2048),
     "none": None,
+    "adakv_expected_attention_e2_2": DecodingPress(base_press=AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)), compression_interval=256, target_size=2048, hidden_states_buffer_size=256),
+    "adakv_expected_attention_e2_8": DecodingPress(base_press=AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)), compression_interval=256, target_size=8192, hidden_states_buffer_size=256),
+
 }
 
 
