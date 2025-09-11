@@ -1,25 +1,27 @@
-dataset="ruler"
-data_dir="4096"
-model="meta-llama/Meta-Llama-3.1-8B-Instruct"
-compression_ratios=(0.1 0.25 0.5)
-press_names=("expected_attention" "knorm" "streaming_llm" "snapkv")
+dataset="aime25"
+model="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+target_sizes=(16384)
+press_names=("decoding_knorm" "decoding_streaming_llm" "decoding_adakv_expected_attention_e2" "decoding_keydiff")
 
-# Check if the number of press names is less than or equal to the number of available GPUs
-num_gpus=$(nvidia-smi --list-gpus | wc -l)
-if [ ${#press_names[@]} -gt $num_gpus ]; then
-  echo "Error: The number of press names (${#press_names[@]}) exceeds the number of available GPUs ($num_gpus)"
+# 1. Define your list of GPUs
+gpus=("cuda:1" "cuda:2" "cuda:3" "cuda:4")
+
+# 2. Check if the number of press names is less than or equal to the number of provided GPUs
+if [ ${#press_names[@]} -gt ${#gpus[@]} ]; then
+  echo "Error: The number of press names (${#press_names[@]}) exceeds the number of provided GPUs (${#gpus[@]})"
   exit 1
 fi
 
-# Iterate over press names and compression ratios
+# 3. Iterate over press names and assign each to a GPU from your list
 for i in "${!press_names[@]}"; do
   press="${press_names[$i]}"
-  
+  gpu="${gpus[$i]}"
+
   # Run each press_name on a different GPU in the background
   (
-    for compression_ratio in "${compression_ratios[@]}"; do
-      echo "Running press_name: $press with compression_ratio: $compression_ratio on GPU cuda:$i"
-      python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio $compression_ratio --device "cuda:$i"
+    for target_size in "${target_sizes[@]}"; do
+      echo "Running press_name: $press with target_size: $target_size on GPU $gpu"
+      python evaluate.py --dataset $dataset --model $model --press_name $press --target_size $target_size --device "$gpu" --max_new_tokens 32000
     done
   ) &
 done

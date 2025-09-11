@@ -42,7 +42,7 @@ def evaluate_decoding(device, press_name):
     dataset["cache_size"] = ""
     dataset["max_new_tokens"] = ""
     max_new_tokens = 32000
-    model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+    model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
     attn_implementation = "flash_attention_2"  # use "eager" for ObservedAttentionPress and "sdpa" if you can't use "flash_attention_2"
     pipe = pipeline("kv-press-text-generation", model=model_name, device=device, model_kwargs={"attn_implementation":attn_implementation, "dtype": torch.bfloat16}, torch_dtype=torch.bfloat16)
 
