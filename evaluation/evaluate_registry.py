@@ -46,6 +46,7 @@ DATASET_REGISTRY = {
     "longbench-v2": "Xnhyacinth/LongBench-v2",
     "needle_in_haystack": "alessiodevoto/paul_graham_essays",
     "aime25": "alessiodevoto/aime25",
+    "math500": "alessiodevoto/math500",
 }
 
 SCORER_REGISTRY = {
@@ -58,6 +59,7 @@ SCORER_REGISTRY = {
     "longbench-v2": longbenchv2_scorer,
     "needle_in_haystack": needle_in_haystack_scorer,
     "aime25": aime25_scorer,
+    "math500": aime25_scorer,
 }
 
 
