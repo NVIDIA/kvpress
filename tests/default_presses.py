@@ -12,6 +12,7 @@ from kvpress import (
     FastKVzipPress,
     KeyDiffPress,
     KnormPress,
+    KVComposePress,
     KVzapPress,
     KVzipPress,
     LagKVPress,
@@ -139,6 +140,15 @@ default_presses = [
                 "compression_ratio": 0.5,
                 "chunk_size": 256,
             },
+        ],
+    },
+    {
+        "cls": KVComposePress,
+        "kwargs": [
+            {"compression_ratio": 0.5},
+            {"compression_ratio": 0.8},
+            {"structured": False, "compression_ratio": 0.5},
+            {"structured": False, "compression_ratio": 0.8},
         ],
     },
 ]
