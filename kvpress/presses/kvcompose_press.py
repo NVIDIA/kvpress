@@ -34,10 +34,13 @@ class Aggregator(ABC):
     def __init__(self, n, device):
         self.n = n
         self.device = device
-        self.data = torch.full((self.n, ), self.neutral, device=self.device)
+        self._init_data()
+
+    def _init_data(self):
+        self.data = torch.full((self.n,), self.neutral, device=self.device)
 
     def reset(self):
-        self.__init__(self.n, self.device)
+        self._init_data()
 
     def partial_fit(self, nd_data: Union[torch.Tensor, np.ndarray]):
         if isinstance(nd_data, np.ndarray):
@@ -54,7 +57,7 @@ class Aggregator(ABC):
         return self.data
 
     def fit(self, *args):
-        self.__init__(self.n, self.device)
+        self._init_data()
         self.partial_fit(*args)
 
     def fit_transform(self, *args):
@@ -189,7 +192,7 @@ class KVComposePress(BasePress):
     def register_context_ids(self, context_ids: torch.Tensor):
         self.context_ids = context_ids
         self.context_len = self.context_ids.shape[-1]
-        self.prompt_ids = []
+        self.prompt_ids: list[torch.Tensor] = []
         self._init_statistics()
 
     def register_prompt_ids(self, prompt_ids: list[torch.Tensor]):
@@ -204,9 +207,6 @@ class KVComposePress(BasePress):
         Attentions are cleaned up from the output to save memory.
         """
         layer = int(module.layer_idx)
-        if not self.structured and len(self.modules) == layer:
-            # Record modules for later masking (used only in unstructured mode).
-            self.modules.append(module)
 
         layer_attentions = output[1]
         assert layer_attentions is not None
@@ -244,7 +244,7 @@ class KVComposePress(BasePress):
         for layer in range(self.num_layers):
             if self.add_v_norm:
                 for kv_head in range(self.num_kv_heads):
-                    v = self.cache.value_cache[layer][0, kv_head].detach()
+                    v = self.cache.layers[layer].values[0, kv_head].detach()
                     self.scores[layer, kv_head] = self.scores[layer, kv_head] * v.norm(dim=1)
             if self.add_mean_across_heads:
                 self.scores[layer] += self.scores[layer].mean(dim=0, keepdim=True)
@@ -310,7 +310,7 @@ class KVComposePress(BasePress):
         self.compressed_cache = DynamicCache()
 
         for layer in range(self.num_layers):
-            kv_over_layer = [[], []]
+            kv_over_layer: list[list[torch.Tensor]] = [[], []]
             for kv_head in range(self.num_kv_heads):
                 important_mask = self.important_mask_per_kv_head[layer][kv_head]
 
@@ -327,7 +327,7 @@ class KVComposePress(BasePress):
             self.cache.layers[layer].keys = new_key_states
             self.cache.layers[layer].values = new_value_states
 
-    def compress_unstructured(self) -> None:
+    def compress_unstructured(self, model: PreTrainedModel) -> None:
         """
         Storing evicted indices in module.masked_key_indices.
         Relies on attention_patch.py implementation that simulates real eviction.
@@ -335,11 +335,11 @@ class KVComposePress(BasePress):
         """
         if self.context_ids.shape[0] != 1:
             raise NotImplementedError("Unstructured compression supports only batch size 1.")
-        for layer in range(self.num_layers):
-            masked_over_layer = [[], [], []]
+        for layer_idx, layer in enumerate(model.model.layers):
+            masked_over_layer: list[list[torch.Tensor]] = [[], [], []]
 
             for kv_head in range(self.num_kv_heads):
-                non_important_mask = ~self.important_mask_per_kv_head[layer][kv_head]
+                non_important_mask = ~self.important_mask_per_kv_head[layer_idx][kv_head]
                 num_non_important_tokens = int(non_important_mask.sum().item())
                 batch_indices = torch.full((num_non_important_tokens, ), 0, device=self.device)
                 head_indices = torch.full((num_non_important_tokens, ), kv_head, device=self.device)
@@ -347,15 +347,13 @@ class KVComposePress(BasePress):
                 masked_over_layer[0].append(batch_indices)
                 masked_over_layer[1].append(head_indices)
                 masked_over_layer[2].append(seq_indices)
-            module = self.modules[layer]
-            masked_over_layer = tuple(map(lambda x: torch.cat(x, dim=0), masked_over_layer))
-            module.masked_key_indices = masked_over_layer
+            layer.self_attn.masked_key_indices = tuple(map(lambda x: torch.cat(x, dim=0), masked_over_layer))
 
-    def compress_cache(self) -> None:
+    def compress_cache(self, model: PreTrainedModel) -> None:
         if self.structured:
             self.compress_structured()
         else:
-            self.compress_unstructured()
+            self.compress_unstructured(model)
 
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:
@@ -405,7 +403,6 @@ class KVComposePress(BasePress):
             self.model.config._attn_implementation = original_attn_implementation
 
         hooks = []
-        self.modules = []
         try:
             for layer in model.model.layers:
                 layer.self_attn.rotary_emb = model.model.rotary_emb
@@ -422,4 +419,4 @@ class KVComposePress(BasePress):
             for forward_hook in hooks:
                 forward_hook.remove()
             self.prepare_important_masks()
-            self.compress_cache()
+            self.compress_cache(model)
