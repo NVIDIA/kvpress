@@ -16,6 +16,7 @@ from kvpress import (
     CriticalKVPress,
     KeyRerotationPress,
     KnormPress,
+    KVComposePress,
     KVzipPress,
     ObservedAttentionPress,
     ScorerPress,
@@ -70,6 +71,8 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             if hasattr(press, "__post_init_from_model__"):
                 press.__post_init_from_model__(unit_test_model)
             if issubclass(wrapper_press, ComposedPress):
+                if isinstance(press, KVComposePress):  # KVComposePress is currently not compatible with ComposedPress
+                    return
                 if isinstance(press, KVzipPress):  # KVzipPress is currently not compatible with ComposedPress
                     return
                 press = ComposedPress(presses=[press])
