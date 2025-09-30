@@ -383,7 +383,7 @@ class KVComposePress(BasePress):
 
             original_attn_implementation = self.model.config._attn_implementation
             self.model.config._attn_implementation = "eager"
-            self.original_forward_KVComposePress(
+            outputs = self.original_forward_KVComposePress(
                 input_ids=input_ids,
                 past_key_values=past_key_values,
                 *args,
@@ -401,6 +401,7 @@ class KVComposePress(BasePress):
                     )
 
             self.model.config._attn_implementation = original_attn_implementation
+            return outputs
 
         hooks = []
         try:
