@@ -11,6 +11,7 @@ from transformers.cache_utils import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.utils import dequantize_layer
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class DecodingPress(BasePress):
         Target number of tokens to keep after compression.
     hidden_states_buffer_size : int, default=128
         Maximum number of hidden states to keep before compression. Larger values use more GPU memory.
-        NoteSome presses don't need buffered hidden states and can set this to 0 to use only the
+        Note: Some presses don't need buffered hidden states and can set this to 0 to use only the
         current hidden state for compression scoring.
     """
 
@@ -144,12 +145,7 @@ class DecodingPress(BasePress):
 
             cache_layer = cache.layers[module.layer_idx]
             if isinstance(cache, QuantizedCache):
-                keys = cache_layer._dequantize(  # type: ignore[index]
-                    cache_layer._quantized_keys  # type: ignore[index]
-                )
-                values = cache_layer._dequantize(  # type: ignore[index]
-                    cache_layer._quantized_values  # type: ignore[index]
-                )
+                keys, values = dequantize_layer(cache_layer)
             else:
                 keys = cache_layer.keys
                 values = cache_layer.values

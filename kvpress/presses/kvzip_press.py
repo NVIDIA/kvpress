@@ -14,7 +14,7 @@ from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreT
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.presses.utils import get_query_states
+from kvpress.presses.utils import dequantize_layer, get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -156,13 +156,7 @@ class KVzipPress(BasePress):
 
         cache_layer = cache.layers[module.layer_idx]
         if isinstance(cache, QuantizedCache):
-            keys = cache_layer._dequantize(  # type: ignore[index]
-                cache_layer._quantized_keys  # type: ignore[index]
-            )
-            values = cache_layer._dequantize(  # type: ignore[index]
-                cache_layer._quantized_values  # type: ignore[index]
-            )
-
+            keys, values = dequantize_layer(cache_layer)
         else:
             keys = cache_layer.keys
             values = cache_layer.values

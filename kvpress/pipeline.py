@@ -12,11 +12,11 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.finch_press import FinchPress
-from kvpress.presses.generation.decoding_press import DecodingPress
-from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 
 logger = logging.getLogger(__name__)
 

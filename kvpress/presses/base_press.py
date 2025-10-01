@@ -20,6 +20,8 @@ from transformers import (
     Qwen3ForCausalLM,
 )
 
+from kvpress.presses.utils import dequantize_layer
+
 logger = logging.getLogger(__name__)
 
 SUPPORTED_MODELS = (
@@ -132,13 +134,7 @@ class BasePress:
 
         cache_layer = cache.layers[module.layer_idx]
         if isinstance(cache, QuantizedCache):
-            keys = cache_layer._dequantize(  # type: ignore[index]
-                cache_layer._quantized_keys  # type: ignore[index]
-            )
-            values = cache_layer._dequantize(  # type: ignore[index]
-                cache_layer._quantized_values  # type: ignore[index]
-            )
-
+            keys, values = dequantize_layer(cache_layer)
         else:
             keys = cache_layer.keys
             values = cache_layer.values

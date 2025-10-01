@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """
 Test script to verify that DecodingPress actually compresses during decoding.
@@ -10,9 +11,9 @@ import torch
 from transformers import DynamicCache, pipeline
 
 from kvpress import PyramidKVPress, ScorerPress
-from kvpress.presses.generation.decoding_press import DecodingPress
-from kvpress.presses.generation.prefill_decoding_press import PrefillDecodingPress
+from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.knorm_press import KnormPress
+from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 from tests.default_presses import default_presses
 
 logger = logging.getLogger(__name__)

@@ -55,6 +55,8 @@ class PrefillDecodingPress(BasePress):
             return self.decoding_press.compress(module, hidden_states, keys, values, attentions, kwargs)
 
         # No compression applied
+        logger.warning("No compression applied during prefill or decoding phase")
+
         return keys, values
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
