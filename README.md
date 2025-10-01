@@ -67,51 +67,7 @@ answer = pipe(context, question=question, press=press)["answer"]
 
 In the snippet above, the compression is only applied on the context tokens so that you can evaluate the compression for different questions. Check the [Wikipedia notebook demo](notebooks/wikipedia_demo.ipynb) for a more detailed example (also available on Colab [here](https://colab.research.google.com/drive/1JNvaTKuuAHrl49dYB9-mdEH_y52Ib-NP)).
 
-<details><summary>
-Decoding Compression
-</summary>
-By default, KVPress applies compression during the pre-filling phase. As a new (experimental) feature, we now support decoding compression via the `DecodingPress` wrapper. `DecodingPress` compresses the KV cache periodically during token generation, optionally maintaining a buffer of recent hidden states. `DecodingPress` supports the following parameters:
 
-- `base_press`: Any ScorerPress (e.g., `KNormPress`, `CriticalKVPress`)
-- `compression_interval`: Steps between compressions (default: 10)
-- `target_size`: Target cache size of the cache after compression (default: 1024)
-- `hidden_states_buffer_size`: Number of hidden states to buffer before compression (default: 128). Some presses don't need buffered hidden states and can set this to 0.
-
-Unlike a compression ratio, decoding press uses a `target_size` to compress the cache. This means that the cache is compressed every `compression_interval` steps, and the compression ratio is automatically computed such that the size of the cache after compression equals `target_size`.
-
-An example for decoding compression:
-
-```python
-from transformers import pipeline
-from kvpress import KnormPress
-from kvpress import DecodingPress
-
-# Initialize the pipeline
-device = "cuda:0"
-model = "meta-llama/Llama-3.1-8B-Instruct"
-model_kwargs = {"attn_implementation": "flash_attention_2"}
-pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
-
-# Create a decoding press that compresses every 10 steps to 512 tokens
-decoding_press = DecodingPress(
-    base_press=KnormPress(),
-    compression_steps=10,
-    token_buffer_size=512
-)
-
-# Use with pipeline
-context = "A very long text you want to compress during generation"
-question = "Tell me a long story about this context"
-response = pipe(context, question=question, press=decoding_press)["answer"]
-```
-
-> Not all existing presses are fully compatible with DecodingPress due to fundamental differences in how compression works during decoding versus prefilling. 
-
-</details>
-
-## Contributing
-
-We welcome contributions! To add a new press, simply open an issue or submit a pull request. Check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
 
 ## Available presses
 
@@ -167,6 +123,48 @@ Below we report the average performance on the RULER dataset with 4k context len
   <img src="evaluation/assets/leaderboard_plot_score.png" alt="Leaderboard">
 </p>
 
+<details><summary>
+## Decoding Compression
+</summary>
+By default, KVPress applies compression during the pre-filling phase. As a new (experimental) feature, we now support decoding compression via the `DecodingPress` wrapper. `DecodingPress` compresses the KV cache periodically during token generation, optionally maintaining a buffer of recent hidden states. `DecodingPress` supports the following parameters:
+
+- `base_press`: Any ScorerPress (e.g., `KNormPress`, `CriticalKVPress`)
+- `compression_interval`: Steps between compressions (default: 10)
+- `target_size`: Target cache size of the cache after compression (default: 1024)
+- `hidden_states_buffer_size`: Number of hidden states to buffer before compression (default: 128). Some presses don't need buffered hidden states and can set this to 0.
+
+Unlike a compression ratio, decoding press uses a `target_size` to compress the cache. This means that the cache is compressed every `compression_interval` steps, and the compression ratio is automatically computed such that the size of the cache after compression equals `target_size`.
+
+An example for decoding compression:
+
+```python
+from transformers import pipeline
+from kvpress import KnormPress
+from kvpress import DecodingPress
+
+# Initialize the pipeline
+device = "cuda:0"
+model = "meta-llama/Llama-3.1-8B-Instruct"
+model_kwargs = {"attn_implementation": "flash_attention_2"}
+pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
+
+# Create a decoding press that compresses every 10 steps to 512 tokens
+decoding_press = DecodingPress(
+    base_press=KnormPress(),
+    compression_steps=10,
+    token_buffer_size=512
+)
+
+# Use with pipeline
+context = "A very long text you want to compress during generation"
+question = "Tell me a long story about this context"
+response = pipe(context, question=question, press=decoding_press)["answer"]
+```
+
+> Not all existing presses are fully compatible with DecodingPress due to fundamental differences in how compression works during decoding versus prefilling. 
+
+</details>
+
 ## Quantization
 
 We support KV cache quantization through the transformers `QuantizedCache` class (see [HF blog post](https://huggingface.co/blog/kv-cache-quantization#how-to-use-quantized-kv-cache-in-%F0%9F%A4%97-transformers)). To use it, simply pass a cache object to your pipeline:
@@ -184,6 +182,10 @@ By default, the `DynamicCache` is used (no quantization).
 
 > [!IMPORTANT]  
 > To use the `QuantizedCache`, you need to install additional dependencies (_e.g._ `pip install optimum-quanto`).
+
+## Contributing
+
+We welcome contributions! To add a new press, simply open an issue or submit a pull request. Check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
 
 ## FAQ
 
