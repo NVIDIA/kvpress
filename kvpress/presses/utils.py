@@ -50,3 +50,9 @@ def get_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Te
         query_states = module.q_norm(query_states)
 
     return query_states
+
+
+def dequantize_layer(cache_layer) -> tuple[torch.Tensor, torch.Tensor]:
+    keys = cache_layer._dequantize(cache_layer._quantized_keys)
+    values = cache_layer._dequantize(cache_layer._quantized_values)
+    return keys, values
