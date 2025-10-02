@@ -203,7 +203,9 @@ class KVPressTextGenerationPipeline(Pipeline):
         if cache is None:
             cache = DynamicCache()
 
-        with press(self.model) if press is not None else contextlib.nullcontext():
+        # We only perform prefill compression if the press is not a decoding or prefill decoding press
+        perform_prefill_compression = press is not None and not isinstance(press, (DecodingPress, PrefillDecodingPress))
+        with press(self.model) if perform_prefill_compression else contextlib.nullcontext():
             # We run the model without the lm head for pre-filling.
             self.model.model(
                 input_ids=context_ids,
@@ -214,6 +216,9 @@ class KVPressTextGenerationPipeline(Pipeline):
             logger.debug(f"Context Length: {context_length}")
             logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
+        # We only perform decoding compression if the press is a decoding or prefill decoding press
+        perform_decoding_compression = press is not None and isinstance(press, (DecodingPress, PrefillDecodingPress))
+        with press(self.model) if perform_decoding_compression else contextlib.nullcontext():
             # Greedy decoding for each question
             answers = []
             for question_ids in input_tensors["questions_ids"]:
