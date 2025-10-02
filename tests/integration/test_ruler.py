@@ -24,7 +24,7 @@ def df_ruler():
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
 @pytest.mark.parametrize("compression_ratio", [0, 0.1])
 def test_ruler_is_correct(
-    kv_press_llama3_2_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
+    kv_press_llama3_1_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
 ):
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
@@ -42,7 +42,7 @@ def test_ruler_is_correct(
     if cache == "dynamic":
         cache = DynamicCache()
     elif cache == "quantized" and is_optimum_quanto_available():
-        cache = QuantoQuantizedCache(config=kv_press_llama3_2_flash_attn_pipeline.model.config, nbits=4)
+        cache = QuantoQuantizedCache(config=kv_press_llama3_1_flash_attn_pipeline.model.config, nbits=4)
     elif cache == "quantized" and not is_optimum_quanto_available():
         pytest.skip("Quanto is not installed")
     else:
@@ -53,5 +53,5 @@ def test_ruler_is_correct(
     question = df_ruler.iloc[idx]["question"]
     true_answer = df_ruler.iloc[idx]["answer"][0]
 
-    pred_answer = kv_press_llama3_2_flash_attn_pipeline(context, question=question, press=press, cache=cache)["answer"]
+    pred_answer = kv_press_llama3_1_flash_attn_pipeline(context, question=question, press=press, cache=cache)["answer"]
     assert true_answer in pred_answer
