@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from transformers.utils import is_flash_attn_2_available
 
 from kvpress import KnormPress
-from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline  # noqa: F401
+from tests.fixtures import kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")

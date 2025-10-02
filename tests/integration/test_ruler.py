@@ -8,7 +8,7 @@ from transformers import DynamicCache, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from tests.default_presses import default_presses
-from tests.fixtures import kv_press_qwen3_flash_attn_pipeline, kv_press_llama3_2_flash_attn_pipeline  # noqa: F401
+from tests.fixtures import kv_press_qwen3_flash_attn_pipeline, kv_press_llama3_1_flash_attn_pipeline  # noqa: F401
 
 
 @pytest.fixture(scope="session")
