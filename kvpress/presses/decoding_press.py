@@ -11,7 +11,7 @@ from transformers.cache_utils import QuantizedCache
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.utils import dequantize_layer
+from kvpress.presses.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -144,11 +144,7 @@ class DecodingPress(BasePress):
             )
 
             cache_layer = cache.layers[module.layer_idx]
-            if isinstance(cache, QuantizedCache):
-                keys, values = dequantize_layer(cache_layer)
-            else:
-                keys = cache_layer.keys
-                values = cache_layer.values
+            keys, values = extract_keys_and_values(cache, module.layer_idx)
 
             # Get attention weights from output
             attentions = output[1] if len(output) > 1 and output[1] is not None else None

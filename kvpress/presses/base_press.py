@@ -20,7 +20,7 @@ from transformers import (
     Qwen3ForCausalLM,
 )
 
-from kvpress.presses.utils import dequantize_layer
+from kvpress.presses.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -126,18 +126,14 @@ class BasePress:
 
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_values"]
+        cache_layer = cache.layers[module.layer_idx]
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
         if kwargs["cache_position"][-1] > q_len:
             return output
 
-        cache_layer = cache.layers[module.layer_idx]
-        if isinstance(cache, QuantizedCache):
-            keys, values = dequantize_layer(cache_layer)
-        else:
-            keys = cache_layer.keys
-            values = cache_layer.values
+        keys, values = extract_keys_and_values(cache, module.layer_idx)
 
         keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
