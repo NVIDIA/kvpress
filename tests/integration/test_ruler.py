@@ -29,7 +29,7 @@ class TestRuler:
     @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
     @pytest.mark.parametrize("compression_ratio", [0, 0.1])
     def test_ruler_is_correct(
-        kv_press_qwen3_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
+        self, kv_press_qwen3_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
     ):
         cls = press_dict["cls"]
         kwargs = press_dict["kwargs"][0]
@@ -79,7 +79,7 @@ class TestRulerForQFilter:
     @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
     @pytest.mark.parametrize("compression_ratio", [0, 0.1])
     def test_ruler_is_correct_for_qfilter(
-        kv_press_llama3_2_flash_attn_pipeline, df_ruler, cache, compression_ratio  # noqa: F811
+        self, kv_press_llama3_2_flash_attn_pipeline, df_ruler, cache, compression_ratio  # noqa: F811
     ):
         cls = QFilterPress
         kwargs = {"compression_ratio": 0.2}

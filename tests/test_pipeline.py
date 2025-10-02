@@ -47,7 +47,7 @@ class TestPipelineFA2:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
     @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
     @pytest.mark.parametrize("compression_ratio", [0.0, 0.2])
-    def test_pipeline_fa2(kv_press_llama3_2_flash_attn_pipeline, compression_ratio):  # noqa: F811
+    def test_pipeline_fa2(self, kv_press_llama3_2_flash_attn_pipeline, compression_ratio):  # noqa: F811
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["Repeat the last sentence"]
         press = ExpectedAttentionPress(compression_ratio=compression_ratio)
