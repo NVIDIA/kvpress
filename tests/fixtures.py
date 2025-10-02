@@ -74,7 +74,7 @@ def kv_press_adaptive_pipeline():
 @pytest.fixture(scope="session")
 def kv_press_llama3_2_flash_attn_pipeline():
     device = "cuda:0"
-    ckpt = "meta-llama/Llama-3.2-1B-Instruct"
+    ckpt = "meta-llama/Llama-3.2-3B-Instruct"
     attn_implementation = "flash_attention_2"
     pipe = pipeline(
         "kv-press-text-generation",
