@@ -204,7 +204,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             cache = DynamicCache()
 
         # We only perform prefill compression if the press is not a decoding or prefill decoding press
-        perform_prefill_compression = press is not None and not isinstance(press, (DecodingPress, PrefillDecodingPress))
+        perform_prefill_compression = press is not None and not isinstance(press, DecodingPress)
         with press(self.model) if perform_prefill_compression else contextlib.nullcontext():
             # We run the model without the lm head for pre-filling.
             self.model.model(
