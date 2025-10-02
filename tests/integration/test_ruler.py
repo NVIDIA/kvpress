@@ -25,7 +25,7 @@ def df_ruler():
 @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
 @pytest.mark.parametrize("compression_ratio", [0, 0.1])
 def test_ruler_is_correct(
-    kv_press_llama3_2_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
+    kv_press_llama3_2_flash_attn_pipeline, kv_press_qwen3_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio  # noqa: F811
 ):
     cls = press_dict["cls"]
     kwargs = press_dict["kwargs"][0]
@@ -55,7 +55,17 @@ def test_ruler_is_correct(
     true_answer = df_ruler.iloc[idx]["answer"][0]
 
     if isinstance(press, QFilterPress):
-        pred_answer = kv_press_llama3_2_flash_attn_pipeline(context, question=question, press=press, cache=cache)["answer"]
+        pred_answer = kv_press_llama3_2_flash_attn_pipeline(
+            context, 
+            question=question, 
+            press=press, 
+            cache=cache
+        )["answer"]
     else:
-        pred_answer = kv_press_qwen3_flash_attn_pipeline(context, question=question, press=press, cache=cache)["answer"]
+        pred_answer = kv_press_qwen3_flash_attn_pipeline(
+            context, 
+            question=question, 
+            press=press, 
+            cache=cache
+        )["answer"]
     assert true_answer in pred_answer
