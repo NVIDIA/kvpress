@@ -65,7 +65,6 @@ class ExpectedAttentionPress(ScorerPress):
         """
 
         q_len = hidden_states.shape[1]
-        head_dim = module.head_dim
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
@@ -81,34 +80,47 @@ class ExpectedAttentionPress(ScorerPress):
             cov = torch.einsum("bnsi,bnsj->bnij", centered_states, centered_states) / h.shape[1]
         mu = mu.squeeze(2)
 
-        # RoPE rotation matrix on next n_future_positions
+        # Apply RoPE to the mean and covariance matrix of the queries
+        mu, cov = self.apply_avg_rope(module, mu, cov, q_len)
+
+        return mu, cov
+
+    def apply_avg_rope(self, module: nn.Module, mu: torch.Tensor, cov: torch.Tensor, q_len: int):
+        """
+        Apply average RoPE to the mean and covariance matrix of the queries
+
+        Parameters
+        ----------
+        module : nn.Module
+            The module to apply RoPE to.
+        mu : torch.Tensor
+            The mean of the queries.
+        cov : torch.Tensor
+            The covariance matrix of the queries.
+        q_len : int
+            The length of the queries.
+
+        Returns
+        -------
+        mu : torch.Tensor
+            The mean of the queries after RoPE.
+        cov : torch.Tensor
+            The covariance matrix of the queries after RoPE.
+        """
         position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
+        head_dim = module.head_dim
         cos, sin = module.rotary_emb(mu, position_ids)
         cos, sin = cos[0], sin[0]
-
         Id = torch.eye(head_dim, device=cos.device, dtype=cos.dtype)
         P = torch.zeros((head_dim, head_dim), device=cos.device, dtype=cos.dtype)
         P[head_dim // 2 :, : head_dim // 2], P[: head_dim // 2, head_dim // 2 :] = torch.eye(head_dim // 2), -torch.eye(
             head_dim // 2
         )
         R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
-
-        # Apply average rotation to the mean and covariance
         R = R.mean(dim=0).to(mu.device)
         mu = torch.matmul(mu, R.T)
-        if self.use_covariance:
+        if cov is not None:
             cov = torch.matmul(R, torch.matmul(cov, R.T))
-
-        # Instead of using the average rotation matrix, we could use a mixture of gaussian statistics to
-        # estimate mean and covariance. Estimation is better, but end-to-end performance was lower.
-        # mu = torch.einsum("bhj, fij -> bhfi", mu, R)
-        # mean_mu = mu.mean(dim=2, keepdim=True)
-        # if self.use_covariance:
-        #     cov = torch.einsum("fki, bhkl, fjl -> bhfij", R, cov, R)
-        #     cov = cov.mean(dim=2)
-        #     cov += torch.einsum("bhfi, bhfj -> bhji", mu - mean_mu, mu - mean_mu) / self.n_future_positions
-        # mu = mean_mu.squeeze(2)
-
         return mu, cov
 
     def score(

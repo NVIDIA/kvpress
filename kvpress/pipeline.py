@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -15,7 +15,6 @@ from kvpress.presses.base_press import BasePress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
-from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 
 logger = logging.getLogger(__name__)
 
@@ -224,20 +223,6 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         return answers
 
-    def output_attentions(self, press: BasePress):
-        if isinstance(press, ObservedAttentionPress):
-            return True
-        if isinstance(press, (KeyRerotationPress, PerLayerCompressionPress)) and isinstance(
-            press.press, ObservedAttentionPress
-        ):
-            return True
-        return False
-
-    def postprocess(self, model_outputs, single_question):
-        if single_question:
-            return {"answer": model_outputs[0]}
-        return {"answers": model_outputs}
-
     def generate_answer(
         self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
     ) -> str:
@@ -260,7 +245,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         str
             The generated answer.
         """
-
         cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
@@ -292,27 +276,33 @@ class KVPressTextGenerationPipeline(Pipeline):
             if new_id.item() in should_stop_token_ids:
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-
         # Remove the generated tokens from the cache
-        cache.key_cache = [
-            cache.key_cache[layer_idx][:, :, :sequence_length]
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-        ]
-        cache.value_cache = [
-            cache.value_cache[layer_idx][:, :, :sequence_length]
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-        ]
-        if hasattr(cache, "_quantized_key_cache"):
-            cache._quantized_key_cache = [
-                cache._quantized_key_cache[layer_idx][:, :, :sequence_length]
-                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-            ]
-            cache._quantized_value_cache = [
-                cache._quantized_value_cache[layer_idx][:, :, :sequence_length]
-                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
-            ]
+        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
+            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
+
+        if isinstance(cache, QuantizedCache):
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
+                    :, :, :sequence_length
+                ]
+                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
+                    :, :, :sequence_length
+                ]
 
         return answer
+
+    def output_attentions(self, press: BasePress):
+        if isinstance(press, ObservedAttentionPress):
+            return True
+        if hasattr(press, "press") and isinstance(press.press, ObservedAttentionPress):
+            return True
+        return False
+
+    def postprocess(self, model_outputs, single_question):
+        if single_question:
+            return {"answer": model_outputs[0]}
+        return {"answers": model_outputs}
 
 
 PIPELINE_REGISTRY.register_pipeline(
