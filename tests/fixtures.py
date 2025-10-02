@@ -71,7 +71,7 @@ def kv_press_adaptive_pipeline():
     return pipe
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def kv_press_llama3_1_flash_attn_pipeline():
     device = "cuda:0"
     ckpt = "meta-llama/Llama-3.1-8B-Instruct"
@@ -85,7 +85,7 @@ def kv_press_llama3_1_flash_attn_pipeline():
     return pipe
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def kv_press_llama3_2_flash_attn_pipeline():
     device = "cuda:0"
     ckpt = "meta-llama/Llama-3.2-1B-Instruct"
@@ -99,7 +99,7 @@ def kv_press_llama3_2_flash_attn_pipeline():
     return pipe
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def kv_press_qwen3_flash_attn_pipeline():
     device = "cuda:0"
     ckpt = "Qwen/Qwen3-4B-Instruct-2507"
