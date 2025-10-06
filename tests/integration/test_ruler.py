@@ -64,9 +64,7 @@ class TestRuler:
                 press=press,
                 cache=cache
             )["answer"]
-        if true_answer not in pred_answer:
-            # issue warning instead of assertion
-            logger.warning(f"True answer: {true_answer}, Pred answer: {pred_answer}")
+        assert true_answer in pred_answer
 
 
 class TestRulerForQFilter:
