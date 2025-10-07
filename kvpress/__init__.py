@@ -11,6 +11,7 @@ from kvpress.presses.chunk_press import ChunkPress
 from kvpress.presses.chunkkv_press import ChunkKVPress
 from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.criticalkv_press import CriticalAdaKVPress, CriticalKVPress
+from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.duo_attention_press import DuoAttentionPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.expected_attention_with_stats import ExpectedAttentionStatsPress
@@ -22,6 +23,7 @@ from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.lagkv_press import LagKVPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
+from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.pyramidkv_press import PyramidKVPress
 from kvpress.presses.qfilter_press import QFilterPress
 from kvpress.presses.random_press import RandomPress
@@ -64,5 +66,9 @@ __all__ = [
     "BlockPress",
     "KeyDiffPress",
     "KVzipPress",
+    "DecodingPress",
+    "PrefillDecodingPress",
     "ExpectedAttentionStatsPress",
+    "DecodingPress",
+    "PrefillDecodingPress",
 ]

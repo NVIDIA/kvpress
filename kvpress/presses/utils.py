@@ -3,6 +3,7 @@
 
 import torch
 from torch import nn
+from transformers import Cache, QuantizedCache
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
@@ -50,3 +51,22 @@ def get_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Te
         query_states = module.q_norm(query_states)
 
     return query_states
+
+
+def dequantize_layer(cache_layer) -> tuple[torch.Tensor, torch.Tensor]:
+    keys = cache_layer._dequantize(cache_layer._quantized_keys)
+    values = cache_layer._dequantize(cache_layer._quantized_values)
+    return keys, values
+
+
+def extract_keys_and_values(cache: Cache, layer_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Extracts the keys and values from a given cache layer,
+    handling both quantized and unquantized caches.
+    """
+    if isinstance(cache, QuantizedCache):
+        keys, values = dequantize_layer(cache.layers[layer_idx])
+    else:
+        keys = cache.layers[layer_idx].keys
+        values = cache.layers[layer_idx].values
+    return keys, values

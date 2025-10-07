@@ -100,7 +100,7 @@ class PyramidKVPress(SnapKVPress):
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Get indices of KV pairs with the lowest scores
-        q_len = hidden_states.shape[1]
+        q_len = keys.shape[2]
         n_kept = self.get_layer_budget(module, q_len)
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)

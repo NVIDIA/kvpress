@@ -44,7 +44,7 @@ class SnapKVPress(ScorerPress):
         Compute the last window_size queries and associated attention weights for the first q_len - window_size keys.
         """
 
-        bsz, q_len, _ = hidden_states.shape
+        bsz, _, q_len, _ = keys.shape
         num_heads = module.config.num_attention_heads
         head_dim = module.head_dim
         num_key_value_groups = num_heads // module.config.num_key_value_heads
@@ -78,10 +78,13 @@ class SnapKVPress(ScorerPress):
         kwargs,
     ) -> torch.Tensor:
 
-        bsz, num_key_value_heads, q_len, _ = keys.shape
+        bsz, num_key_value_heads, k_len, _ = keys.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
-        assert q_len > self.window_size, "Query length should be greater than the window size"
+        q_len = hidden_states.shape[1]
+        assert (
+            q_len > self.window_size
+        ), f"Query length {q_len} should be greater than the window size {self.window_size}"
 
         if attentions is not None:
             attn_weights = attentions[..., -self.window_size :, : -self.window_size]
@@ -94,7 +97,7 @@ class SnapKVPress(ScorerPress):
         scores = F.avg_pool1d(scores, kernel_size=self.kernel_size, padding=self.kernel_size // 2, stride=1)
 
         # Average per group (https://github.com/FasterDecoding/SnapKV/issues/22)
-        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len - self.window_size)
+        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, k_len - self.window_size)
         scores = scores.mean(2)
 
         # Add back the observation window. Use max score to make sure the window is not pruned.
