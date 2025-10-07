@@ -14,7 +14,7 @@ from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreT
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.presses.utils import get_query_states
+from kvpress.presses.utils import extract_keys_and_values, get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -153,25 +153,16 @@ class KVzipPress(BasePress):
 
         hidden_states = kwargs["hidden_states"]
         cache = kwargs.get("past_key_values", None) or kwargs.get("past_key_value", None)
-
         cache_layer = cache.layers[module.layer_idx]
-        if isinstance(cache, QuantizedCache):
-            keys = cache_layer._dequantize(  # type: ignore[index]
-                cache_layer._quantized_keys  # type: ignore[index]
-            )
-            values = cache_layer._dequantize(  # type: ignore[index]
-                cache_layer._quantized_values  # type: ignore[index]
-            )
 
-        else:
-            keys = cache_layer.keys
-            values = cache_layer.values
+        keys, values = extract_keys_and_values(cache, module.layer_idx)
 
         # Compute importance scores for KV pairs in the prefilled context,
         # retaining only the originally prefilled KV pairs.
         keys, values = self.score_kvzip(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
+            # Update cache with compressed keys and values
             cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
             cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
             cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]

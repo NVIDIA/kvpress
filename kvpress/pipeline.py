@@ -12,9 +12,11 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +191,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         list[str]
             Generated answers for each input question.
         """
+        if isinstance(press, (DecodingPress, PrefillDecodingPress)) and len(input_tensors["questions_ids"]) > 1:
+            raise ValueError(
+                "DecodingPress is not compatible with multiple questions. Please specify a single question."
+            )
+
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
 
@@ -196,7 +203,9 @@ class KVPressTextGenerationPipeline(Pipeline):
         if cache is None:
             cache = DynamicCache()
 
-        with press(self.model) if press is not None else contextlib.nullcontext():
+        # We only perform prefill compression if the press is not a decoding or prefill decoding press
+        perform_prefill_compression = press is not None and not isinstance(press, DecodingPress)
+        with press(self.model) if perform_prefill_compression else contextlib.nullcontext():
             # We run the model without the lm head for pre-filling.
             self.model.model(
                 input_ids=context_ids,
@@ -204,24 +213,46 @@ class KVPressTextGenerationPipeline(Pipeline):
                 output_attentions=self.output_attentions(press),
             )
 
-        logger.debug(f"Context Length: {context_length}")
-        logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
+            logger.debug(f"Context Length: {context_length}")
+            logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
-        # Greedy decoding for each question
-        answers = []
-        for question_ids in input_tensors["questions_ids"]:
-            if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
-                context_length = cache.get_seq_length()
+        # We only perform decoding compression if the press is a decoding or prefill decoding press
+        perform_decoding_compression = press is not None and isinstance(press, (DecodingPress, PrefillDecodingPress))
+        with press(self.model) if perform_decoding_compression else contextlib.nullcontext():
+            # Greedy decoding for each question
+            answers = []
+            for question_ids in input_tensors["questions_ids"]:
+                if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
+                    context_length = cache.get_seq_length()
 
-            answer = self.generate_answer(
-                question_ids=question_ids.to(self.model.device),
-                cache=cache,
-                context_length=context_length,
-                max_new_tokens=max_new_tokens,
-            )
-            answers.append(answer)
+                cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+                answer = self.generate_answer(
+                    question_ids=question_ids.to(self.model.device),
+                    cache=cache,
+                    context_length=context_length,
+                    max_new_tokens=max_new_tokens,
+                )
+                if len(input_tensors["questions_ids"]) > 1:
+                    print(f"Removing answer from cache: {cache_seq_lengths}")
+                    self._remove_answer_from_cache(cache, cache_seq_lengths)
 
+                answers.append(answer)
         return answers
+
+    def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
+
+        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
+            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
+
+        if isinstance(cache, QuantizedCache):
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
+                    :, :, :sequence_length
+                ]
+                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
+                    :, :, :sequence_length
+                ]
 
     def generate_answer(
         self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
@@ -245,7 +276,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         str
             The generated answer.
         """
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -276,20 +306,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             if new_id.item() in should_stop_token_ids:
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-        # Remove the generated tokens from the cache
-        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
-            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
-
-        if isinstance(cache, QuantizedCache):
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
-                    :, :, :sequence_length
-                ]
-                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
-                    :, :, :sequence_length
-                ]
-
         return answer
 
     def output_attentions(self, press: BasePress):

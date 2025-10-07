@@ -103,7 +103,7 @@ class DuoAttentionPress(BasePress):
             raise ValueError(
                 "Streaming mask not initialized. Make sure to call __post_init_from_model__ to initialize this press."
             )
-        q_len = hidden_states.shape[1]
+        q_len = keys.shape[2]
 
         if (self.head_compression_ratio > 0) or (q_len > (self.sink_size + self.recent_size)):
 
