@@ -17,7 +17,7 @@ class TestFlashAttention:
         # test if fa2 runs, see https://github.com/huggingface/transformers/releases/tag/v4.55.2
         # and https://github.com/NVIDIA/kvpress/pull/115
         model = kv_press_qwen3_flash_attn_pipeline.model
-        tok = model.tokenizer
+        tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B-Instruct-2507")
         inputs = tok("Hello, how are you? bla bla how are you? this is some text lala ddd", return_tensors="pt").to(
             model.device
         )
