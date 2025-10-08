@@ -49,7 +49,7 @@ class TestRuler:
         else:
             raise ValueError(f"Unknown cache type: {cache}")
 
-        idx = 0
+        idx = 5
         context = df_ruler.iloc[idx]["context"]
         question = df_ruler.iloc[idx]["question"]
         true_answer = df_ruler.iloc[idx]["answer"][0]
