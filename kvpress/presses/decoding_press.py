@@ -50,14 +50,6 @@ class DecodingPress(BasePress):
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
-        # Warn if compression happens before buffer is fully utilized
-        # TODO: would it make sense to not reset the buffer?
-        if self.hidden_states_buffer_size > 0 and self.compression_interval < self.hidden_states_buffer_size:
-            logger.warning(
-                f"compression_interval ({self.compression_interval}) < hidden_states_buffer_size ({self.hidden_states_buffer_size}). "  # noqa: E501
-                f"Buffer will be reset before reaching full capacity, potentially reducing compression quality."
-            )
-
         assert self.compression_interval > 0, "compression_interval must be greater than 0"
         assert self.target_size > 0, "target_size must be greater than 0"
 
