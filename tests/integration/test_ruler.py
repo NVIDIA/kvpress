@@ -24,7 +24,7 @@ class TestRuler:
     @pytest.mark.parametrize("press_dict", default_presses)
     @pytest.mark.parametrize("cache", ["dynamic", "quantized"])
     @pytest.mark.parametrize("compression_ratio", [0, 0.1])
-    @pytest.mark.parametrize("idx", [i for i in range(len(20))])
+    @pytest.mark.parametrize("idx", [i for i in range(20)])
     def test_ruler_is_correct(
         self, kv_press_qwen3_flash_attn_pipeline, df_ruler, press_dict, cache, compression_ratio, idx  # noqa: F811
     ):
