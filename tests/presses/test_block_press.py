@@ -33,7 +33,7 @@ def test_block_press_is_streaming_top_k(unit_test_model):  # noqa: F811
     """
     press = HiddenStatesPress(compression_ratio=0.5)
     generator = torch.Generator().manual_seed(0)
-    input_ids = torch.randint(0, 1024, (1, 256), generator=generator)
+    input_ids = torch.randint(0, 1024, (1, 256), generator=generator).to(unit_test_model.device)
     keys_hash = []
     values_hash = []
 
