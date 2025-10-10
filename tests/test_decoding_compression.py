@@ -241,25 +241,21 @@ def test_all_presses_work_with_decoding_press(press_config):
 
     # Run pipeline
     cache = DynamicCache()
-    try:
-        result = pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=15)
+    result = pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=15)
 
-        # Verify compression worked
-        assert len(result["answer"]) > 0, f"No answer generated with {press_cls.__name__}"
+    # Verify compression worked
+    assert len(result["answer"]) > 0, f"No answer generated with {press_cls.__name__}"
 
-        # Check that cache was compressed (allow some tolerance for rounding)
-        for layer_idx, cache_layer in enumerate(cache.layers):
-            layer_seq_len = cache_layer.keys.shape[2]
-            # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
-            target_size = 48
-            compression_steps = 3  # from the decoding press configuration
-            max_expected_size = target_size + compression_steps - 1
-            assert (
-                target_size <= layer_seq_len <= max_expected_size
-            ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"  # noqa: E501
-
-    except Exception as e:
-        pytest.fail(f"DecodingPress failed with {press_cls.__name__}: {e}")
+    # Check that cache was compressed (allow some tolerance for rounding)
+    for layer_idx, cache_layer in enumerate(cache.layers):
+        layer_seq_len = cache_layer.keys.shape[2]
+        # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
+        target_size = 48
+        compression_steps = 3  # from the decoding press configuration
+        max_expected_size = target_size + compression_steps - 1
+        assert (
+            target_size <= layer_seq_len <= max_expected_size
+        ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"  # noqa: E501
 
 
 def test_compression_actually_reduces_memory():
