@@ -31,7 +31,7 @@ def test_composed_press(unit_test_model):  # noqa: F811
     press2 = ThinKPress(key_channel_compression_ratio=0.5, window_size=2)
     composed_press = ComposedPress([press1, press2])
     with composed_press(unit_test_model):
-        input_ids = unit_test_model.dummy_inputs["input_ids"]
+        input_ids = unit_test_model.dummy_inputs["input_ids"].to(unit_test_model.device)
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
@@ -40,7 +40,7 @@ def test_chunk_press(unit_test_model):  # noqa: F811
     for chunk_length in [2, 4, 8, 128]:
         composed_press = ChunkPress(press=press, chunk_length=chunk_length)
         with composed_press(unit_test_model):
-            input_ids = torch.randint(0, 1024, (1, 256))
+            input_ids = torch.randint(0, 1024, (1, 256), device=unit_test_model.device)
             cache = DynamicCache()
             unit_test_model(input_ids, past_key_values=cache).past_key_values
             assert cache.get_seq_length() == 128
@@ -51,7 +51,7 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
     for chunk_length in [2, 4, 8, 128]:
         composed_press = ChunkKVPress(press=press, chunk_length=chunk_length)
         with composed_press(unit_test_model):
-            input_ids = torch.randint(0, 1024, (1, 256))
+            input_ids = torch.randint(0, 1024, (1, 256), device=unit_test_model.device)
             cache = DynamicCache()
             unit_test_model(input_ids, past_key_values=cache).past_key_values
             assert cache.get_seq_length() == 128
@@ -84,7 +84,7 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
         if hasattr(press, "__post_init_from_model__"):
             press.__post_init_from_model__(unit_test_model)
         with press(unit_test_model):
-            input_ids = torch.randint(0, 1024, (1, 128))
+            input_ids = torch.randint(0, 1024, (1, 128), device=unit_test_model.device)
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
         # Check that the press has a compression_ratio attribute
         assert hasattr(press, "compression_ratio")
@@ -95,7 +95,9 @@ def test_presses_run_observed_attention(unit_test_model_output_attention):  # no
         for compresion_ratio in [0.2, 0.8]:
             press = cls(compression_ratio=compresion_ratio)
             with press(unit_test_model_output_attention):
-                input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"]
+                input_ids = unit_test_model_output_attention.dummy_inputs["input_ids"].to(
+                    unit_test_model_output_attention.device
+                )
                 unit_test_model_output_attention(input_ids, past_key_values=DynamicCache()).past_key_values
 
 
@@ -126,7 +128,7 @@ def test_presses_keep_highest_score(unit_test_model):  # noqa: F811
     for compresion_ratio in [0.0, 0.2, 0.4, 0.6, 0.8]:
         press = StoreKnormPress(compression_ratio=compresion_ratio)
         with press(unit_test_model):
-            input_ids = torch.randint(0, 3_000, (5, 256))
+            input_ids = torch.randint(0, 3_000, (5, 256), device=unit_test_model.device)
             past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
         keys = [layer.keys for layer in past_key_values.layers]

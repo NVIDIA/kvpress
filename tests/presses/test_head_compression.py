@@ -28,7 +28,7 @@ def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ra
     p = KnormPress(compression_ratio=compression_ratio)
     press = wrapper_press(press=p)
     with press(unit_test_model):
-        input_ids = torch.randint(0, 1024, (1, 128))
+        input_ids = torch.randint(0, 1024, (1, 128)).to(unit_test_model.device)
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
     assert unit_test_model.model.layers[0].self_attn.masked_key_indices is not None
@@ -47,7 +47,7 @@ def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ra
 def test_head_compression(unit_test_model, press, compression_ratio, layerwise):  # noqa: F811
     press = KVzipPress(compression_ratio=compression_ratio, layerwise=layerwise)
     with press(unit_test_model):
-        input_ids = torch.randint(0, 1024, (1, 128))
+        input_ids = torch.randint(0, 1024, (1, 128)).to(unit_test_model.device)
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
     assert unit_test_model.model.layers[0].self_attn.masked_key_indices is not None
