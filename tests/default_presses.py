@@ -9,6 +9,7 @@ from kvpress import (
     ExpectedAttentionStatsPress,
     KeyDiffPress,
     KnormPress,
+    KVComposePress,
     KVzipPress,
     LagKVPress,
     PyramidKVPress,
@@ -73,5 +74,14 @@ default_presses = [
     {
         "cls": KVzipPress,
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
+    },
+    {
+        "cls": KVComposePress,
+        "kwargs": [
+            {"compression_ratio": 0.5},
+            {"compression_ratio": 0.8},
+            {"structured": False, "compression_ratio": 0.5},
+            {"structured": False, "compression_ratio": 0.8},
+        ],
     },
 ]
