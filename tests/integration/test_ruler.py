@@ -6,6 +6,7 @@ import pytest
 import torch
 from transformers import DynamicCache, QuantoQuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
+
 from kvpress import QFilterPress
 from tests.default_presses import default_presses
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_qwen3_flash_attn_pipeline  # noqa: F401
@@ -58,12 +59,9 @@ class TestRuler:
             # QFilterPress doesn't support Qwen3 4B. Will be tested in the next test class.
             return
         else:
-            pred_answer = kv_press_qwen3_flash_attn_pipeline(
-                context,
-                question=question,
-                press=press,
-                cache=cache
-            )["answer"]
+            pred_answer = kv_press_qwen3_flash_attn_pipeline(context, question=question, press=press, cache=cache)[
+                "answer"
+            ]
         assert true_answer in pred_answer
 
 
@@ -102,10 +100,7 @@ class TestRulerForQFilter:
         question = df_ruler.iloc[idx]["question"]
         true_answer = df_ruler.iloc[idx]["answer"][0]
 
-        pred_answer = kv_press_llama3_2_flash_attn_pipeline(
-            context,
-            question=question,
-            press=press,
-            cache=cache
-        )["answer"]
+        pred_answer = kv_press_llama3_2_flash_attn_pipeline(context, question=question, press=press, cache=cache)[
+            "answer"
+        ]
         assert true_answer in pred_answer
