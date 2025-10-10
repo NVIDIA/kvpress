@@ -94,13 +94,13 @@ class SimLayerKVPress(BasePress):
             self.compression_ratios = []
 
         # Check if compression is needed
-        q_len = keys.shape[2]
+        k_len = keys.shape[2]
         min_length = self.n_initial + self.n_recent + self.n_last
 
-        if q_len <= min_length:
+        if k_len <= min_length:
             logger.warning(f"Sequence length is shorter than {min_length}: no compression applied")
 
-        if (self.lazy_threshold == 1.0) or (q_len <= min_length):
+        if (self.lazy_threshold == 1.0) or (k_len <= min_length):
             self.compression_ratios.append(0.0)
             return keys, values
 
@@ -109,7 +109,7 @@ class SimLayerKVPress(BasePress):
             # If layer is lazy, only keep the initial and recent KV pairs
             keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2)
             values = torch.cat([values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2)
-            self.compression_ratios.append((q_len - self.n_initial - self.n_recent + 1) / q_len)
+            self.compression_ratios.append((k_len - self.n_initial - self.n_recent + 1) / k_len)
         else:
             self.compression_ratios.append(0.0)
 

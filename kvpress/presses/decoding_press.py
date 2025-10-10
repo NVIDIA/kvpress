@@ -93,9 +93,9 @@ class DecodingPress(BasePress):
             It would be possible to speed up compression during decoding for certain scorer presses by
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
         """
-        q_len = keys.shape[2]
-        target_compression_ratio = self._find_target_compression_ratio(q_len, self.target_size)
-        logger.debug(f"Compressing {q_len} to {self.target_size} with ratio {target_compression_ratio}")
+        k_len = keys.shape[2]
+        target_compression_ratio = self._find_target_compression_ratio(k_len, self.target_size)
+        logger.debug(f"Compressing {k_len} to {self.target_size} with ratio {target_compression_ratio}")
 
         original_compression_ratio = self.base_press.compression_ratio
         self.base_press.compression_ratio = target_compression_ratio

@@ -103,9 +103,9 @@ class DuoAttentionPress(BasePress):
             raise ValueError(
                 "Streaming mask not initialized. Make sure to call __post_init_from_model__ to initialize this press."
             )
-        q_len = keys.shape[2]
+        k_len = keys.shape[2]
 
-        if (self.head_compression_ratio > 0) or (q_len > (self.sink_size + self.recent_size)):
+        if (self.head_compression_ratio > 0) or (k_len > (self.sink_size + self.recent_size)):
 
             # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for more details
             masked_keys = torch.zeros_like(keys[..., 0], dtype=torch.bool)
@@ -114,7 +114,7 @@ class DuoAttentionPress(BasePress):
 
         # Compute the compression ratio
         self.compression_ratio_ = self.streaming_mask.float().mean().item()
-        self.compression_ratio_ *= 1 - (self.sink_size + self.recent_size) / q_len
+        self.compression_ratio_ *= 1 - (self.sink_size + self.recent_size) / k_len
 
         return keys, values
 

@@ -53,7 +53,7 @@ class CriticalKVPress(ScorerPress):
 
     @staticmethod
     def vwl1norm(values, module):
-        bsz, num_key_value_heads, q_len, _ = values.shape
+        bsz, num_key_value_heads, k_len, _ = values.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
         Wo = module.o_proj.weight.transpose(0, 1)
         Wo = Wo.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
@@ -67,16 +67,16 @@ class CriticalKVPress(ScorerPress):
             head_WoV_norm = torch.norm(head_WoV, p=1, dim=-1)
             head_WoV_norm_list.append(head_WoV_norm)
 
-        # b_size, num_heads, q_len , k_len
+        # b_size, num_heads, k_len , k_len
         WoV_norm = torch.stack(head_WoV_norm_list, dim=1)
-        WoV_norm = WoV_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, q_len).mean(dim=2)
+        WoV_norm = WoV_norm.view(bsz, num_key_value_heads, module.num_key_value_groups, k_len).mean(dim=2)
         return WoV_norm
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         # Stage 1
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
-        q_len = keys.shape[2]
-        selection_budget = int((1 - self.compression_ratio) * q_len * self.first_stage_ratio)
+        k_len = keys.shape[2]
+        selection_budget = int((1 - self.compression_ratio) * k_len * self.first_stage_ratio)
         top_k_index = torch.topk(scores, selection_budget, sorted=True, dim=-1).indices
 
         # Stage 2
@@ -140,10 +140,10 @@ class CriticalAdaKVPress(BasePress):
 
         # Compute scores
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
-        bsz, num_key_value_heads, q_len = scores.shape
+        bsz, num_key_value_heads, k_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
-        n_kept = int(q_len * (1 - self.compression_ratio))  # ScorerPress definition
+        n_kept = int(k_len * (1 - self.compression_ratio))  # ScorerPress definition
         n_safe = int(n_kept * self.alpha_safeguard)
         top_indices = torch.topk(scores, n_safe, dim=-1).indices
         scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)
@@ -156,7 +156,7 @@ class CriticalAdaKVPress(BasePress):
         budget_scores = scores.scatter(-1, top_indices, torch.finfo(scores.dtype).max)
         budget_scores = budget_scores.reshape(bsz, -1)
         top_indices = torch.topk(budget_scores, n_kept * num_key_value_heads, dim=-1).indices
-        top_indices_head_idx = top_indices // q_len
+        top_indices_head_idx = top_indices // k_len
         head_budgets = torch.zeros(num_key_value_heads, device=keys.device, dtype=torch.int64)
         head_budgets.scatter_add_(0, top_indices_head_idx.flatten(), torch.ones_like(top_indices_head_idx.flatten()))
 
@@ -180,12 +180,12 @@ class CriticalAdaKVPress(BasePress):
         ##########################
 
         # Compute bottom-k across heads
-        n_pruned = num_key_value_heads * (q_len - n_kept)
+        n_pruned = num_key_value_heads * (k_len - n_kept)
         indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
 
         # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for more details
         batch_indices = torch.arange(bsz).repeat_interleave(n_pruned)
-        head_indices = indices // q_len
-        seq_indices = indices % q_len
+        head_indices = indices // k_len
+        seq_indices = indices % k_len
         module.masked_key_indices = (batch_indices, head_indices, seq_indices)
         return keys, values

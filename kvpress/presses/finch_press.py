@@ -58,7 +58,7 @@ class FinchPress(BasePress):
         Similar to SnapKVPress except it adds a normalization step before averaging on the context window.
         """
 
-        bsz, num_key_value_heads, q_len, _ = keys.shape
+        bsz, num_key_value_heads, k_len, _ = keys.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
         if attentions is not None:
@@ -69,13 +69,13 @@ class FinchPress(BasePress):
             )
 
         if self.normalize_scores:
-            non_zero_counts = torch.arange(q_len - self.window_size, q_len)[None, None, :, None]
+            non_zero_counts = torch.arange(k_len - self.window_size, k_len)[None, None, :, None]
             non_zero_counts = non_zero_counts.to(attn_weights.device)
             attn_weights = attn_weights * non_zero_counts
 
         # Average per group
         scores = attn_weights.mean(dim=-2)
-        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len - self.window_size)
+        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, k_len - self.window_size)
         scores = scores.mean(dim=2)
 
         # Add back the observation window. Use max score to make sure the window is not pruned.
@@ -95,14 +95,14 @@ class FinchPress(BasePress):
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Compute indices to keep (optionally by chunks)
-        q_len = keys.shape[2]  # Use actual sequence length from keys instead of hidden_states
+        k_len = keys.shape[2]  # Use actual sequence length from keys instead of hidden_states
         if self.chunk_length is None:
-            n_kept = int(q_len * (1 - self.compression_ratio))
+            n_kept = int(k_len * (1 - self.compression_ratio))
             indices = scores.topk(n_kept, dim=-1).indices
         else:
             assert self.chunk_length > self.window_size / (1 - self.compression_ratio)
             indices = []
-            for i in range(0, q_len, self.chunk_length):
+            for i in range(0, k_len, self.chunk_length):
                 chunk_scores = scores[:, :, i : i + self.chunk_length]
                 n_kept = max(1, int(chunk_scores.shape[2] * (1 - self.compression_ratio)))
                 chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices

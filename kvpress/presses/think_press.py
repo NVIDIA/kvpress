@@ -72,7 +72,7 @@ class ThinKPress(BasePress):
             return keys, values
 
         # Compute scores per dimension
-        bsz, num_key_value_heads, q_len, head_dim = keys.shape
+        bsz, num_key_value_heads, k_len, head_dim = keys.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
         queries = self.compute_window_queries(module, kwargs["hidden_states"], kwargs["position_embeddings"])
@@ -84,7 +84,7 @@ class ThinKPress(BasePress):
         # Prune dimensions with the lowest scores by setting them to 0
         n_pruned = int(head_dim * self.key_channel_compression_ratio)
         indices = key_scores.topk(n_pruned, dim=-1, largest=False).indices
-        indices = indices.unsqueeze(2).expand(-1, -1, q_len, -1)
+        indices = indices.unsqueeze(2).expand(-1, -1, k_len, -1)
         keys = keys.scatter_(-1, indices, 0)
 
         return keys, values
