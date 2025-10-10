@@ -105,7 +105,7 @@ question = "Tell me a long story about this context"
 response = pipe(context, question=question, press=decoding_press)["answer"]
 ```
 
-> Not all existing presses are fully compatible with DecodingPress due to fundamental differences in how compression works during decoding versus prefilling. 
+> Not all existing presses are fully compatible with DecodingPress due to fundamental differences in how compression works during decoding versus prefilling. in particular, we only support ScorerPresses as base presses.
 
 </details>
 
