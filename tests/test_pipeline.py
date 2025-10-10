@@ -157,7 +157,6 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     values = [layer.values.clone() for layer in past_key_values.layers]
     cache_seq_lengths = [past_key_values.get_seq_length(layer_idx) for layer_idx in range(len(past_key_values))]
     compression_pipeline.generate_answer(input_ids_question, past_key_values, context_length=22, max_new_tokens=10)
-    compression_pipeline._remove_answer_from_cache(past_key_values, cache_seq_lengths)
     assert past_key_values.get_seq_length() == seq_len
     assert all([torch.allclose(key, layer.keys) for key, layer in zip(keys, past_key_values.layers)])
     assert all([torch.allclose(value, layer.values) for value, layer in zip(values, past_key_values.layers)])
