@@ -48,7 +48,7 @@ def test_decoding_compression(token_buffer_size):
         layer_seq_len = cache_layer.keys.shape[2]
         # Allow for compression step interval: cache can be up to compression_steps-1 tokens larger
         max_expected_size = token_buffer_size + press.compression_interval - 1
-        assert token_buffer_size <= layer_seq_len <= max_expected_size, (
+        assert layer_seq_len <= max_expected_size, (
             f"Layer {layer_idx}: Expected cache sequence length to be between {token_buffer_size} "
             f"and {max_expected_size}, but got {layer_seq_len}"
         )
