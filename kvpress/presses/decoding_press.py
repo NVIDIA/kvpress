@@ -163,7 +163,11 @@ class DecodingPress(BasePress):
             # hidden states buffer and kv cache
             self.hidden_states_buffer[layer_idx] = []
 
-        self.hidden_states_buffer[layer_idx] = self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size :]
+        self.hidden_states_buffer[layer_idx] = (
+            self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size :]
+            if self.hidden_states_buffer_size > 0
+            else []
+        )
         return output
 
     def reset(self):
