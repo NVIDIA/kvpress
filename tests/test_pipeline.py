@@ -43,33 +43,34 @@ def test_pipeline_with_cache(kv_press_unit_test_pipeline):  # noqa: F811
     assert isinstance(answers[0], str)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
-@pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
-@pytest.mark.parametrize("compression_ratio", [0.0, 0.2])
-def test_pipeline_fa2(compression_ratio, kv_press_llama3_2_flash_attn_pipeline):  # noqa: F811
-    context = "This is a test article. It was written on 2022-01-01."
-    questions = ["Repeat the last sentence"]
-    press = ExpectedAttentionPress(compression_ratio=compression_ratio)
-    cache = DynamicCache()
-    answers = kv_press_llama3_2_flash_attn_pipeline(
-        context, questions=questions, press=press, cache=cache, max_new_tokens=6
-    )["answers"]
+class TestPipelineFA2:
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
+    @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
+    @pytest.mark.parametrize("compression_ratio", [0.0, 0.2])
+    def test_pipeline_fa2(self, kv_press_llama3_2_flash_attn_pipeline, compression_ratio):  # noqa: F811
+        context = "This is a test article. It was written on 2022-01-01."
+        questions = ["Repeat the last sentence"]
+        press = ExpectedAttentionPress(compression_ratio=compression_ratio)
+        cache = DynamicCache()
+        answers = kv_press_llama3_2_flash_attn_pipeline(
+            context, questions=questions, press=press, cache=cache, max_new_tokens=6
+        )["answers"]
 
-    assert len(answers) == 1
-    assert isinstance(answers[0], str)
+        assert len(answers) == 1
+        assert isinstance(answers[0], str)
 
-    kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("sdpa")
-    press = ExpectedAttentionPress(compression_ratio=compression_ratio)
-    cache = DynamicCache()
-    answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(
-        context, questions=questions, press=press, cache=cache, max_new_tokens=6
-    )["answers"]
-    kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
+        kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("sdpa")
+        press = ExpectedAttentionPress(compression_ratio=compression_ratio)
+        cache = DynamicCache()
+        answers_sdpa = kv_press_llama3_2_flash_attn_pipeline(
+            context, questions=questions, press=press, cache=cache, max_new_tokens=6
+        )["answers"]
+        kv_press_llama3_2_flash_attn_pipeline.model.set_attn_implementation("flash_attention_2")
 
-    assert (
-        answers_sdpa[0] == answers[0]
-    ), f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
-    assert "This is a test" in answers[0], f"The answer should contain the context sentence, but got {answers[0]}."
+        assert (
+            answers_sdpa[0] == answers[0]
+        ), f"Answers from SDPA and Flash Attention 2 should be the same. \n{answers_sdpa[0]}\n{answers[0]}"
+        assert "This is a test" in answers[0], f"The answer should contain the context sentence, but got {answers[0]}."
 
 
 @pytest.mark.parametrize("question", ["When was this article written?", ""])
@@ -92,7 +93,6 @@ def test_pipeline_no_press_works(kv_press_unit_test_pipeline, caplog):  # noqa: 
     kv_press_unit_test_pipeline(context, question=question)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
 def test_pipeline_answer_is_correct(danube_500m_model, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         answers = generate_answer(danube_500m_model)
@@ -142,7 +142,7 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
     model = unit_test_model
     questions = ["When was this article written?"]
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = model.device
 
     compression_pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=device)
     input_ids_question = tokenizer(questions[0], return_tensors="pt", add_special_tokens=False)["input_ids"].to(device)
@@ -155,23 +155,19 @@ def test_pipeline_context_cache_is_invariant(unit_test_model):  # noqa: F811
 
     keys = [layer.keys.clone() for layer in past_key_values.layers]
     values = [layer.values.clone() for layer in past_key_values.layers]
-    cache_seq_lengths = [past_key_values.get_seq_length(layer_idx) for layer_idx in range(len(past_key_values))]
     compression_pipeline.generate_answer(input_ids_question, past_key_values, context_length=22, max_new_tokens=10)
-    compression_pipeline._remove_answer_from_cache(past_key_values, cache_seq_lengths)
     assert past_key_values.get_seq_length() == seq_len
     assert all([torch.allclose(key, layer.keys) for key, layer in zip(keys, past_key_values.layers)])
     assert all([torch.allclose(value, layer.values) for value, layer in zip(values, past_key_values.layers)])
 
 
 def generate_answer(model):
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    model.to(device)
+    device = model.device
     context = "This is a test article. It was written on 2022-01-01."
     questions = ["When was this article written?", "When was this article written?"]
     press = ExpectedAttentionPress(compression_ratio=0.4)
     tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
-    answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)(
+    answers = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer, device=device)(
         context, questions=questions, press=press
     )["answers"]
-    model.to(torch.device("cpu"))
     return answers
