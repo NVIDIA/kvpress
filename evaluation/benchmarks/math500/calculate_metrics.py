@@ -7,7 +7,7 @@ import pandas as pd
 def extract_boxed(pred_answer):
     try:
         return str(pred_answer.split("boxed{")[1].split("}")[0])
-    except:
+    except IndexError:
         return None
 
 
