@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 import torch
-import yaml  # type: ignore[import-untyped]
+import yaml
 from benchmarks.needle_in_haystack.utils import insert_needle_in_haystack
 from datasets import load_dataset
 from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
@@ -20,8 +20,8 @@ from fire import Fire
 from tqdm import tqdm
 from transformers import Pipeline, pipeline
 
-from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ThinKPress
-from kvpress.presses.generation.decoding_press import DecodingPress
+from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ScorerPress, ThinKPress
+from kvpress.presses.decoding_press import DecodingPress
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +193,7 @@ class EvaluationRunner:
         """
         self.config = config
         self.pipeline: Optional[Pipeline] = None  # Will be set by _setup_model_pipeline()
-        self.press = None  # Will be set by _setup_press()
+        self.press: None | ScorerPress = None  # Will be set by _setup_press()
         self.df: Optional[pd.DataFrame] = None  # Will be set by _load_dataset()
         self._setup_logging()
         self._setup_deterministic_seeds()
@@ -424,7 +424,7 @@ class EvaluationRunner:
                 self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
                 # Store the actual compression ratio used (if the press has one)
                 self.df.loc[df_group.index, "compression_ratio"] = (
-                    self.press.compression_ratio if self.press is not None else 0.0
+                    self.press.compression_ratio if self.press is not None else 0.0  # type: ignore[attr-defined]
                 )  # type: ignore[union-attr, attr-defined]
                 torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
