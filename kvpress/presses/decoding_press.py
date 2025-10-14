@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from transformers.cache_utils import QuantizedCache
 
+from kvpress import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.utils import extract_keys_and_values
@@ -39,14 +40,14 @@ class DecodingPress(BasePress):
         current hidden state for compression scoring.
     """
 
-    base_press: ScorerPress
+    base_press: ScorerPress | AdaKVPress
     compression_interval: int = 128
     target_size: int = 1024
     hidden_states_buffer_size: int = 128
 
     def __post_init__(self):
         # Buffer to store hidden states during decoding (per layer)
-        assert isinstance(self.base_press, ScorerPress), "DecodingPress requires a ScorerPress as input"
+        assert isinstance(self.base_press, (ScorerPress, AdaKVPress)), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
