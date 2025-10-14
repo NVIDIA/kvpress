@@ -4,6 +4,7 @@
 [![Hugging Face Space](https://img.shields.io/badge/🤗%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/nvidia/kvpress)
 [![Blog post](https://img.shields.io/badge/🤗%20Hugging%20Face-Blog-blue)](https://huggingface.co/blog/nvidia/kvpress)
 [![Hugging Face Leaderboard](https://img.shields.io/badge/🤗%20HuggingFace-Leaderboard-orange)](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
+[![Paper](https://img.shields.io/badge/📄%20arXiv-Paper-red)](https://arxiv.org/abs/2510.00636v1)
 
 ![kvpress](kvpress.jpg)
 
