@@ -23,7 +23,7 @@ class CompactorPress(ScorerPress):
 
     Compactor blends: geometry-based outlier scores via (approximate) statistical leverage on key
     embeddings; and non-causal, chunked attention. Currently only supports prefill. The presented
-    version slightly differs from the paper in that: (1) we set λ=compression_ratio by default,
+    version slightly differs from the paper in that: (1) we set blending=compression_ratio by default,
     which is a good heuristic and should work for most users and (2) we use a cholesky
     decomposition to compute the leverage scores. Please see the paper for an in-depth discussion.
 
@@ -40,9 +40,10 @@ class CompactorPress(ScorerPress):
     sink_size_end : int, default ``4``
         Number of most-recent tokens to always protect.
     chunk_size : int, default ``256``
-        Chunk size used to approximate non-causal attention.
-    blending : float, default ``compression_ratio``
-        Weight for blending scores in the final output.
+        Chunk size used to in non-causal attention.
+    blending : Optional[float], default ``None``
+        Weight for blending scores in the final output. If ``None``,
+        it set to ``compression_ratio``, which tends to be a good default.
 
     Output
     ------
