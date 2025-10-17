@@ -4,6 +4,7 @@
 import numpy as np
 
 from kvpress import (
+    CompactorPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
     ExpectedAttentionStatsPress,
@@ -73,5 +74,17 @@ default_presses = [
     {
         "cls": KVzipPress,
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
+    },
+    {
+        "cls": CompactorPress,
+        "kwargs": [
+            {
+                "compression_ratio": 0.5,
+                "sink_size_start": 1,
+                "sink_size_end": 1,
+                "chunk_size": 256,
+            },
+            {"compression_ratio": 0.8, "sink_size_start": 0, "sink_size_end": 0, "chunk_size": 256},
+        ],
     },
 ]

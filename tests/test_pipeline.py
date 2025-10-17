@@ -105,7 +105,7 @@ def test_pipeline_answer_is_correct(danube_500m_model, caplog):  # noqa: F811
     assert "Compressed Context Length: 16" in messages
 
 
-@pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
+@pytest.mark.skipif(is_optimum_quanto_available(), reason="Optimum Quanto is not available")
 def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
