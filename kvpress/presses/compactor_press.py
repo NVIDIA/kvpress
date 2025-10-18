@@ -107,7 +107,7 @@ class CompactorPress(ScorerPress):
         key_states = torch.matmul(key_states, R).to(torch.float32)
         gram_matrix = key_states.transpose(-2, -1) @ key_states
         L = CompactorPress.chol_with_jitter(
-            0.5 * (gram_matrix + gram_matrix.transpose(-2, -1)), jitter=1e-4, max_tries=5
+            0.5 * (gram_matrix + gram_matrix.transpose(-2, -1)), jitter=1e-2, max_tries=5
         )
         # X = (A^T A + \lambda I)^{-1} A^T
         X = torch.cholesky_solve(key_states.transpose(-2, -1), L, upper=False)
@@ -246,7 +246,7 @@ class CompactorPress(ScorerPress):
             L, info = torch.linalg.cholesky_ex(G + cur * identity, upper=False)
             if bool((info == 0).all()):
                 return L
-            cur = max(1e-8, (1e-6 if cur == 0.0 else 10.0 * cur))
+            cur = max(1e-8, (1e-2 if cur == 0.0 else 10.0 * cur))
         raise RuntimeError(f"Cholesky failed after {max_tries} tries.")
 
     @staticmethod
