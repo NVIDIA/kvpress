@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from transformers.cache_utils import QuantizedCache
 
-from kvpress import AdaKVPress
+from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.utils import extract_keys_and_values
