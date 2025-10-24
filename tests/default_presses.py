@@ -12,6 +12,8 @@ from kvpress import (
     KnormPress,
     KVzipPress,
     LagKVPress,
+    LeverageScorePress,
+    NonCausalAttnPress,
     PyramidKVPress,
     QFilterPress,
     RandomPress,
@@ -85,6 +87,21 @@ default_presses = [
                 "chunk_size": 256,
             },
             {"compression_ratio": 0.8, "sink_size_start": 0, "sink_size_end": 0, "chunk_size": 256},
+        ],
+    },
+    {
+        "cls": LeverageScorePress,
+        "kwargs": [
+            {"compression_ratio": 0.8, "sketch_dimension": 48},
+        ],
+    },
+    {
+        "cls": NonCausalAttnPress,
+        "kwargs": [
+            {
+                "compression_ratio": 0.5,
+                "chunk_size": 256,
+            },
         ],
     },
 ]

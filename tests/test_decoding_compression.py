@@ -10,7 +10,7 @@ import pytest
 import torch
 from transformers import DynamicCache, pipeline
 
-from kvpress import CompactorPress, PyramidKVPress, ScorerPress
+from kvpress import CompactorPress, LeverageScorePress, NonCausalAttnPress, PyramidKVPress, ScorerPress
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
@@ -229,7 +229,7 @@ def test_all_presses_work_with_decoding_press(press_config):
         # PyramidKVPress -> Pyramid shape, not compatible with token_buffer_size=48
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
         return
-    if isinstance(base_press, (CompactorPress)):
+    if isinstance(base_press, (CompactorPress, NonCausalAttnPress, LeverageScorePress)):
         # CompactorPress -> Meant for prefill scenario.
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
         return

@@ -14,6 +14,7 @@ from kvpress import (
     AdaKVPress,
     BlockPress,
     ChunkKVPress,
+    CompactorPress,
     ComposedPress,
     CriticalAdaKVPress,
     CriticalKVPress,
@@ -83,5 +84,7 @@ PRESS_REGISTRY = {
     "streaming_llm": StreamingLLMPress(),
     "think": ThinKPress(),
     "tova": TOVAPress(),
+    "compactor": CompactorPress(),
+    "adakv_compactor": AdaKVPress(CompactorPress()),
     "no_press": None,
 }
