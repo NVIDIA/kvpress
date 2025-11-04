@@ -11,6 +11,7 @@ from kvpress.presses.chunk_press import ChunkPress
 from kvpress.presses.chunkkv_press import ChunkKVPress
 from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.criticalkv_press import CriticalAdaKVPress, CriticalKVPress
+from kvpress.presses.cur import CURPress
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.duo_attention_press import DuoAttentionPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
@@ -40,6 +41,7 @@ patch_attention_functions()
 __all__ = [
     "CriticalAdaKVPress",
     "CriticalKVPress",
+    "CURPress",
     "AdaKVPress",
     "BasePress",
     "ComposedPress",

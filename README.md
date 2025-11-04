@@ -146,7 +146,7 @@ Finally we provide wrapper presses that can be combined with other presses:
 - `BlockPress` ([source](kvpress/presses/block_press.py), [paper](https://arxiv.org/abs/2504.15364)): segments input sequence into non-overlapping blocks and compresses iteratively.
 - `DeocdingPress` ([source](kvpress/presses/decoding_press.py)): Allows for compression during decoding, see decoding section in this README.
 - `PrefillDecodingPress` ([source](kvpress/presses/prefill_decoding_press.py)): Allows to compress both during prefilling and during decoding.
-- `CurPress` ([source](kvpress/presses/cur.py), [paper](https://arxiv.org/abs/2509.15038)): prune keys and 
+- `CURPress` ([source](kvpress/presses/cur.py), [paper](https://arxiv.org/abs/2509.15038)): prune keys and 
 values based on the CUR decomposition using *approximate leverage scores*.
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
