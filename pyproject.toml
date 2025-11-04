@@ -6,7 +6,6 @@ authors = [
     { name = "Simon Jegou" },
     { name = "Maximilian Jeblick" },
     { name = "Alessio Devoto" },
-    { name = "Jiwei Liu" },
     { name = "David Austin" },
 ]
 requires-python = ">=3.10"
