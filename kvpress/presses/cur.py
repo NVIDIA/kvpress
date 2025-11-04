@@ -64,8 +64,8 @@ def combined_leverage_scores(A: torch.Tensor, B: torch.Tensor, r: int = 20, meth
 @dataclass
 class CURPress(ScorerPress):
     """
-    Base class for all KV cache compression methods.
-    The `forward_hook` method is called after the forward pass of an attention layer to update the cache.
+    Press based on `CurDKV` (https://arxiv.org/abs/2509.15038) which computes *leverage scores* for
+    key and value vectors, and combines them to prune the KV cache.
     """
     
     compression_ratio: float
@@ -85,7 +85,21 @@ class CURPress(ScorerPress):
         kwargs: dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        The core logic of the compression method.
+        Compute leverage scores for key-value pairs. Depending on `leverage_type`, scores
+        are either computed only for the 1) keys or 2) values, or are combined for keys
+        and values by either taking the 3) average or the 4) product of the scores. Default
+        implementation uses the product of the key-value leverage scores.
+
+        If `use_random_leverage` is true, the key and value matrices are also multiplied by a 
+        Gaussian projection before computing leverage scores. The default dimension of the
+        projected vectors is `20`.
+
+        Additionally, an option to use normalized scores in a local window is available via the
+        `use_local_approximation` flag. The `local_window_size` specifies the size of the local
+        window in that case.
+
+        Our method also preserves some initial "attention sinks", specified by the value of
+        `num_sinks`.
 
         Parameters
         ----------
@@ -104,8 +118,10 @@ class CURPress(ScorerPress):
 
         Returns
         -------
-        tuple[torch.Tensor, torch.Tensor]
-            Updated keys and values
+        torch.Tensor
+            Importance scores with shape (batch_size, num_kv_heads, seq_len).
+            Higher scores indicate more important tokens. The tokens with the
+            lowest scores will be pruned during compression.
         """
         assert self.leverage_type in ["key", "value", "kv_avg", "kv_product"]
 
