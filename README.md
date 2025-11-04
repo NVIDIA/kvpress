@@ -189,6 +189,20 @@ By default, the `DynamicCache` is used (no quantization).
 
 We welcome contributions! To add a new press, simply open an issue or submit a pull request. Check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
 
+## Citation
+
+If you use KVPress in your research, please cite our paper:
+
+```bibtex
+@article{devoto2025expectedattention,
+  title={Expected Attention: KV Cache Compression by Estimating Attention from Future Queries Distribution},
+  author={Devoto, Alessio and Jeblick, Maximilian and J{\'e}gou, Simon},
+  journal={arXiv preprint arXiv:2510.00636},
+  year={2025},
+  url={https://arxiv.org/abs/2510.00636}
+}
+```
+
 ## FAQ
 
 <details><summary> 
