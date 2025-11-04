@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.kvzip_press import KVzipPress
-from kvpress.presses.observed_attention_press import ObservedAttentionPress
 
 
 @dataclass
