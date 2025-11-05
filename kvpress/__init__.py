@@ -9,6 +9,7 @@ from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
 from kvpress.presses.block_press import BlockPress
 from kvpress.presses.chunk_press import ChunkPress
 from kvpress.presses.chunkkv_press import ChunkKVPress
+from kvpress.presses.compactor_press import CompactorPress
 from kvpress.presses.composed_press import ComposedPress
 from kvpress.presses.criticalkv_press import CriticalAdaKVPress, CriticalKVPress
 from kvpress.presses.cur import CURPress
@@ -22,6 +23,8 @@ from kvpress.presses.keydiff_press import KeyDiffPress
 from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.lagkv_press import LagKVPress
+from kvpress.presses.leverage_press import LeverageScorePress
+from kvpress.presses.non_causal_attention_press import NonCausalAttnPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
@@ -73,4 +76,7 @@ __all__ = [
     "ExpectedAttentionStatsPress",
     "DecodingPress",
     "PrefillDecodingPress",
+    "CompactorPress",
+    "LeverageScorePress",
+    "NonCausalAttnPress",
 ]

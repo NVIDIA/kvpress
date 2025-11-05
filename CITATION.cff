@@ -1,13 +1,20 @@
 cff-version: 1.2.0
 message: "If you use kvpress, please cite it as below."
 authors:
+authors:
 - family-names: "Jegou"
   given-names: "Simon"
 - family-names: "Jeblick"
   given-names: "Maximilian"
-- family-names: "Austin"
-  given-names: "David"
-title: "kvpress"
-date-released: 2024-11-13
-year: 2024
-url: "https://github.com/NVIDIA/kvpress"
+- family-names: "Devoto"
+  given-names: "Alessio"
+title: "Expected Attention: KV Cache Compression by Estimating Attention from Future Queries Distribution"
+date-released: 2025-10-01
+year: 2025
+url: "https://arxiv.org/abs/2510.00636"
+repository-code: "https://github.com/NVIDIA/kvpress"
+type: article
+identifiers:
+- type: other
+  value: "arXiv:2510.00636"
+  description: "The ArXiv preprint of the paper"

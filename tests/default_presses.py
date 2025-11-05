@@ -4,6 +4,7 @@
 import numpy as np
 
 from kvpress import (
+    CompactorPress,
     CURPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
@@ -12,6 +13,8 @@ from kvpress import (
     KnormPress,
     KVzipPress,
     LagKVPress,
+    LeverageScorePress,
+    NonCausalAttnPress,
     PyramidKVPress,
     QFilterPress,
     RandomPress,
@@ -76,4 +79,31 @@ default_presses = [
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },
     {"cls": CURPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
+    {
+        "cls": CompactorPress,
+        "kwargs": [
+            {
+                "compression_ratio": 0.5,
+                "sink_size_start": 1,
+                "sink_size_end": 1,
+                "chunk_size": 256,
+            },
+            {"compression_ratio": 0.8, "sink_size_start": 0, "sink_size_end": 0, "chunk_size": 256},
+        ],
+    },
+    {
+        "cls": LeverageScorePress,
+        "kwargs": [
+            {"compression_ratio": 0.8, "sketch_dimension": 48},
+        ],
+    },
+    {
+        "cls": NonCausalAttnPress,
+        "kwargs": [
+            {
+                "compression_ratio": 0.5,
+                "chunk_size": 256,
+            },
+        ],
+    },
 ]
