@@ -10,11 +10,11 @@ from typing import Generator, List
 
 import torch
 from torch import nn
-from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreTrainedTokenizer
+from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.presses.utils import extract_keys_and_values, get_query_states, set_cache
+from kvpress.presses.utils import extract_keys_and_values, get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,7 @@ class KVzipPress(BasePress):
 
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_values"]
+        cache_layer = cache.layers[module.layer_idx]
 
         keys, values = extract_keys_and_values(cache, module.layer_idx)
 
@@ -160,10 +161,17 @@ class KVzipPress(BasePress):
         # retaining only the originally prefilled KV pairs.
         self.score_kvzip(module, hidden_states, keys, kwargs)
 
-        # Restore the originally prefilled context KV pairs and exclude KV pairs from the repeated context
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]
-        cache_layer = cache.layers[module.layer_idx]
-        set_cache(cache, cache_layer, keys, values)
+        if isinstance(cache, QuantizedCache):
+            # Update cache with compressed keys and values
+            cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
+            cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
+            cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+            cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+            cache_layer.cumulative_length = keys.shape[2]
+        else:
+            cache_layer.keys = keys
+            cache_layer.values = values
 
         return output
 
