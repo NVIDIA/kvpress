@@ -76,8 +76,7 @@ def attention_patch(func):
 
             # At indices, update the keys to the fake keys
             batch_indices, head_indices, seq_indices = module.masked_key_indices
-            key[batch_indices, head_indices, seq_indices] = k[batch_indices.to(key.device),
-            head_indices.to(key.device)].to(key.device)
+            key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
 
         # see https://github.com/NVIDIA/kvpress/pull/115#issuecomment-3183785597
         # cu_seq_lens_k are only in kwargs if model.generate is used.
