@@ -84,6 +84,8 @@ class KVzipPress(BasePress):
         if self.compression_ratio == 0:
             return
 
+        assert model.config._attn_implementation != "eager", "eager mode not supported"
+
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
@@ -157,7 +159,7 @@ class KVzipPress(BasePress):
 
         # Compute importance scores for KV pairs in the prefilled context,
         # retaining only the originally prefilled KV pairs.
-        self.score_kvzip(module, hidden_states, keys, values, output[1], kwargs)
+        self.score_kvzip(module, hidden_states, keys, kwargs)
 
         # Restore the originally prefilled context KV pairs and exclude KV pairs from the repeated context
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]
@@ -278,8 +280,6 @@ class KVzipPress(BasePress):
             module: nn.Module,
             hidden_states: torch.Tensor,
             keys: torch.Tensor,
-            values: torch.Tensor,
-            attentions: torch.Tensor,
             kwargs,
     ):
         """
@@ -326,43 +326,39 @@ class KVzipPress(BasePress):
         layer_idx = int(module.layer_idx)
         self.score_val[layer_idx][..., self.start_idx: self.end_idx] = scores  # update score
 
-
     def compress_post(self, model: PreTrainedModel):
         """
         Obtain the indices of KV pairs to be evicted.
         Adopted from adakv_press.compress (fake compression). KVzip does not rely on safeguards.
         """
-        if self.compression_ratio > 0:
-            n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape
+        n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape
 
-            # calculate the pruned KV pairs across layers
-            if self.layerwise:
-                nl = int(num_key_value_heads * ctx_len * self.compression_ratio)
-                n_pruned_layers = nl * torch.ones(n_layer, device=self.score_val.device, dtype=torch.int)
-            else:
-                score_sort = torch.sort(self.score_val.reshape(-1)).values  # ascending order
-                n = max(int(len(score_sort) * self.compression_ratio) - 1, 0)
-                thres = score_sort[n].item()
+        # calculate the pruned KV pairs across layers
+        if self.layerwise:
+            nl = int(num_key_value_heads * ctx_len * self.compression_ratio)
+            n_pruned_layers = nl * torch.ones(n_layer, device=self.score_val.device, dtype=torch.int)
+        else:
+            score_sort = torch.sort(self.score_val.reshape(-1)).values  # ascending order
+            n = max(int(len(score_sort) * self.compression_ratio) - 1, 0)
+            thres = score_sort[n].item()
 
-                n_pruned_layers = (self.score_val.reshape(n_layer, -1) <= thres).sum(-1)  # n_prune
+            n_pruned_layers = (self.score_val.reshape(n_layer, -1) <= thres).sum(-1)  # n_prune
 
-            for layer in model.model.layers:
-                if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
-                    # Skip layers with sliding window attention, only for Gemma3
-                    continue
-                module = layer.self_attn
-                layer_idx = int(module.layer_idx)
+        for layer in model.model.layers:
+            if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
+                # Skip layers with sliding window attention, only for Gemma3
+                continue
+            module = layer.self_attn
+            layer_idx = int(module.layer_idx)
 
-                assert module.config._attn_implementation != "eager", "eager mode not supported"
+            scores = self.score_val[layer_idx]
 
-                scores = self.score_val[layer_idx]
+            # Compute bottom-k across heads
+            n_pruned = n_pruned_layers[layer_idx]
+            indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
 
-                # Compute bottom-k across heads
-                n_pruned = n_pruned_layers[layer_idx]
-                indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
-
-                # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for details
-                batch_indices = torch.arange(bsz, device=n_pruned.device).repeat_interleave(n_pruned)
-                head_indices = indices // ctx_len
-                seq_indices = indices % ctx_len
-                module.masked_key_indices = (batch_indices, head_indices, seq_indices)
+            # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for details
+            batch_indices = torch.arange(bsz, device=n_pruned.device).repeat_interleave(n_pruned)
+            head_indices = indices // ctx_len
+            seq_indices = indices % ctx_len
+            module.masked_key_indices = (batch_indices, head_indices, seq_indices)
