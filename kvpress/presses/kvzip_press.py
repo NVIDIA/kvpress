@@ -130,7 +130,6 @@ class KVzipPress(BasePress):
         try:
             yield
             model.model.forward = original_forward  # Restore original
-            assert self._cache is not None
             # After yield: KVzip scoring and compression phase
             # Now register attention hooks for compression
             for layer in model.model.layers:
