@@ -3,21 +3,21 @@
 
 output_dir: "./results"
 
-model: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+model: "Qwen/Qwen3-8B"
 dataset: "ruler"                                  # see DATASET_REGISTRY in evaluate_registry.py
 data_dir: "4096"                                  # Subdirectory of the dataset (if applicable) else leave "null"
 
-press_name: "knorm"                                # see PRESS_REGISTRY in evaluate_registry.py
+press_name: "kvzip"                                # see PRESS_REGISTRY in evaluate_registry.py
 compression_ratio: 0.5                             # Compression ratio for the press (0.0 to 1.0)
 key_channel_compression_ratio: null                # For ThinKPress and ComposedPress (0.0 to 1.0)
 
-fraction: 1.0                                     # Fraction of dataset to evaluate (0.0 to 1.0), for quick testing
+fraction: 0.01                                     # Fraction of dataset to evaluate (0.0 to 1.0), for quick testing
 max_new_tokens: null                              # Maximum new tokens to generate (null = use dataset default)
 max_context_length: null                          # Maximum context length (null = use model maximum)
 compress_questions: false                         # Whether to compress questions with context
 needle_depth: null                                # Depth (int or list of ints) percentage of the needle in the haystack (0 to 100), only for needle_in_haystack dataset
 
-device: null  # Device to use (null = auto-detect, "cuda:0", "cpu", etc.)
+device: "cuda:0"  # Device to use (null = auto-detect, "cuda:0", "cpu", etc.)
 
 # You can add any model kwargs here.
 model_kwargs:

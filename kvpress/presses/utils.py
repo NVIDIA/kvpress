@@ -112,3 +112,16 @@ def extract_keys_and_values(cache: Cache, layer_idx: int) -> tuple[torch.Tensor,
         keys = cache.layers[layer_idx].keys
         values = cache.layers[layer_idx].values
     return keys, values
+
+
+def set_cache(cache, cache_layer, keys: torch.Tensor, values: torch.Tensor):
+    if isinstance(cache, QuantizedCache):
+        # Update cache with compressed keys and values
+        cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
+        cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
+        cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+        cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+        cache_layer.cumulative_length = keys.shape[2]
+    else:
+        cache_layer.keys = keys
+        cache_layer.values = values
