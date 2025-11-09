@@ -8,14 +8,18 @@ from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
+
 class KVPressNonFatalError(Exception):
     """Base exception class for non-fatal errors, these errors do not terminate the program."""
+
     pass
 
 
 class SnapKVContextLengthError(KVPressNonFatalError):
     """When context length is not valid in SnapKV."""
+
     pass
+
 
 def get_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
     """

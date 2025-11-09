@@ -82,7 +82,9 @@ class SnapKVPress(ScorerPress):
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
         if not hidden_states.shape[1] > self.window_size:
-            raise SnapKVContextLengthError(f"Query length {hidden_states.shape[1]} should be greater than the window size {self.window_size}")
+            raise SnapKVContextLengthError(
+                f"Query length {hidden_states.shape[1]} should be greater than the window size {self.window_size}"
+            )
 
         if attentions is not None:
             attn_weights = attentions[..., -self.window_size :, : -self.window_size]

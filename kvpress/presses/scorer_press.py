@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
-from kvpress.presses.utils import KVPressNonFatalError
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.utils import KVPressNonFatalError
 
 logger = logging.getLogger(__name__)
 
