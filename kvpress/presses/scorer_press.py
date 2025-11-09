@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
+from kvpress.presses.utils import KVPressNonFatalError
 from kvpress.presses.base_press import BasePress
 
 logger = logging.getLogger(__name__)
@@ -87,8 +88,14 @@ class ScorerPress(BasePress):
             return keys, values
 
         # Compute scores
-        scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
-
+        try:
+            # Some compressions raise error in certain conditions,
+            # e.g. SnapKVPress with a context length smaller than its window size
+            scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
+        except Exception as e:
+            if isinstance(e, KVPressNonFatalError):
+                return keys, values
+            raise e
         # Get indices of KV pairs with the lowest scores
         k_len = keys.shape[2]
         n_kept = int(k_len * (1 - self.compression_ratio))
