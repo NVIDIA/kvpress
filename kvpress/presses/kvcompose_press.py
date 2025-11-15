@@ -99,14 +99,6 @@ aggregator_by_name = {
 }
 
 
-def get_aggregator(aggregator_name: str) -> type[Aggregator]:
-    aggregator_name = aggregator_name.lower()
-    if aggregator_name not in aggregator_by_name:
-        raise ValueError(f"Unknown aggregator_name: {aggregator_name}. "
-                         f"Available: {list(aggregator_by_name)}")
-    return aggregator_by_name[aggregator_name]
-
-
 def copy_cache(cache: DynamicCache):
     new_cache = DynamicCache()
     for (layer, (k, v)) in enumerate(cache):
@@ -124,6 +116,10 @@ class KVComposePress(BasePress):
     retains tokens independently (no composite alignment). This generally yields
     better theoretical performance but is incompatible with standard KV cache layouts
     unless the attention mechanism is modified.
+
+    Requirements:
+    - Requires attention weights (attn) to be present for the forward hook.
+    - Attention weights are deleted after use to save memory.
 
     Based on KVCompose (https://arxiv.org/abs/2509.05165).
 
@@ -150,34 +146,24 @@ class KVComposePress(BasePress):
         Minimum number of tokens to keep in each layer.
     """
 
-    def __init__(self,
-                 structured: bool = True,
-                 compression_ratio: float = 0,
-                 agg_task: str = "max",
-                 agg_group: str = "mean",
-                 agg_head: str = "mean",
-                 add_v_norm: bool = False,
-                 add_mean_across_heads: bool = True,
-                 keep_token_lower_bound: int = 0,
-                 ):
-        self.structured = structured
-        self.compression_ratio = compression_ratio
-        self.agg_task = agg_task
-        self.agg_group = agg_group
-        self.agg_head = agg_head
-
-        self.add_v_norm = add_v_norm
-        self.add_mean_across_heads = add_mean_across_heads
-        self.keep_token_lower_bound = keep_token_lower_bound
-
-        super().__init__()
+    structured: bool = True
+    compression_ratio: float = 0
+    agg_task: str = "max"
+    agg_group: str = "mean"
+    agg_head: str = "mean"
+    add_v_norm: bool = False
+    add_mean_across_heads: bool = True
+    keep_token_lower_bound: int = 0
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
 
     def _init_statistics(self):
+        """
+        Initializing the task aggregators for each layer and head.
+        """
         self.task_aggregators = [
-            [get_aggregator(self.agg_task)(self.context_len, self.device) for _ in range(self.num_att_heads)]
+            [aggregator_by_name[self.agg_task](self.context_len, self.device) for _ in range(self.num_att_heads)]
             for _ in range(self.num_layers)
         ]
 
@@ -225,14 +211,15 @@ class KVComposePress(BasePress):
 
         return output
 
-    def get_scores(self):
+    def compute_scores(self):
         """
         Obtaining token scores by doing aggregation over groups for every kv head.
+        Stored in tensor self.scores of shape (num_layers, num_kv_heads, context_len).
         """
         self.scores = torch.zeros((self.num_layers, self.num_kv_heads, self.context_len), device=self.device)
         for layer in range(self.num_layers):
             for kv_head in range(self.num_kv_heads):
-                group_aggregator = get_aggregator(self.agg_group)(self.context_len, self.device)
+                group_aggregator = aggregator_by_name[self.agg_group](self.context_len, self.device)
                 for att_head in range(kv_head * self.num_kv_groups, (kv_head + 1) * self.num_kv_groups):
                     group_aggregator.partial_fit(self.task_aggregators[layer][att_head].transform())
                 self.scores[layer, kv_head] = group_aggregator.transform()
@@ -240,6 +227,7 @@ class KVComposePress(BasePress):
     def enhance_scores(self):
         """
         Enhance token scores by incorporating value vector norms and mean scores.
+        Modifies tensor self.scores in-place.
         """
         for layer in range(self.num_layers):
             if self.add_v_norm:
@@ -249,39 +237,50 @@ class KVComposePress(BasePress):
             if self.add_mean_across_heads:
                 self.scores[layer] += self.scores[layer].mean(dim=0, keepdim=True)
 
-    def get_composite_scores(self):
+    def compute_composite_scores(self):
+        """
+        Calculating composite scores per head and layer.
+        Stored in tensors:
+        - self.composite_scores_per_head of shape (num_layers, num_kv_heads, context_len): unstructured compression.
+        - self.composite_scores_per_layer of shape (num_layers, context_len): structured compression.
+        """
         self.composite_scores_per_head = self.scores.sort(dim=-1, descending=True)[0]
+        self.composite_scores_per_head[..., :self.keep_token_lower_bound] += 1e9
 
         self.composite_scores_per_layer = torch.full((self.num_layers, self.context_len), 0., device=self.device)
         for layer in range(self.num_layers):
-            layer_aggregator = get_aggregator(self.agg_head)(self.context_len, self.device)
+            layer_aggregator = aggregator_by_name[self.agg_head](self.context_len, self.device)
             for kv_head in range(self.num_kv_heads):
                 layer_aggregator.partial_fit(self.scores[layer, kv_head].sort(descending=True)[0])
             self.composite_scores_per_layer[layer] = layer_aggregator.transform()
-
-    def get_important_per_layer(self):
-        """
-        Calculates how many tokens to keep per layer (and per head for unstructured).
-        """
-        self.get_composite_scores()
-
         self.composite_scores_per_layer[..., :self.keep_token_lower_bound] += 1e9
         self.composite_scores_per_layer[0] = \
             self.composite_scores_per_layer.max(dim=0).values  # Ensures first layer is the largest.
-        threshold_layer = self.composite_scores_per_layer.quantile(self.compression_ratio)
-        self.important_per_layer = (self.composite_scores_per_layer >= threshold_layer).sum(dim=-1).cpu().numpy()
 
-        self.composite_scores_per_head[..., :self.keep_token_lower_bound] += 1e9
+    def compute_important_per_layer(self):
+        """
+        Calculates how many tokens to keep per layer (and per head for unstructured).
+        Stored in tensors:
+        - self.important_per_head of shape (num_layers, num_kv_heads): unstructured compression.
+        - self.important_per_layer of shape (num_layers): structured compression.
+        """
+        self.compute_composite_scores()
+
         threshold_head = self.composite_scores_per_head.quantile(self.compression_ratio)
         self.important_per_head = (self.composite_scores_per_head >= threshold_head).sum(dim=-1).cpu().numpy()
+
+        threshold_layer = self.composite_scores_per_layer.quantile(self.compression_ratio)
+        self.important_per_layer = (self.composite_scores_per_layer >= threshold_layer).sum(dim=-1).cpu().numpy()
 
     def prepare_important_masks(self):
         """
         Building masks of tokens to keep per kv head.
+        Stored in tensor:
+        - self.important_mask_per_kv_head of shape (num_layers, num_kv_heads, context_len).
         """
-        self.get_scores()
+        self.compute_scores()
         self.enhance_scores()
-        self.get_important_per_layer()
+        self.compute_important_per_layer()
 
         self.important_mask_per_kv_head = [
             [
