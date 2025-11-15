@@ -4,7 +4,7 @@ import pytest
 import torch
 from transformers import DynamicCache
 
-from kvpress import AdaKVPress, CriticalAdaKVPress, KnormPress, KVzipPress
+from kvpress import AdaKVPress, CriticalAdaKVPress, KnormPress, KVzipPress, KVComposePress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 
@@ -40,12 +40,19 @@ def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ra
     assert abs(cumulative_compression_ratio - press.compression_ratio) < 1e-2  # tolerate small differences
 
 
-# Only for KVzipPress, since it's the only non-wrapper press with head compression (apart from Duo)
-@pytest.mark.parametrize("press", [KVzipPress])
+# Only for KVzipPress and unstructured KVComposePress, since they are 
+# the only non-wrapper presses with head compression (apart from Duo)
+@pytest.mark.parametrize(
+    "press_cls, kwargs",
+    [
+        (KVzipPress, {"layerwise": True}),
+        (KVzipPress, {"layerwise": False}),
+        (KVComposePress, {"structured": False}),
+    ],
+)
 @pytest.mark.parametrize("compression_ratio", [0.2, 0.4, 0.6, 0.8])
-@pytest.mark.parametrize("layerwise", [True, False])
-def test_head_compression(unit_test_model, press, compression_ratio, layerwise):  # noqa: F811
-    press = KVzipPress(compression_ratio=compression_ratio, layerwise=layerwise)
+def test_head_compression(unit_test_model, press_cls, kwargs, compression_ratio):
+    press = press_cls(compression_ratio=compression_ratio, **kwargs)
     with press(unit_test_model):
         input_ids = torch.randint(0, 1024, (1, 128))
         unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
