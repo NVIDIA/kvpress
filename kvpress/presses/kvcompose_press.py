@@ -305,24 +305,20 @@ class KVComposePress(BasePress):
         """
         Preparing compressed version of the cache.
         For KVPress, we modify the cache in-place (stored in self.cache).
-        For general use, it's accessible via self.compressed_cache.
         """
-        self.compressed_cache = DynamicCache()
-
         for layer in range(self.num_layers):
             kv_over_layer: list[list[torch.Tensor]] = [[], []]
             for kv_head in range(self.num_kv_heads):
                 important_mask = self.important_mask_per_kv_head[layer][kv_head]
 
-                keys = self.cache.layers[layer].keys[0, kv_head][:self.context_len].detach().clone()
-                values = self.cache.layers[layer].values[0, kv_head][:self.context_len].detach().clone()
+                keys = self.cache.layers[layer].keys[0, kv_head][:self.context_len]
+                values = self.cache.layers[layer].values[0, kv_head][:self.context_len]
                 keys = keys[important_mask]
                 values = values[important_mask]
                 kv_over_layer[0].append(keys)
                 kv_over_layer[1].append(values)
             new_key_states = torch.stack(kv_over_layer[0], dim=0).unsqueeze(0)
             new_value_states = torch.stack(kv_over_layer[1], dim=0).unsqueeze(0)
-            self.compressed_cache.update(layer_idx=layer, key_states=new_key_states, value_states=new_value_states)
 
             self.cache.layers[layer].keys = new_key_states
             self.cache.layers[layer].values = new_value_states
@@ -392,7 +388,7 @@ class KVComposePress(BasePress):
 
             press._register_cache(past_key_values)
             for prompt_ids in (press.prompt_ids or [press.context_ids]):
-                cache = copy_cache(past_key_values)
+                cache = past_key_values
                 self.original_forward_KVComposePress(
                     input_ids=prompt_ids.to(self.model.device),
                     past_key_values=cache,
