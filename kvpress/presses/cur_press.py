@@ -41,13 +41,12 @@ class CURPress(ScorerPress):
         v2 = (values**2).sum(dim=-1)
 
         if self.use_local_approximation:
-            w = self.local_window_size
             b, h, n = k2.shape
             w = self.local_window_size
             k2 = F.pad(k2, (0, (w - n % w) % w)).reshape(b, h, -1, w)
-            k2 = (k2 / k2.sum(dim=-1, keepdim=True)).reshape(b, h, -1)[:, :, -n:]
+            k2 = (k2 / k2.sum(dim=-1, keepdim=True)).reshape(b, h, -1)[:, :, :n]
             v2 = F.pad(v2, (0, (w - n % w) % w)).reshape(b, h, -1, w)
-            v2 = (v2 / v2.sum(dim=-1, keepdim=True)).reshape(b, h, -1)[:, :, -n:]
+            v2 = (v2 / v2.sum(dim=-1, keepdim=True)).reshape(b, h, -1)[:, :, :n]
 
         if self.leverage_type == "key":
             scores = k2
