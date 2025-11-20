@@ -9,7 +9,7 @@ from torch import nn
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.utils import get_query_states
+from kvpress.utils import get_query_states
 
 
 @dataclass

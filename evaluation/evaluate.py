@@ -20,8 +20,15 @@ from fire import Fire
 from tqdm import tqdm
 from transformers import Pipeline, pipeline
 
-from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ScorerPress, ThinKPress
-from kvpress.presses.decoding_press import DecodingPress
+from kvpress import (
+    ComposedPress,
+    DecodingPress,
+    DuoAttentionPress,
+    FinchPress,
+    ObservedAttentionPress,
+    ScorerPress,
+    ThinKPress,
+)
 
 logger = logging.getLogger(__name__)
 

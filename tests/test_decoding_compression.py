@@ -10,10 +10,16 @@ import pytest
 import torch
 from transformers import DynamicCache, pipeline
 
-from kvpress import CompactorPress, LeverageScorePress, NonCausalAttnPress, PyramidKVPress, ScorerPress
-from kvpress.presses.decoding_press import DecodingPress
-from kvpress.presses.knorm_press import KnormPress
-from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
+from kvpress import (
+    CompactorPress,
+    LeverageScorePress,
+    NonCausalAttnPress,
+    PyramidKVPress,
+    ScorerPress,
+    DecodingPress,
+    KnormPress,
+    PrefillDecodingPress,
+)
 from tests.default_presses import default_presses
 
 logger = logging.getLogger(__name__)
