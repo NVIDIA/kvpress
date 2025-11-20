@@ -1,14 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
-import math
 import torch
 import torch.nn.functional as F
 
 from kvpress import ScorerPress
+
 
 @dataclass
 class CURPress(ScorerPress):
@@ -16,8 +17,10 @@ class CURPress(ScorerPress):
     Press based on `CurDKV` (https://arxiv.org/abs/2509.15038) which computes approximate leverage scores
     for keys (k2) and values (v2) and combines them to prune the KV cache.
 
-    If `use_random_leverage` is true (default is False), keys and values are first multiplied by a random projection matrix G.
-    If `use_local_approximation` is true (default), the scores are averaged over a local window of size `local_window_size`.
+    If `use_random_leverage` is true (default is False), keys and values are first
+    multiplied by a random projection matrix G.
+    If `use_local_approximation` is true (default), the scores are averaged over a
+    local window of size `local_window_size`.
     Depending on `leverage_type`, returns either k2, v2, (k2 + v2) / 2, or k2 * v2 (default)
     Finally, the first `num_sinks` tokens are set to 1.0 to preserve some initial "attention sinks".
     """
