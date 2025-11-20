@@ -19,6 +19,7 @@ class StreamingLLMPress(ScorerPress):
     and most recent tokens, while pruning middle tokens.
 
     Based on StreamingLLM (https://arxiv.org/abs/2309.17453).
+    To fully match the implementation described in the paper, use the KeyRerotationPress wrapper (see issue #158).
 
     Parameters
     ----------
