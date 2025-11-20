@@ -20,6 +20,7 @@ from kvpress import (
     ComposedPress,
     CriticalAdaKVPress,
     CriticalKVPress,
+    DecodingPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
     FinchPress,
@@ -35,7 +36,6 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
 )
-from kvpress.presses.decoding_press import DecodingPress
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
 DATASET_REGISTRY = {

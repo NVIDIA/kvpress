@@ -14,7 +14,7 @@ from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreT
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.presses.utils import extract_keys_and_values, get_query_states
+from kvpress.utils import extract_keys_and_values, get_query_states
 
 logger = logging.getLogger(__name__)
 

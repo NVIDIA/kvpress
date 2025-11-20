@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.utils import get_prerope_key_states
+from kvpress.utils import get_prerope_key_states
 
 
 @dataclass

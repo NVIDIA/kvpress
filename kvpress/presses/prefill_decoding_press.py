@@ -11,8 +11,7 @@ import torch.nn as nn
 from transformers import PreTrainedModel
 
 from kvpress.presses.base_press import BasePress
-
-from .decoding_press import DecodingPress
+from kvpress.presses.decoding_press import DecodingPress
 
 logger = logging.getLogger(__name__)
 

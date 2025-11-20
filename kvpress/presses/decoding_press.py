@@ -12,7 +12,7 @@ from transformers.cache_utils import QuantizedCache
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.utils import extract_keys_and_values
+from kvpress.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -30,20 +30,20 @@ class DecodingPress(BasePress):
     ----------
     base_press : ScorerPress
         The scorer press used to compute importance scores for tokens.
-    compression_interval : int, default=10
+    compression_interval : int, default=512
         Number of decoding steps between compression, i.e. compression will be applied every compression_interval steps.
-    target_size : int, default=1024
+    target_size : int, default=2048
         Target number of tokens to keep after compression.
-    hidden_states_buffer_size : int, default=128
+    hidden_states_buffer_size : int, default=256
         Maximum number of hidden states to keep before compression. Larger values use more GPU memory.
         Note: Some presses don't need buffered hidden states and can set this to 0 to use only the
         current hidden state for compression scoring.
     """
 
     base_press: ScorerPress | AdaKVPress
-    compression_interval: int = 128
-    target_size: int = 1024
-    hidden_states_buffer_size: int = 128
+    compression_interval: int = 512
+    target_size: int = 2048
+    hidden_states_buffer_size: int = 256
 
     def __post_init__(self):
         # Buffer to store hidden states during decoding (per layer)

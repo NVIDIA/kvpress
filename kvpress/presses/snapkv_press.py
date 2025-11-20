@@ -11,7 +11,7 @@ from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.utils import get_query_states
+from kvpress.utils import get_query_states
 
 
 @dataclass

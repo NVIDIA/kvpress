@@ -20,7 +20,7 @@ from transformers import (
     Qwen3ForCausalLM,
 )
 
-from kvpress.presses.utils import extract_keys_and_values
+from kvpress.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
