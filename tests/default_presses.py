@@ -5,6 +5,7 @@ import numpy as np
 
 from kvpress import (
     CompactorPress,
+    CURPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
     ExpectedAttentionStatsPress,
@@ -77,6 +78,7 @@ default_presses = [
         "cls": KVzipPress,
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },
+    {"cls": CURPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {
         "cls": CompactorPress,
         "kwargs": [
