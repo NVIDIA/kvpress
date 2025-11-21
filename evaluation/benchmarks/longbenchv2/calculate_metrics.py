@@ -4,9 +4,9 @@
 
 def score(predicted_answer, expected_answer):
     # From https://github.com/THUDM/LongBench/blob/main/pred.py (extract_answer function)
-    predicted_answer = predicted_answer.replace("*", "").strip()
-    r1 = predicted_answer == f"The correct answer is ({expected_answer})"
-    r2 = predicted_answer == f"The correct answer is {expected_answer}"
+    predicted_answer = predicted_answer.replace("*", "")
+    r1 = f"The correct answer is ({expected_answer})" in predicted_answer
+    r2 = f"The correct answer is {expected_answer}" in predicted_answer
     return r1 or r2
 
 
