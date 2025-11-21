@@ -11,4 +11,8 @@ def score(predicted_answer, expected_answer):
 
 
 def calculate_metrics(df):
-    return df.apply(lambda row: score(row["predicted_answer"], row["answer"]), axis=1).mean()
+    df["score"] = df.apply(lambda row: score(row["predicted_answer"], row["answer"]), axis=1)
+    metrics = {"average": df["score"].mean()}
+    metrics.update(df.groupby("difficulty")["score"].mean())
+    metrics.update(df.groupby("length")["score"].mean())
+    return metrics
