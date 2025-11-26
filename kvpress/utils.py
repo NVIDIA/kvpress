@@ -9,7 +9,7 @@ from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 
-def get_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
+def get_prerope_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
     """
     Extracts the query states from a given attention module and hidden states tensor.
 

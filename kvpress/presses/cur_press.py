@@ -8,7 +8,7 @@ from typing import Literal
 import torch
 import torch.nn.functional as F
 
-from kvpress import ScorerPress
+from kvpress.presses.scorer_press import ScorerPress
 
 
 @dataclass

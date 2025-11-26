@@ -14,7 +14,7 @@ from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreT
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.utils import extract_keys_and_values, get_query_states
+from kvpress.utils import extract_keys_and_values, get_prerope_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +300,7 @@ class KVzipPress(BasePress):
         head_dim = module.head_dim
         num_key_value_groups = num_heads // num_heads_kv
 
-        queries = get_query_states(module, hidden_states)
+        queries = get_prerope_query_states(module, hidden_states)
 
         # Apply RoPE
         cos, sin = kwargs["position_embeddings"]

@@ -46,10 +46,26 @@ At the moment, we support the following standard popular benchmarks:
 - [Zero Scrolls](benchmarks/zero_scrolls/README.md) ([hf link](https://huggingface.co/datasets/simonjegou/zero_scrolls))
 - [Infinitebench](benchmarks/infinite_bench/README.md) ([hf link](https://huggingface.co/datasets/MaxJeblick/InfiniteBench))
 - [longbench](benchmarks/longbench/README.md)([hf link](https://huggingface.co/datasets/Xnhyacinth/LongBench))
-- [longbench-v2](benchmarks/longbenchv2/README.md)([hf link](https://huggingface.co/datasets/Xnhyacinth/LongBench-v2))
+- [longbench-v2](benchmarks/longbenchv2/README.md)([hf link](https://huggingface.co/datasets/simonjegou/LongBench-v2))
 - [Needle in a Haystack](benchmarks/needle_in_haystack/README.md)([hf link][Paul Graham's essays](https://huggingface.co/datasets/alessiodevoto/paul_graham_essays))
 
-📚 **For detailed information** about each dataset or implementing custom benchmarks, see the individual README files in the benchmarks directory.
+Each dataset directory is structured as follows:
+
+```bash
+$dataset
+├── README.md
+├── calculate_metrics.py
+├── create_huggingface_dataset.py
+```
+
+Where:
+- `create_huggingface_dataset.py` is a script that generates the Hugging Face dataset from the original dataset. Each dataset is associated with a set of parquet files with the following structure:
+  - `context`: ... 
+  - `question`: ...
+  - `answer_prefix`: ...
+  - `answer`:  ...
+  - `max_new_tokens`:  ...
+- `calculate_metrics.py` is a script that calculates the metrics based on the output of `evaluate.py`
 
 
 ### Multi GPU Evaluation
