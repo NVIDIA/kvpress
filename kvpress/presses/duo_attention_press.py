@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import StringIO
 
@@ -70,7 +69,7 @@ class DuoAttentionPress(BasePress):
     sink_size: int = field(init=False, default=None)
     streaming_mask: torch.Tensor = field(init=False, default=None)
 
-    def __post_init_from_model__(self, model):
+    def post_init_from_model(self, model):
         """
         Initialize sink_size, recent_size, and streaming_mask from a model
         """
@@ -101,7 +100,7 @@ class DuoAttentionPress(BasePress):
         assert module.config._attn_implementation != "eager", "eager mode not supported"
         if self.streaming_mask is None:
             raise ValueError(
-                "Streaming mask not initialized. Make sure to call __post_init_from_model__ to initialize this press."
+                "Streaming mask not initialized. Make sure to call post_init_from_model to initialize this press."
             )
         k_len = keys.shape[2]
 
@@ -140,12 +139,6 @@ class DuoAttentionPress(BasePress):
         head_scores = np.clip(head_scores, 0, 1)
 
         return config["sink_size"], config["recent_size"], head_scores
-
-    @contextmanager
-    def __call__(self, model):
-        self.__post_init_from_model__(model)
-        with super().__call__(model):
-            yield
 
 
 @cached(cache, key=lambda model, num_samples=50, q_len=500: (model.config.name_or_path, num_samples, q_len))
