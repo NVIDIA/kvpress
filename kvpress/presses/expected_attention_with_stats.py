@@ -52,8 +52,8 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
     dataset_name: str = "kmfoda/booksum"
     stats_folder: Optional[str] = None
 
-    mu: torch.Tensor = field(init=False, default=None)  # initialized in __post_init_from_model__
-    cov: torch.Tensor = field(init=False, default=None)  # initialized in __post_init_from_model__
+    mu: torch.Tensor = field(init=False, default=None)  # initialized in post_init_from_model
+    cov: torch.Tensor = field(init=False, default=None)  # initialized in post_init_from_model
 
     def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
         """
@@ -69,7 +69,7 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         collection = get_collection("alessiodevoto/expectedattentionstats-68b0248d519303713320e2cf")
         return [x.item_id for x in collection.items]
 
-    def __post_init_from_model__(self, model):
+    def post_init_from_model(self, model):
         """
         Automatically load or compute query statistics for the model.
         """

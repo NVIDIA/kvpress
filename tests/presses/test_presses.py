@@ -67,8 +67,8 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     for kwargs in press_dict["kwargs"]:
         press = cls(**kwargs)
         if wrapper_press is not None:
-            if hasattr(press, "__post_init_from_model__"):
-                press.__post_init_from_model__(unit_test_model)
+            if hasattr(press, "post_init_from_model"):
+                press.post_init_from_model(unit_test_model)
             if issubclass(wrapper_press, ComposedPress):
                 if isinstance(press, KVzipPress):  # KVzipPress is currently not compatible with ComposedPress
                     return
@@ -80,9 +80,9 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             elif issubclass(wrapper_press, ChunkPress):
                 press = ChunkPress(press=press, chunk_length=24)
 
-        # TODO: Handle __post_init_from_model__ differently
-        if hasattr(press, "__post_init_from_model__"):
-            press.__post_init_from_model__(unit_test_model)
+        # TODO: Handle post_init_from_model differently
+        if hasattr(press, "post_init_from_model"):
+            press.post_init_from_model(unit_test_model)
         with press(unit_test_model):
             input_ids = torch.randint(0, 1024, (1, 128), device=unit_test_model.device)
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values

@@ -69,7 +69,7 @@ class DuoAttentionPress(BasePress):
     sink_size: int = field(init=False, default=None)
     streaming_mask: torch.Tensor = field(init=False, default=None)
 
-    def __post_init_from_model__(self, model):
+    def post_init_from_model(self, model):
         """
         Initialize sink_size, recent_size, and streaming_mask from a model
         """
@@ -100,7 +100,7 @@ class DuoAttentionPress(BasePress):
         assert module.config._attn_implementation != "eager", "eager mode not supported"
         if self.streaming_mask is None:
             raise ValueError(
-                "Streaming mask not initialized. Make sure to call __post_init_from_model__ to initialize this press."
+                "Streaming mask not initialized. Make sure to call post_init_from_model to initialize this press."
             )
         k_len = keys.shape[2]
 

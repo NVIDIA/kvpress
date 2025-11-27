@@ -39,9 +39,9 @@ def test_composed_qfilter_press_with_post_init(unit_test_model):  # noqa: F811
     model.device = "cpu"
     model.dtype = torch.float32
     press1 = QFilterPress(compression_ratio=0.2)
-    press1.__post_init_from_model__(model)
+    press1.post_init_from_model(model)
     press2 = QFilterPress(compression_ratio=0.2)
-    press2.__post_init_from_model__(model)
+    press2.post_init_from_model(model)
 
     composed_press = ComposedPress([press1, press2])
     with composed_press(unit_test_model):
@@ -57,9 +57,9 @@ def test_composed_duo_attention_press_with_post_init(unit_test_model):  # noqa: 
     model.device = "cpu"
     model.dtype = torch.float32
     press1 = DuoAttentionPress()
-    press1.__post_init_from_model__(model)
+    press1.post_init_from_model(model)
     press2 = DuoAttentionPress()
-    press2.__post_init_from_model__(model)
+    press2.post_init_from_model(model)
 
     composed_press = ComposedPress([press1, press2])
     with composed_press(unit_test_model):

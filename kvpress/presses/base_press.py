@@ -46,7 +46,7 @@ class BasePress:
     The compression is applied only during pre-filling (not during generation).
     """
 
-    def __post_init_from_model__(self, model: PreTrainedModel):
+    def post_init_from_model(self, model: PreTrainedModel):
         """
         Optional method to initialize press parameters from the model
         """
@@ -185,7 +185,7 @@ class BasePress:
         if isinstance(model, Gemma3ForConditionalGeneration):
             logger.warning_once("Compression in Gemma3 is only applied to layer without sliding window attention")
 
-        self.__post_init_from_model__(model)
+        self.post_init_from_model(model)
         hooks = []
         try:
             language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model

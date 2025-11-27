@@ -50,7 +50,7 @@ class QFilterPress(ScorerPress):
 
     q_filters: QFilters = field(init=False, default=None)
 
-    def __post_init_from_model__(self, model):
+    def post_init_from_model(self, model):
         model_name = model.config.name_or_path.split("/")[-1]
         self.q_filters = self.load_q_filters(model_name)
         self.q_filters = self.q_filters.to(model.dtype)
@@ -74,7 +74,7 @@ class QFilterPress(ScorerPress):
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         if self.q_filters is None:
             raise ValueError(
-                "Q-filters not loaded. If you are using a wrapper press, make sure to call __post_init_from_model__."
+                "Q-filters not loaded. If you are using a wrapper press, make sure to call post_init_from_model."
             )
         q_filter = self.q_filters[module.layer_idx][None, :, None]  # type: ignore
         q_filter = q_filter.to(keys.device)
