@@ -269,7 +269,7 @@ def main(
         text_column: Column name containing text in the dataset
         device_map: Device mapping for the model
     """
-    model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device_map, torch_dtype=torch.bfloat16).eval()
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device_map, dtype=torch.bfloat16).eval()
 
     _, mu, cov = collect_queries(model, dataset_name, num_samples, sample_seq_len, n_sink, text_column)
 

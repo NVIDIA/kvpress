@@ -65,7 +65,7 @@ def kv_press_adaptive_pipeline():
         "kv-press-text-generation",
         model=ckpt,
         device=device,
-        torch_dtype="auto",
+        dtype="auto",
         model_kwargs=model_kwargs,
     )
     return pipe
@@ -80,7 +80,7 @@ def kv_press_llama3_1_flash_attn_pipeline():
         "kv-press-text-generation",
         model=ckpt,
         device=device,
-        model_kwargs={"attn_implementation": attn_implementation, "torch_dtype": torch.bfloat16},
+        model_kwargs={"attn_implementation": attn_implementation, "dtype": torch.bfloat16},
     )
     return pipe
 

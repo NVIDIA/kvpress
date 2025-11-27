@@ -10,7 +10,7 @@ from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import get_query_states
+from kvpress.utils import get_prerope_query_states
 
 
 @dataclass
@@ -105,7 +105,7 @@ class NonCausalAttnPress(ScorerPress):
         assert keys.shape[-2] == n_queries, "NonCausalAttnPress only supports prefill"
 
         cos, sin = kwargs["position_embeddings"]
-        q = get_query_states(module, hidden_states)  # (B, H_q, S, d)
+        q = get_prerope_query_states(module, hidden_states)  # (B, H_q, S, d)
 
         q_len = q.shape[-2]
         num_kv_groups = q.shape[1] // values.shape[1]
