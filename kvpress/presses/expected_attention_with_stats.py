@@ -104,6 +104,7 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
                 "```"
             )
 
+
 class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
     """
     Module that stores the mean and covariance matrix of the queries, possibly uploaded to the HF hub.
