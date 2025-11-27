@@ -141,12 +141,6 @@ class DuoAttentionPress(BasePress):
 
         return config["sink_size"], config["recent_size"], head_scores
 
-    @contextmanager
-    def __call__(self, model):
-        self.__post_init_from_model__(model)
-        with super().__call__(model):
-            yield
-
 
 @cached(cache, key=lambda model, num_samples=50, q_len=500: (model.config.name_or_path, num_samples, q_len))
 def duo_attention_on_the_fly(model, num_samples=50, q_len=500):

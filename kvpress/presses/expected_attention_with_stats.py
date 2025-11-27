@@ -104,13 +104,6 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
                 "```"
             )
 
-    @contextmanager
-    def __call__(self, model):
-        self.__post_init_from_model__(model)
-        with super().__call__(model):
-            yield
-
-
 class ExpectedAttentionStats(torch.nn.Module, PyTorchModelHubMixin):
     """
     Module that stores the mean and covariance matrix of the queries, possibly uploaded to the HF hub.

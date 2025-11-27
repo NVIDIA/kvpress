@@ -81,9 +81,3 @@ class QFilterPress(ScorerPress):
         q_filter = q_filter.to(keys.device)
         scores = -(q_filter * keys).sum(dim=-1)
         return scores
-
-    @contextmanager
-    def __call__(self, model):
-        self.__post_init_from_model__(model)
-        with super().__call__(model):
-            yield
