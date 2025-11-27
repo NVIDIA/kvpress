@@ -22,5 +22,5 @@ device: null  # Device to use (null = auto-detect, "cuda:0", "cpu", etc.)
 # You can add any model kwargs here.
 model_kwargs:
   attn_implementation: null  
-  torch_dtype: "auto"
+  dtype: "auto"
   

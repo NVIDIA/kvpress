@@ -155,11 +155,9 @@ For a detailed list of existing KV cache compression methods, check [Awesome-KV-
 
 
 ## Evaluation
-We provide a simple CLI to evaluate the performance of different presses on several long-context datasets.
+We provide a simple CLI to evaluate the performance of different presses on several long-context datasets. 
 
-- Accuracy: Test your method on popular benchmarks directly using our CLI. For a broader comparison, check out our public [Hugging Face Leaderboard](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
-, where you can see how various methods stack up against each other.
-
+- Accuracy: Test your method on popular benchmarks directly using our CLI. 
 - Speed and Memory: The [speed_and_memory](notebooks/speed_and_memory.ipynb) notebook can help you measure peak memory usage and total time gain.
 
 Please refer to the [evaluation](evaluation/README.md) directory in this repo for more details and results. 
@@ -167,7 +165,7 @@ Please refer to the [evaluation](evaluation/README.md) directory in this repo fo
 Below we report the average performance on the RULER dataset with 4k context length for different presses, from our [![Hugging Face Leaderboard](https://img.shields.io/badge/🤗%20HuggingFace-Leaderboard-orange)](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
 
 <p>
-  <img src="evaluation/assets/leaderboard_plot_score.png" alt="Leaderboard">
+  <img src="leaderboard_plot_score.png" alt="Leaderboard">
 </p>
 
 
