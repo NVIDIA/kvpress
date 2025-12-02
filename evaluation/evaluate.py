@@ -28,6 +28,7 @@ from kvpress import (
     ObservedAttentionPress,
     ScorerPress,
     ThinKPress,
+    ThresholdPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,11 +85,6 @@ class EvaluationConfig:
             # override compression_ratio to 0.0
             logger.info("Using 'no_press' configuration. Overriding compression_ratio to 0.0")
             self.compression_ratio = 0.0
-
-        # Validate compression ratios
-        assert (
-            0.0 <= self.compression_ratio <= 1.0
-        ), f"compression_ratio must be between 0.0 and 1.0, got {self.compression_ratio}"
 
         # Only validate key_channel_compression_ratio if it's not None
         if self.key_channel_compression_ratio is not None:
@@ -256,6 +252,9 @@ class EvaluationRunner:
         if isinstance(press, DuoAttentionPress):
             press.head_compression_ratio = compression_ratio
             logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
+        elif isinstance(press, ThresholdPress):
+            press.threshold = compression_ratio
+            logger.info(f"Set ThresholdPress threshold to {compression_ratio}")
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
