@@ -34,7 +34,7 @@ class CURPress(ScorerPress):
 
     def post_init_from_model(self, model):
         self.press.post_init_from_model(model)
-        
+
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
 
         if self.use_random_leverage:
