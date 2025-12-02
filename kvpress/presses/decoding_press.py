@@ -60,6 +60,9 @@ class DecodingPress(BasePress):
                 f"This will be overridden by the decoding press."
             )
 
+    def post_init_from_model(self, model):
+        self.base_press.post_init_from_model(model)
+
     def compress(
         self,
         module: nn.Module,

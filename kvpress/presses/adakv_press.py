@@ -39,6 +39,9 @@ class AdaKVPress(BasePress):
         assert isinstance(self.press, ScorerPress), "AdaKVPress requires a ScorerPress as input"
         assert 0 <= self.alpha_safeguard <= 1, "alpha_safeguard should be in [0, 1]"
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+
     @property
     def compression_ratio(self):
         return self.press.compression_ratio

@@ -32,6 +32,9 @@ class CURPress(ScorerPress):
     use_local_approximation: bool = True
     local_window_size: int = 16
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+        
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
 
         if self.use_random_leverage:
