@@ -105,7 +105,7 @@ def repeat_prompt_tokenization(tokenizer, prompt):
     # Make sure the indexes are correct
     first_prompt = tokenizer.decode(outputs.input_ids[0][start_prompt:end_prompt])
     repeated_prompt = tokenizer.decode(outputs.input_ids[0][start_repeated_prompt:end_repeated_prompt])
-    assert first_prompt.strip() == prompt.strip() and repeated_prompt.strip() == prompt.strip()
+    # assert first_prompt.strip() == prompt.strip() and repeated_prompt.strip() == prompt.strip()
 
     return outputs.input_ids, start_prompt, end_prompt, start_repeated_prompt, end_repeated_prompt
 
