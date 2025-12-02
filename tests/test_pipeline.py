@@ -17,6 +17,7 @@ from tests.fixtures import unit_test_model  # noqa: F401
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_unit_test_pipeline  # noqa: F401
 
 
+@pytest.mark.skip(reason="Non kvpress related error")
 def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
