@@ -85,8 +85,8 @@ PRESS_REGISTRY = {
     "keydiff": KeyDiffPress(),
     "kvzip": KVzipPress(),
     "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
-    "kvzap_linear": ThresholdPress(press=KVzapPress(kvzap_model_name_or_path="/data/projects/kvpress_private/dev_notebooks/Qwen3_8B_v3/linear")),  # noqa: E501
-    "kvzap_mlp": ThresholdPress(press=KVzapPress(kvzap_model_name_or_path="/data/projects/kvpress_private/dev_notebooks/Qwen3_8B_v3/mlp")),  # noqa: E501
+    "kvzap_linear": ThresholdPress(press=KVzapPress(model_type="linear")),
+    "kvzap_mlp": ThresholdPress(press=KVzapPress(model_type="mlp")),
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "pyramidkv": PyramidKVPress(),

@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional
+from pathlib import Path
 from dataclasses import dataclass
+from typing import Optional, Literal
 
 import torch
 import torch.nn as nn
@@ -10,6 +11,12 @@ from transformers import PretrainedConfig, PreTrainedModel
 
 from kvpress.presses.scorer_press import ScorerPress
 
+#TODO: push models to hub
+KZVAP_MODELS_DIRECTORIES = {
+    "Qwen/Qwen3-8B": Path("/data/projects/kvpress_private/dev_notebooks/Qwen3_8B_v3/"),
+    "Qwen/Qwen3-32B": Path("/data/projects/kvpress_private/dev_notebooks/Qwen3_32B/"),
+    "meta-llama/Llama-3.1-8B-Instruct": Path("/data/projects/kvpress_private/dev_notebooks/Llama3.1_8B/"),
+}
 
 class KVzapConfig(PretrainedConfig):
     model_type: str = "kvzap"
@@ -50,13 +57,15 @@ class KVzapPress(ScorerPress):
     KVzap approximates KVzip+ (an improved version of KVzip) by training a small auxiliary
     model on top of the hidden states (see train_kvzap.py).
     The KVzapPress is designed to be used in conjunction with the ThresholdPress
+    model_type can be "linear" or "mlp".
     """
 
-    kvzap_model_name_or_path: str = None
+    model_type: Literal["linear", "mlp"] = "mlp"
 
-    def __post_init__(self):
-        assert self.kvzap_model_name_or_path is not None, "kvzap_model_name_or_path must be provided"
-        self.kvzap_model = KVzapModel.from_pretrained(self.kvzap_model_name_or_path)
+    def post_init_from_model(self, model):
+        
+        kvzap_model_name_or_path = KZVAP_MODELS_DIRECTORIES[model.config.name_or_path] / self.model_type
+        self.kvzap_model = KVzapModel.from_pretrained(kvzap_model_name_or_path)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
         module = self.kvzap_model.module_list[module.layer_idx].to(hidden_states.device, dtype=hidden_states.dtype)
