@@ -49,6 +49,10 @@ class ComposedPress(BasePress):
             isinstance(press, (AdaKVPress, KVzipPress)) for press in self.presses
         ), "ComposedPress cannot contains AdaKVPress or KVzipPress"
 
+    def post_init_from_model(self, model):
+        for press in self.presses:
+            press.post_init_from_model(model)
+
     def forward_hook(self, module, input, kwargs, output):
         retained_fraction = 1.0
         for press in self.presses:

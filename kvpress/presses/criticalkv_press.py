@@ -43,6 +43,9 @@ class CriticalKVPress(ScorerPress):
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
             logger.warning("use_vnorm should be disabled for CriticalKVPress")
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+
     @property  # type: ignore[misc]
     def compression_ratio(self):  #
         return self.press.compression_ratio

@@ -36,6 +36,12 @@ class PrefillDecodingPress(BasePress):
     prefilling_press: Optional[BasePress] = None
     decoding_press: Optional[DecodingPress] = None
 
+    def post_init_from_model(self, model):
+        if self.prefilling_press is not None:
+            self.prefilling_press.post_init_from_model(model)
+        if self.decoding_press is not None:
+            self.decoding_press.post_init_from_model(model)
+
     def compress(
         self,
         module: nn.Module,

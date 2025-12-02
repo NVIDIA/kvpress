@@ -328,9 +328,7 @@ class EvaluationRunner:
             # FinchPress uses a delimiter token to separate context and question
             # So we need to update the tokenizer and the model embeddings.
             logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
-            self.press.update_model_and_tokenizer(
-                self.pipeline.model, self.pipeline.tokenizer
-            )  # type: ignore[attr-defined]
+            self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
             df["context"] = df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
 
         if self.config.compress_questions:

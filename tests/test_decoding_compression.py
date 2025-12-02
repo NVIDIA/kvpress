@@ -239,8 +239,6 @@ def test_all_presses_work_with_decoding_press(press_config):
         # CompactorPress -> Meant for prefill scenario.
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
         return
-    if hasattr(base_press, "__post_init_from_model__"):
-        base_press.__post_init_from_model__(pipe.model)
 
     # Create DecodingPress with this base press
     decoding_press = DecodingPress(base_press=base_press, compression_interval=3, target_size=48)
