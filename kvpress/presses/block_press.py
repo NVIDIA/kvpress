@@ -36,6 +36,9 @@ class BlockPress(BasePress):
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "BlockPress requires a ScorerPress"
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+
     @property
     def compression_ratio(self):
         return self.press.compression_ratio
