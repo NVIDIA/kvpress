@@ -17,6 +17,7 @@ from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
+from kvpress.presses.threshold_press import ThresholdPress
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +219,8 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # We only perform decoding compression if the press is a decoding or prefill decoding press
         perform_decoding_compression = press is not None and isinstance(press, (DecodingPress, PrefillDecodingPress))
+        if isinstance(press, ThresholdPress):
+            perform_decoding_compression = press.decoding
         with press(self.model) if perform_decoding_compression else contextlib.nullcontext():
             # Greedy decoding for each question
             answers = []
