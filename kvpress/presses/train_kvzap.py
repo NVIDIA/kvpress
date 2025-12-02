@@ -104,8 +104,8 @@ def repeat_prompt_tokenization(tokenizer, prompt):
     end_repeated_prompt = torch.where(m >= len(prefix) + 2 * len(prompt) + len(repeat))[0][0].item()
 
     # Make sure the indexes are correct
-    first_prompt = tokenizer.decode(outputs.input_ids[0][start_prompt:end_prompt])
-    repeated_prompt = tokenizer.decode(outputs.input_ids[0][start_repeated_prompt:end_repeated_prompt])
+    # first_prompt = tokenizer.decode(outputs.input_ids[0][start_prompt:end_prompt])
+    # repeated_prompt = tokenizer.decode(outputs.input_ids[0][start_repeated_prompt:end_repeated_prompt])
     # assert first_prompt.strip() == prompt.strip() and repeated_prompt.strip() == prompt.strip()
 
     return outputs.input_ids, start_prompt, end_prompt, start_repeated_prompt, end_repeated_prompt
@@ -117,7 +117,7 @@ def forward_hook(module, input, kwargs, output):
     Results are stored in the global variable DATA as a list of tuples (hidden_states, scores)
     """
 
-    global START_PROMPT, END_PROMPT, START_REPEATED_PROMPT, END_REPEATED_PROMPT, DATA
+    global START_PROMPT, END_PROMPT, START_REPEATED_PROMPT, END_REPEATED_PROMPT, DATA  # noqa: F824
 
     # Get variables
     hidden_states = kwargs["hidden_states"]
@@ -158,7 +158,7 @@ def extract_kvzip_scores(model, tokenizer, df, n_tokens):
     Extract pairs (X=hidden_states, y=scores) by running the model on the text samples in the dataset
     For each text sample, randomly sample n_tokens tokens
     """
-    global DATA, START_PROMPT, END_PROMPT, START_REPEATED_PROMPT, END_REPEATED_PROMPT
+    global DATA, START_PROMPT, END_PROMPT, START_REPEATED_PROMPT, END_REPEATED_PROMPT   # noqa: F824
 
     n_layers = model.model.config.num_hidden_layers
     X = torch.zeros(len(df) * n_tokens, n_layers, model.model.config.hidden_size, dtype=model.dtype)
@@ -275,14 +275,14 @@ if __name__ == "__main__":
         layer.self_attn.register_forward_hook(forward_hook, with_kwargs=True)
 
     # Load dataset
-    print(f"Loading dataset")
+    print("Loading dataset")
     df = load_nemotron_dataset(
         tokenizer, args.min_tokens, args.max_tokens, args.n_train_per_subset, args.n_test_per_subset
     )
     print(f"Loaded {len(df)} samples (train: {(df['split'] == 'train').sum()}, test: {(df['split'] == 'test').sum()})")
 
     # Extract scores
-    print(f"Extracting KVzip+ scores")
+    print("Extracting KVzip+ scores")
     X, y = extract_kvzip_scores(model, tokenizer, df, args.n_tokens)
 
     # Free GPU memory
@@ -295,13 +295,13 @@ if __name__ == "__main__":
     y_train, y_test = y[n_test:], y[:n_test]
 
     # Train MLP and linear models
-    print(f"Training MLP and linear models")
+    print("Training MLP and linear models")
     mlp = train_mlp(X_train, y_train, args.hidden_dim, args.device, args.max_epochs, args.lr, args.batch_size)
     linear = train_linear(X_train, y_train)
     linear.to(args.device)
 
     # Evaluate and save models and predictions
-    print(f"Evaluating and saving models and predictions")
+    print("Evaluating and saving models and predictions")
     for module, name in [(mlp, "mlp"), (linear, "linear")]:
         with torch.no_grad():
             y_pred = module(X_test.to(args.device))

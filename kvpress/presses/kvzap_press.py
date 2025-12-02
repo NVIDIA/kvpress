@@ -43,6 +43,7 @@ class KVzapModel(PreTrainedModel):
     def forward(self, x):
         return torch.stack([module(x[:, i, :]) for i, module in enumerate(self.module_list)], dim=1)
 
+
 @dataclass
 class KVzapPress(ScorerPress):
     """
@@ -50,6 +51,7 @@ class KVzapPress(ScorerPress):
     model on top of the hidden states (see train_kvzap.py).
     The KVzapPress is designed to be used in conjunction with the ThresholdPress
     """
+
     kvzap_model_name_or_path: str = None
 
     def __post_init__(self):
