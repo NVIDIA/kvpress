@@ -70,9 +70,6 @@ class CompactorPress(ScorerPress):
             compression_ratio=self.compression_ratio, chunk_size=self.chunk_size
         )
 
-    def post_init_from_model(self, model):
-        self.press.post_init_from_model(model)
-
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
         if name == "compression_ratio":
