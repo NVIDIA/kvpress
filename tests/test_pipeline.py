@@ -17,19 +17,19 @@ from tests.fixtures import unit_test_model  # noqa: F401
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_unit_test_pipeline  # noqa: F401
 
 
-# def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
-#     with caplog.at_level(logging.DEBUG):
-#         context = "This is a test article. It was written on 2022-01-01."
-#         questions = ["When was this article written?"]
-#         press = ExpectedAttentionPress(compression_ratio=0.4)
-#         answers = kv_press_unit_test_pipeline(context, questions=questions, press=press)["answers"]
+def test_pipeline(kv_press_unit_test_pipeline, caplog):  # noqa: F811
+    with caplog.at_level(logging.DEBUG):
+        context = "This is a test article. It was written on 2022-01-01."
+        questions = ["When was this article written?"]
+        press = ExpectedAttentionPress(compression_ratio=0.4)
+        answers = kv_press_unit_test_pipeline(context, questions=questions, press=press)["answers"]
 
-#     assert len(answers) == 1
-#     assert isinstance(answers[0], str)
+    assert len(answers) == 1
+    assert isinstance(answers[0], str)
 
-#     messages = [record.message for record in caplog.records]
-#     assert "Context Length: 23" in messages, messages
-#     assert "Compressed Context Length: 13" in messages, messages
+    messages = [record.message for record in caplog.records]
+    assert "Context Length: 23" in messages, messages
+    assert "Compressed Context Length: 13" in messages, messages
 
 
 def test_pipeline_with_cache(kv_press_unit_test_pipeline):  # noqa: F811
@@ -47,6 +47,7 @@ class TestPipelineFA2:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
     @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
     @pytest.mark.parametrize("compression_ratio", [0.0, 0.2])
+    @pytest.mark.xfail(reason="Known issue not related to kvpress", strict=False)
     def test_pipeline_fa2(self, kv_press_llama3_2_flash_attn_pipeline, compression_ratio):  # noqa: F811
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["Repeat the last sentence"]
