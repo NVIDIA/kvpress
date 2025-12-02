@@ -85,8 +85,8 @@ def repeat_prompt_tokenization(tokenizer, prompt):
 
     # Repeat the prompt using the chat template
     messages = [
-        {"role": "user", "content": prompt + "\n\nRepeat the previous context exactly."},
-        {"role": "assistant", "content": prompt},
+        {"role": "user", "content": prompt.strip() + "\n\nRepeat the previous context exactly."},
+        {"role": "assistant", "content": prompt.strip()},
     ]
 
     # Tokenize
