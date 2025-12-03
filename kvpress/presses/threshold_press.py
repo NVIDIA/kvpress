@@ -15,13 +15,13 @@ from kvpress.utils import extract_keys_and_values
 class ThresholdPress(BasePress):
     """
     Compute the scores of a ScorerPress and evict key and values with scores below a given threshold.
-    An eviction delay (default 64) is used to avoid evicting the most recent keys and values.
+    An sliding window (default 64) is used to avoid evicting the most recent keys and values.
     If decoding is enabled (default False), the eviction is also applied during the decoding phase.
     """
 
     press: ScorerPress
     threshold: float = None
-    eviction_delay: int = 64
+    sliding_window_size: int = 64
     decoding: bool = False
 
     def __post_init__(self):
@@ -66,14 +66,14 @@ class ThresholdPress(BasePress):
             self.scores_buffer[module.layer_idx] = torch.cat([self.scores_buffer[module.layer_idx], scores], dim=-1)
 
         # Update masked key indices if the scores buffer is full
-        if self.scores_buffer[module.layer_idx].shape[-1] > self.eviction_delay:
-            scores_to_evict = self.scores_buffer[module.layer_idx][..., : -self.eviction_delay]
-            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., -self.eviction_delay :]
+        if self.scores_buffer[module.layer_idx].shape[-1] > self.sliding_window_size:
+            scores_to_evict = self.scores_buffer[module.layer_idx][..., : -self.sliding_window_size]
+            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., -self.sliding_window_size :]
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
 
-            # Only update the masked key indices if there are some to evict
+            # Only update the masked key indices if there are some KV pairsto evict
             if len(new_masked_key_indices[0]) > 0:
-                shift = cache_len - scores_to_evict.shape[2] - self.eviction_delay
+                shift = cache_len - scores_to_evict.shape[2] - self.sliding_window_size
                 new_masked_key_indices[-1] += shift
 
                 if module.masked_key_indices is None:

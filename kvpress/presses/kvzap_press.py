@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Literal
 
 import torch
@@ -54,7 +54,7 @@ class KVzapPress(ScorerPress):
     """
 
     model_type: Literal["linear", "mlp"] = "mlp"
-    kvzap_model_name: str = None
+    kvzap_model_name: str = field(default_factory=lambda: None, init=False)
 
     def post_init_from_model(self, model):
         kvzap_model_name = f"nvidia/KVzap-{self.model_type}-{model.config.name_or_path.split('/')[-1]}"
