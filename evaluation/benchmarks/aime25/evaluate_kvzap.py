@@ -1,3 +1,4 @@
+import uuid
 from tqdm import tqdm
 from pathlib import Path
 from contextlib import nullcontext
@@ -66,7 +67,8 @@ if __name__ == "__main__":
     df = evaluate(press, args.model_name, args.device, args.max_new_tokens)
 
     # Save results
-    output_dir = Path(f"results/aime25__{args.model_name.replace('/', '--')}__kvzap_{args.model_type}__{args.threshold:.2f}") # noqa: E501
+    dir_id = uuid.uuid4().hex
+    output_dir = Path(f"results/aime25__{args.model_name.replace('/', '--')}__kvzap_{args.model_type}__{args.threshold:.2f}/{dir_id}") # noqa: E501
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / "predictions.csv", index=False)
 
