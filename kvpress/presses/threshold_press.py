@@ -15,13 +15,13 @@ from kvpress.utils import extract_keys_and_values
 class ThresholdPress(BasePress):
     """
     Compute the scores of a ScorerPress and evict key and values with scores below a given threshold.
-    An sliding window (default 64) is used to avoid evicting the most recent keys and values.
+    An sliding window is used to avoid evicting the most recent keys and values.
     If decoding is enabled (default False), the eviction is also applied during the decoding phase.
     """
 
     press: ScorerPress
     threshold: float = None
-    sliding_window_size: int = 64
+    sliding_window_size: int = 128
     decoding: bool = False
 
     def __post_init__(self):
@@ -71,7 +71,7 @@ class ThresholdPress(BasePress):
             self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., -self.sliding_window_size :]
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
 
-            # Only update the masked key indices if there are some KV pairsto evict
+            # Only update the masked key indices if there are some KV pairs to evict
             if len(new_masked_key_indices[0]) > 0:
                 shift = cache_len - scores_to_evict.shape[2] - self.sliding_window_size
                 new_masked_key_indices[-1] += shift
