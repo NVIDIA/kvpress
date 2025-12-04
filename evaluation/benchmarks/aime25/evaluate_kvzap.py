@@ -49,19 +49,22 @@ if __name__ == "__main__":
     from calculate_metrics import calculate_metrics
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--threshold", type=float)
-    parser.add_argument("--model_type", type=str, choices=["mlp", "linear"])
+    parser.add_argument("--threshold", type=float, default=0)
+    parser.add_argument("--model_type", type=str, choices=["mlp", "linear", "no_press"])
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--model_name", type=str, default="Qwen/Qwen3-8B", choices=["Qwen/Qwen3-8B", "Qwen/Qwen3-32B"])
     parser.add_argument("--max_new_tokens", type=int, default=32000)
 
     args = parser.parse_args()
 
-    press = ThresholdPress(
-        KVzapPress(model_type=args.model_type),
-        threshold=args.threshold,
-        decoding=True,
-    )
+    if args.model_type == "no_press":
+        press = nullcontext
+    else:
+        press = ThresholdPress(
+            KVzapPress(model_type=args.model_type),
+            threshold=args.threshold,
+            decoding=True,
+        )
 
     # Run evaluation
     df = evaluate(press, args.model_name, args.device, args.max_new_tokens)
