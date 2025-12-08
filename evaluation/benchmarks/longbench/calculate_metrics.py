@@ -60,7 +60,7 @@ def scorer(dataset, predictions, answers, all_classes):
     for prediction, ground_truths in zip(predictions, answers):
         score = 0.0
         if dataset in ["trec", "triviaqa", "samsum", "lsht"]:
-            prediction = prediction.lstrip().split("\n")[0]
+            prediction = str(prediction).lstrip().split("\n")[0]
         for ground_truth in ground_truths:
             score = max(score, dataset2metric[dataset](prediction, ground_truth, all_classes=all_classes))
         total_score += score
