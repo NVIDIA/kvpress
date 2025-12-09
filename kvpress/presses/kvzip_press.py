@@ -279,6 +279,7 @@ class KVzipPress(BasePress):
         elif self.causal_mask_score.size(-1) != window_size:
             self._make_mask(attn_weights, window_size)
 
+        self.causal_mask_score = self.causal_mask_score.to(attn_weights.device)
         attn_weights[..., -window_size:, -window_size:] += self.causal_mask_score
 
     def score_kvzip(
@@ -385,8 +386,8 @@ class KVzipPress(BasePress):
                 scores = self.score_val[layer_idx]
 
                 # Compute bottom-k across heads
-                n_pruned = n_pruned_layers[layer_idx]
-                indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
+                n_pruned = n_pruned_layers[layer_idx].cpu()
+                indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten().cpu()
 
                 # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for details
                 batch_indices = torch.arange(bsz, device=n_pruned.device).repeat_interleave(n_pruned)
