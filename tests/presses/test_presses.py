@@ -20,6 +20,7 @@ from kvpress import (
     ObservedAttentionPress,
     ScorerPress,
     SnapKVPress,
+    ThresholdPress,
     ThinKPress,
 )
 from tests.default_presses import default_presses
@@ -60,7 +61,7 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize(
     "wrapper_press",
-    [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress, CriticalKVPress, CriticalAdaKVPress],
+    [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress, CriticalKVPress, CriticalAdaKVPress, ThresholdPress],
 )
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
@@ -79,6 +80,8 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
                 press = wrapper_press(press=press)
             elif issubclass(wrapper_press, ChunkPress):
                 press = ChunkPress(press=press, chunk_length=24)
+            elif issubclass(wrapper_press, ThresholdPress):
+                press = ThresholdPress(press=press, threshold=-0.5, sliding_window_size=32)
 
         # TODO: Handle post_init_from_model differently
         if hasattr(press, "post_init_from_model"):

@@ -11,6 +11,7 @@ from kvpress import (
     ExpectedAttentionStatsPress,
     KeyDiffPress,
     KnormPress,
+    KVzapPress,
     KVzipPress,
     LagKVPress,
     LeverageScorePress,
@@ -24,6 +25,7 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
 )
+from kvpress.presses.kvzap.kvzap_press import KVzapConfig, KVzapModel
 
 
 class TestDuoAttentionPress(DuoAttentionPress):
@@ -31,6 +33,19 @@ class TestDuoAttentionPress(DuoAttentionPress):
     def load_attention_pattern(model):
         n_layers, n_heads = model.config.num_hidden_layers, model.config.num_key_value_heads
         return 2, 2, np.random.rand(n_layers, n_heads)
+
+
+class TestKVzapPress(KVzapPress):
+    """Test version of KVzapPress that creates a mock model instead of loading from HuggingFace."""
+
+    def post_init_from_model(self, model):
+        config = KVzapConfig(
+            input_dim=model.config.hidden_size,
+            output_dim=model.config.num_key_value_heads,
+            hidden_dim=None,  # Use linear model for testing
+            n_modules=model.config.num_hidden_layers,
+        )
+        self.kvzap_model = KVzapModel(config)
 
 
 # contains all presses to be tested
@@ -79,6 +94,7 @@ default_presses = [
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },
     {"cls": CURPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
+    {"cls": TestKVzapPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {
         "cls": CompactorPress,
         "kwargs": [
