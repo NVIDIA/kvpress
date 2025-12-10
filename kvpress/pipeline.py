@@ -135,7 +135,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             context = bos_token + context
             question_suffix = "\n"  # to separate the question from the answer
         else:
-            separator = "\n" + "#" * len(context)
+            separator = "#" * (len(context) + 10)
             context = self.tokenizer.apply_chat_template(
                 [{"role": "user", "content": context + separator}],
                 add_generation_prompt=True,
