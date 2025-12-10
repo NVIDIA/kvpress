@@ -46,6 +46,7 @@ class EvaluationConfig:
     press_name: str = "knorm"
     compression_ratio: float = 1.0
     key_channel_compression_ratio: Optional[float] = None
+    threshold: Optional[float] = None
 
     # Dataset and generation parameters
     fraction: float = 1.0
@@ -253,8 +254,9 @@ class EvaluationRunner:
             press.head_compression_ratio = compression_ratio
             logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
         elif isinstance(press, ThresholdPress):
-            press.threshold = compression_ratio
-            logger.info(f"Set ThresholdPress threshold to {compression_ratio}")
+            assert self.config.threshold is not None, "threshold must be set for ThresholdPress"
+            press.threshold = self.config.threshold
+            logger.info(f"Set ThresholdPress threshold to {press.threshold}")
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):

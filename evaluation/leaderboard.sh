@@ -5,7 +5,7 @@ model="Qwen/Qwen3-8B"
 output_dir="./results_lb"
 
 # Loop 1: presses not requiring to include the questions in the compression
-press_names=("random" "knorm" "snapkv" "expected_attention" "streaming_llm" "tova" "observed_attention" "qfilter" "pyramidkv" "lagkv" "keydiff" "block_keydiff" "leverage_score" "adakv_compactor" "cur" "duo_attention" "duo_attention_on_the_fly" "kvzip")
+press_names=("random" "knorm" "snapkv" "expected_attention" "streaming_llm" "tova" "observed_attention" "qfilter" "pyramidkv" "lagkv" "keydiff" "adakv_compactor" "cur" "duo_attention" "duo_attention_on_the_fly" "kvzip")
 
 # 'think'
 
@@ -21,10 +21,10 @@ done
 
 # Use -3, -4, -5, -6 for Qwen3-8B and -6, -7, -8, -9 for Llama-3.1-8B-Instruct
 for press in "kvzap_linear" "kvzap_mlp"; do
-  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio -3  --output_dir $output_dir --device "cuda:0" &
-  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio -4  --output_dir $output_dir --device "cuda:1" &
-  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio -5  --output_dir $output_dir --device "cuda:2" &
-  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio -6  --output_dir $output_dir --device "cuda:3" &
+  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --threshold -3  --output_dir $output_dir --device "cuda:0" &
+  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --threshold -4  --output_dir $output_dir --device "cuda:1" &
+  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --threshold -5  --output_dir $output_dir --device "cuda:2" &
+  python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --threshold -6  --output_dir $output_dir --device "cuda:3" &
 done
 
 
