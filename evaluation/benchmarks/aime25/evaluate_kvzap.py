@@ -2,6 +2,8 @@ import uuid
 from tqdm import tqdm
 from pathlib import Path
 from contextlib import nullcontext
+from typing import Any, ContextManager
+from collections.abc import Callable
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
@@ -9,7 +11,7 @@ from datasets import load_dataset
 from kvpress import KVzapPress, ThresholdPress
 
 
-def evaluate(press, model_name, device, max_new_tokens):
+def evaluate(press, model_name, device, max_new_tokens):  # type: ignore[type-arg]
     """
     Evaluate the press without the kvpress pipeline but the model.generate method.
     This allows to avoid greedy decoding which is not recommended for reasoning
@@ -57,6 +59,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    press: Callable[..., ContextManager[Any]]
     if args.model_type == "no_press":
         press = nullcontext
     else:
@@ -71,7 +74,9 @@ if __name__ == "__main__":
 
     # Save results
     dir_id = uuid.uuid4().hex
-    output_dir = Path(f"results/aime25__{args.model_name.replace('/', '--')}__kvzap_{args.model_type}__{args.threshold:.2f}/{dir_id}")  # noqa: E501
+    output_dir = Path(
+        f"results/aime25__{args.model_name.replace('/', '--')}__kvzap_{args.model_type}__{args.threshold:.2f}/{dir_id}"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / "predictions.csv", index=False)
 

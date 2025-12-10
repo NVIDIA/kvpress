@@ -20,7 +20,7 @@ class KVzapConfig(PretrainedConfig):
 
 
 class KVzapModel(PreTrainedModel):
-    config_class = KVzapConfig
+    config_class = KVzapConfig  # type: ignore[assignment]
 
     def __init__(self, config):
         super().__init__(config)

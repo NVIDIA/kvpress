@@ -23,7 +23,14 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.llama.modeling_llama import repeat_kv
 from datasets import load_dataset
 
-from kvpress.presses.kvzap_press import KVzapModel, KVzapConfig
+from kvpress.presses.kvzap.kvzap_press import KVzapModel, KVzapConfig
+
+# Global variables used for forward hook communication
+DATA: list = []
+START_PROMPT: int = 0
+END_PROMPT: int = 0
+START_REPEATED_PROMPT: int = 0
+END_REPEATED_PROMPT: int = 0
 
 
 def load_nemotron_dataset(tokenizer, min_tokens, max_tokens, n_train_per_subset, n_test_per_subset):
@@ -158,7 +165,7 @@ def extract_kvzip_scores(model, tokenizer, df, n_tokens):
     Extract pairs (X=hidden_states, y=scores) by running the model on the text samples in the dataset
     For each text sample, randomly sample n_tokens tokens
     """
-    global DATA, START_PROMPT, END_PROMPT, START_REPEATED_PROMPT, END_REPEATED_PROMPT   # noqa: F824
+    global DATA, START_PROMPT, END_PROMPT, START_REPEATED_PROMPT, END_REPEATED_PROMPT  # noqa: F824
 
     n_layers = model.model.config.num_hidden_layers
     X = torch.zeros(len(df) * n_tokens, n_layers, model.model.config.hidden_size, dtype=model.dtype)

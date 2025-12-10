@@ -68,7 +68,9 @@ class ThresholdPress(BasePress):
         # Update masked key indices if the scores buffer is full
         if self.scores_buffer[module.layer_idx].shape[-1] > self.sliding_window_size:
             scores_to_evict = self.scores_buffer[module.layer_idx][..., : -self.sliding_window_size]
-            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., -self.sliding_window_size :]  # noqa: E501
+            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][
+                ..., -self.sliding_window_size :
+            ]
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
 
             # Only update the masked key indices if there are some KV pairs to evict
@@ -77,16 +79,16 @@ class ThresholdPress(BasePress):
                 new_masked_key_indices[-1] += shift
 
                 if module.masked_key_indices is None:
-                    module.masked_key_indices = new_masked_key_indices
+                    module.masked_key_indices = new_masked_key_indices  # type: ignore[assignment]
                 else:
-                    module.masked_key_indices = list(
+                    module.masked_key_indices = list(  # type: ignore[assignment]
                         torch.cat([i, new_i]) for i, new_i in zip(module.masked_key_indices, new_masked_key_indices)
                     )
 
         # Update compression ratio
         if module.masked_key_indices is not None:
             bsz, num_key_value_heads, cache_len, _ = keys.shape
-            self.compression_ratios[module.layer_idx] = len(module.masked_key_indices[0]) / (
+            self.compression_ratios[module.layer_idx] = len(module.masked_key_indices[0]) / (  # type: ignore[index]
                 bsz * num_key_value_heads * cache_len
             )
         else:
