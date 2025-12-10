@@ -63,7 +63,8 @@ class KVzapPress(ScorerPress):
             self.kvzap_model = KVzapModel.from_pretrained(self.kvzap_model_name)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
-        module = self.kvzap_model.module_list[module.layer_idx].to(hidden_states.device, dtype=hidden_states.dtype).eval()
+        module = self.kvzap_model.module_list[module.layer_idx]
+        module = module.to(hidden_states.device, dtype=hidden_states.dtype).eval()
         with torch.no_grad():
             scores = module(hidden_states).transpose(1, 2)
         return scores

@@ -18,7 +18,7 @@ def evaluate(press, model_name, device, max_new_tokens):
     # Load tokenizer, model and dataset
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, dtype="auto").to(device)
-    df = load_dataset(f"alessiodevoto/aime25", split="test").to_pandas()
+    df = load_dataset("alessiodevoto/aime25", split="test").to_pandas()
 
     # Run evaluation
     for idx, row in tqdm(df.iterrows(), total=len(df)):
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     # Save results
     dir_id = uuid.uuid4().hex
-    output_dir = Path(f"results/aime25__{args.model_name.replace('/', '--')}__kvzap_{args.model_type}__{args.threshold:.2f}/{dir_id}") # noqa: E501
+    output_dir = Path(f"results/aime25__{args.model_name.replace('/', '--')}__kvzap_{args.model_type}__{args.threshold:.2f}/{dir_id}")  # noqa: E501
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / "predictions.csv", index=False)
 

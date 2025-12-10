@@ -27,9 +27,9 @@ class ThresholdPress(BasePress):
     def __post_init__(self):
         self.scores_buffer = {}
         self.compression_ratios = {}
-        
+
     def post_init_from_model(self, model):
-        self.press.post_init_from_model(model)        
+        self.press.post_init_from_model(model)
 
     @property
     def compression_ratio(self):
@@ -68,7 +68,7 @@ class ThresholdPress(BasePress):
         # Update masked key indices if the scores buffer is full
         if self.scores_buffer[module.layer_idx].shape[-1] > self.sliding_window_size:
             scores_to_evict = self.scores_buffer[module.layer_idx][..., : -self.sliding_window_size]
-            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., -self.sliding_window_size :]
+            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., -self.sliding_window_size :]  # noqa: E501
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
 
             # Only update the masked key indices if there are some KV pairs to evict
