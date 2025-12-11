@@ -16,8 +16,8 @@ try:
     from skorch.dataset import ValidSplit
 
     from sklearn.linear_model import Ridge
-except ImportError:
-    raise ImportError("skorch or scikit-learn is not installed. Please install them with `pip install skorch`")
+except:
+    raise RuntimeError("skorch or scikit-learn is not installed. Please install them with `pip install skorch`")
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.llama.modeling_llama import repeat_kv
