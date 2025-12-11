@@ -140,6 +140,7 @@ class BasePress:
             return output
 
         keys, values = extract_keys_and_values(cache, module.layer_idx)
+
         keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
