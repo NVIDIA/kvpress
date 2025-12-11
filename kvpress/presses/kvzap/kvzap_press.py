@@ -26,12 +26,12 @@ class KVzapModel(PreTrainedModel):
         super().__init__(config)
         if config.hidden_dim is None:
             # Linear model
-            self.layers = nn.ModuleList(
+            self.module_list = nn.ModuleList(
                 [nn.Linear(config.input_dim, config.output_dim) for _ in range(config.n_modules)]
             )
         else:
             # 2-layer MLP model
-            self.layers = nn.ModuleList(
+            self.module_list = nn.ModuleList(
                 nn.Sequential(
                     nn.Linear(config.input_dim, config.hidden_dim),
                     nn.GELU(),
@@ -63,7 +63,7 @@ class KVzapPress(ScorerPress):
             self.kvzap_model = KVzapModel.from_pretrained(self.kvzap_model_name)
 
     def score(self, module, hidden_states, keys, values, attentions, kwargs):
-        module = self.kvzap_model.layers[module.layer_idx]
+        module = self.kvzap_model.module_list[module.layer_idx]
         module = module.to(hidden_states.device, dtype=hidden_states.dtype).eval()
         with torch.no_grad():
             scores = module(hidden_states).transpose(1, 2)
