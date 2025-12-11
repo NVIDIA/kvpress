@@ -21,7 +21,7 @@ def unit_test_model():
 @pytest.fixture(scope="session")
 def unit_test_model_output_attention():
     model = AutoModelForCausalLM.from_pretrained(
-        "MaxJeblick/llama2-0b-unit-test", attn_implementation="eager", output_attentions=True
+        "MaxJeblick/llama2-0b-unit-test", attn_implementation="eager"
     ).eval()
     return model.to(get_device())
 
