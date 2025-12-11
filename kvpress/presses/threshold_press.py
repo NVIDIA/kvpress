@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 import torch
 import torch.nn as nn
@@ -24,13 +25,6 @@ class ThresholdPress(BasePress):
     sliding_window_size: int = 128
     decoding: bool = False
 
-    def __post_init__(self):
-        self.scores_buffer = {}
-        self.compression_ratios = {}
-
-    def post_init_from_model(self, model):
-        self.press.post_init_from_model(model)
-
     @property
     def compression_ratio(self):
         assert len(self.compression_ratios) > 0, "Forward pass must be run to compute the compression ratio"
@@ -45,11 +39,7 @@ class ThresholdPress(BasePress):
         cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
         cache_len = kwargs["cache_position"][-1] + 1
-
-        # Reinitialize the score buffer and compression ratios at the start of a new sequence
         prefilling = cache_len == q_len
-        if (module.layer_idx == 0) & prefilling:
-            self.__post_init__()
 
         # Optionally skip the compression during decoding phase
         if not prefilling and not self.decoding:
@@ -73,11 +63,12 @@ class ThresholdPress(BasePress):
             ]
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
 
-            # Only update the masked key indices if there are some KV pairs to evict
             if len(new_masked_key_indices[0]) > 0:
+                # Shift the indices during decoding (shift = 0 for prefilling)
                 shift = cache_len - scores_to_evict.shape[2] - self.sliding_window_size
                 new_masked_key_indices[-1] += shift
 
+                # Update the masked key indices
                 if module.masked_key_indices is None:
                     module.masked_key_indices = new_masked_key_indices  # type: ignore[assignment]
                 else:
@@ -85,7 +76,7 @@ class ThresholdPress(BasePress):
                         torch.cat([i, new_i]) for i, new_i in zip(module.masked_key_indices, new_masked_key_indices)
                     )
 
-        # Update compression ratio
+        # Compute the compression ratio
         if module.masked_key_indices is not None:
             bsz, num_key_value_heads, cache_len, _ = keys.shape
             self.compression_ratios[module.layer_idx] = len(module.masked_key_indices[0]) / (  # type: ignore[index]
@@ -95,3 +86,14 @@ class ThresholdPress(BasePress):
             self.compression_ratios[module.layer_idx] = 0
 
         return output
+
+    @contextmanager
+    def __call__(self, model):
+        self.scores_buffer = {}
+        self.compression_ratios = {}
+        self.press.post_init_from_model(model)
+        try:
+            with super().__call__(model):
+                yield
+        finally:
+            self.scores_buffer = {}
