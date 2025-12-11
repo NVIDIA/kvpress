@@ -15,7 +15,6 @@ from kvpress.presses.base_press import BasePress
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
-from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 
 logger = logging.getLogger(__name__)
@@ -210,7 +209,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             self.model.model(
                 input_ids=context_ids,
                 past_key_values=cache,
-                output_attentions=self.output_attentions(press),
             )
 
             logger.debug(f"Context Length: {context_length}")
@@ -305,13 +303,6 @@ class KVPressTextGenerationPipeline(Pipeline):
                 break
         answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
         return answer
-
-    def output_attentions(self, press: BasePress):
-        if isinstance(press, ObservedAttentionPress):
-            return True
-        if hasattr(press, "press") and isinstance(press.press, ObservedAttentionPress):
-            return True
-        return False
 
     def postprocess(self, model_outputs, single_question):
         if single_question:
