@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 # Script to run the leaderboard evaluation on 4 GPUs
 dataset="ruler"
 data_dir="4096"

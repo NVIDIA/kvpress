@@ -112,8 +112,6 @@ class EvaluationConfig:
         ----------
         output_dir : Path
             The output directory path
-        press
-            The press instance to check for ThinKPress components
 
         Returns
         -------
@@ -128,7 +126,9 @@ class EvaluationConfig:
             self.press_name,
             f"{self.compression_ratio:.2f}",
         ]
-
+        
+        if self.threshold is not None:
+            components[-1] = f"{self.threshold:.2f}"
         if self.fraction < 1.0:
             components.append(f"fraction{self.fraction:.3f}")
         if self.max_context_length is not None:
