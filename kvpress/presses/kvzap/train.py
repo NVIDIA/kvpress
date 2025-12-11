@@ -16,7 +16,7 @@ try:
     from skorch.dataset import ValidSplit
 
     from sklearn.linear_model import Ridge
-except:
+except:  # noqa: E722
     raise RuntimeError("skorch or scikit-learn is not installed. Please install them with `pip install skorch`")
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
