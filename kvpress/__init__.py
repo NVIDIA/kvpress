@@ -22,6 +22,8 @@ from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.keydiff_press import KeyDiffPress
 from kvpress.presses.knorm_press import KnormPress
 from kvpress.presses.kvzap_press import KVzapPress
+from kvpress.presses.kvsummary_press import KVSummaryPress
+from kvpress.presses.kvpress_squared_press import KVPressSquaredPress
 from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.lagkv_press import LagKVPress
 from kvpress.presses.leverage_press import LeverageScorePress
@@ -72,7 +74,11 @@ __all__ = [
     "LagKVPress",
     "BlockPress",
     "KeyDiffPress",
+    "KVSummaryPress",
     "KVzipPress",
+    "KVPressSquaredPress",
+    "DecodingPress",
+    "PrefillDecodingPress",
     "ExpectedAttentionStatsPress",
     "DecodingPress",
     "PrefillDecodingPress",

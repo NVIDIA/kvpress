@@ -385,6 +385,11 @@ class EvaluationRunner:
 
         self.pipeline.model.eval()
         logger.info("Model pipeline loaded.")
+        
+        # Set tokenizer on KeyDiffPress if it has the set_tokenizer method
+        if self.press is not None and hasattr(self.press, "set_tokenizer"):
+            self.press.set_tokenizer(self.pipeline.tokenizer)
+            logger.info("Set tokenizer on press for decoding latency measurement.")
 
     @torch.inference_mode()
     def _run_inference(self):
@@ -401,6 +406,13 @@ class EvaluationRunner:
                 question = row["question"]
                 answer_prefix = row["answer_prefix"]
                 max_new_tokens = self.config.max_new_tokens or row["max_new_tokens"]
+                
+                # Set current sample ID on press for logging
+                if self.press is not None and hasattr(self.press, "set_current_sample_id"):
+                    # Use "id" column if available, otherwise fall back to DataFrame index
+                    sample_id = row["id"] if "id" in row else index
+                    self.press.set_current_sample_id(str(sample_id))
+                
                 output = self.pipeline(
                     context,
                     question=question,
@@ -426,6 +438,16 @@ class EvaluationRunner:
                 # Use max_new_tokens from config, or fallback to dataset's default for the task
                 max_new_tokens = self.config.max_new_tokens or df_group["max_new_tokens"].iloc[0]
                 answer_prefix = df_group["answer_prefix"].iloc[0]
+                
+                # Set current sample ID on press for logging
+                if self.press is not None and hasattr(self.press, "set_current_sample_id"):
+                    # Use "id" column if available, otherwise fall back to DataFrame index
+                    if "id" in df_group.columns:
+                        sample_ids = df_group["id"].tolist()
+                    else:
+                        sample_ids = df_group.index.tolist()
+                    sample_id_str = str(sample_ids[0]) if len(sample_ids) == 1 else f"{sample_ids[0]}...{sample_ids[-1]}"
+                    self.press.set_current_sample_id(sample_id_str)
 
                 output = self.pipeline(  # type: ignore[misc]
                     context,

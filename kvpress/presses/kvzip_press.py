@@ -280,6 +280,25 @@ class KVzipPress(BasePress):
         self.causal_mask_score = self.causal_mask_score.to(attn_weights.device)
         attn_weights[..., -window_size:, -window_size:] += self.causal_mask_score
 
+    def _get_keys_for_scoring(self, keys: torch.Tensor, sink: int, q_len: int) -> torch.Tensor:
+        """Get keys to use for scoring. Can be overridden for non-contiguous positions."""
+        return torch.cat(
+            [
+                keys[:, :, :sink],  # attention sink tokens (generally system prompt)
+                keys[:, :, self.start_idx : self.end_idx],  # KV chunk in the cache
+                keys[:, :, -q_len:],  # KV repeat chunk
+            ],
+            dim=2,
+        )
+
+    def _get_ctx_len(self) -> int:
+        """Get context length for current chunk. Can be overridden for non-contiguous positions."""
+        return self.end_idx - self.start_idx
+
+    def _assign_scores(self, layer_idx: int, sink: int, ctx_len: int, scores: torch.Tensor):
+        """Assign scores to score_val. Can be overridden for non-contiguous positions."""
+        self.score_val[layer_idx][..., self.start_idx : self.end_idx] = scores
+
     def score_kvzip(
         self,
         module: nn.Module,
@@ -311,15 +330,8 @@ class KVzipPress(BasePress):
 
         # Subsample keys
         sink = min(self.n_sink, self.start_idx)
-        ctx_len = self.end_idx - self.start_idx
-        keys_subsampled = torch.cat(
-            [
-                keys[:, :, :sink],  # attention sink tokens (generally system prompt)
-                keys[:, :, self.start_idx : self.end_idx],  # KV chunk in the cache
-                keys[:, :, -q_len:],  # KV repeat chunk
-            ],
-            dim=2,
-        )
+        ctx_len = self._get_ctx_len()
+        keys_subsampled = self._get_keys_for_scoring(keys, sink, q_len)
         keys_subsampled = keys_subsampled.unsqueeze(2).transpose(-2, -1).contiguous()
 
         # Compute attention
@@ -347,7 +359,7 @@ class KVzipPress(BasePress):
         scores = attn_weights.amax(dim=(-3, -2))  # max over group, q
 
         layer_idx = int(module.layer_idx)
-        self.score_val[layer_idx][..., self.start_idx : self.end_idx] = scores  # update score
+        self._assign_scores(layer_idx, sink, ctx_len, scores)
 
         # Retain the originally prefilled context KV pairs and exclude KV pairs from the repeated context
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]

@@ -27,6 +27,8 @@ from kvpress import (
     KeyDiffPress,
     KnormPress,
     KVzapPress,
+    KVPressSquaredPress,
+    KVSummaryPress,
     KVzipPress,
     ObservedAttentionPress,
     PyramidKVPress,
@@ -84,6 +86,12 @@ PRESS_REGISTRY = {
     "expected_attention": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
+    "keydiff_latency": KeyDiffPress(
+        measure_decoding_latency=True, 
+        num_decoding_tokens=127,
+        decoding_prompt="List 3 specific questions about this document. Only output the questions, do not provide answers. 1. ",
+    ),
+    "kvsummary": KVSummaryPress(),
     "kvzip": KVzipPress(),
     "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
     "kvzap_linear": ThresholdPress(press=KVzapPress(model_type="linear")),
@@ -91,6 +99,9 @@ PRESS_REGISTRY = {
     "kvzap_mlp_head": KVzapPress(model_type="mlp"),
     "kvzap_mlp_layer": AdaKVPress(KVzapPress(model_type="mlp")),
     "lagkv": LagKVPress(),
+    "kvpress_squared": KVPressSquaredPress(),  # default: inner compression_ratio=0.8 -> top 20%
+    "kvpress_squared_top10": KVPressSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.9)),  # top 10%
+    "kvpress_squared_top30": KVPressSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.7)),  # top 30%
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "pyramidkv": PyramidKVPress(),
