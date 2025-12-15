@@ -28,6 +28,7 @@ from kvpress import (
     KnormPress,
     KVzapPress,
     KVPressSquaredPress,
+    KVSquaredPress,
     KVSummaryPress,
     KVzipPress,
     ObservedAttentionPress,
@@ -102,6 +103,9 @@ PRESS_REGISTRY = {
     "kvpress_squared": KVPressSquaredPress(),  # default: inner compression_ratio=0.8 -> top 20%
     "kvpress_squared_top10": KVPressSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.9)),  # top 10%
     "kvpress_squared_top30": KVPressSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.7)),  # top 30%
+    "kvsquared": KVSquaredPress(),  # default: inner compression_ratio=0.5 -> top 50%
+    "kvsquared_top10": KVSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.9)),  # top 10%
+    "kvsquared_top20": KVSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.8)),  # top 20%
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "pyramidkv": PyramidKVPress(),
