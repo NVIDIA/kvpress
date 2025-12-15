@@ -50,7 +50,7 @@ class EvaluationConfig:
     fraction: float = 1.0
     max_new_tokens: Optional[int] = None
     max_context_length: Optional[int] = None
-    compress_questions: bool = False
+    query_aware: bool = False
     needle_depth: Optional[int] = None
 
     # Decoding parameters
@@ -136,8 +136,8 @@ class EvaluationConfig:
             components.append(f"fraction{self.fraction:.3f}")
         if self.max_context_length is not None:
             components.append(f"max_context{self.max_context_length}")
-        if self.compress_questions:
-            components.append("compressed_questions")
+        if self.query_aware:
+            components.append("query_aware")
         if self.key_channel_compression_ratio is not None:
             components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
         if self.needle_depth is not None and self.dataset == "needle_in_haystack":
@@ -323,17 +323,17 @@ class EvaluationRunner:
             )
 
         if isinstance(self.press, FinchPress):
-            if not self.config.compress_questions:
-                logger.error("FinchPress requires 'compress_questions' to be set to True.")
-                raise ValueError("FinchPress requires compress_questions to be set to True")
+            if not self.config.query_aware:
+                logger.error("FinchPress requires 'query_aware' to be set to True.")
+                raise ValueError("FinchPress requires query_aware to be set to True")
             # FinchPress uses a delimiter token to separate context and question
             # So we need to update the tokenizer and the model embeddings.
             logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
             self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
             df["context"] = df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
 
-        if self.config.compress_questions:
-            logger.info("Compressing questions into context.")
+        if self.config.query_aware:
+            logger.info("Query-aware compression: including question in context for compression.")
             df["context"] = df["context"] + df["question"]  # type: ignore[index]
             df["question"] = ""  # type: ignore[index]
 
