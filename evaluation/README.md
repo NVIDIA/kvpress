@@ -32,6 +32,8 @@ python evaluate.py --config_file <your_config.yaml>
 
 Customize your evaluation by editing `evaluate_config.yaml`. This allows you to flexibly configure a variety of settings, like the `fraction` of dataset to use (for quick testing) and the model arguments (e.g. for scaling RoPE). For complete parameter details, see the `evaluation_config.yaml`
 
+💡 Set `query_aware: true` to include the question in the context during compression. This enables query-aware compression as used in methods like SnapKV and FinchPress.
+
 
 ### Available Presses and Datasets 
 We support evaluation with all the presses implemented in the library (and possible combinations). 
@@ -84,4 +86,4 @@ Further methods could be explored:
 - Move beyond pruning, as this method is fundamentally limited (see last figure in [this notebook](../notebooks/expected_attention.ipynb))
 - Fine-tuning LLMs to deal with compressed KV caches
 
-We encourage contributions to explore these ideas and improve the performance of long-context LLMs with compressed caches. We provide benchmark results from 7 presses and 3 models. We include a variant of SnapKV where we include the question in the compression process as in the original paper (snapkv w/ question). All performance curves can be found in the [assets](assets) directory, and predictions are available [here](https://drive.google.com/drive/folders/14BilGw07v8tOUUct-5nDhQlN3zIX9BUf?usp=drive_link).
+We encourage contributions to explore these ideas and improve the performance of long-context LLMs with compressed caches. We provide benchmark results from 7 presses and 3 models. We include a variant of SnapKV with query-aware compression as in the original paper (snapkv w/ query_aware). All performance curves can be found in the [assets](assets) directory, and predictions are available [here](https://drive.google.com/drive/folders/14BilGw07v8tOUUct-5nDhQlN3zIX9BUf?usp=drive_link).
