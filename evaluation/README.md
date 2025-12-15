@@ -75,15 +75,3 @@ Use the provided `evaluate.sh` script to run multiple presses simultaneously acr
 
 ### Leaderboard 🥇
 After evaluating your model, you can easily submit it to the [KVPress Leaderboard](https://huggingface.co/spaces/nvidia/kvpress-leaderboard) on Hugging Face! Just copy the output directory in the huggingface space, and your method will soon be displayed in the leaderboard.
-
-### Discussion
-The methods benchmarked so far are not able to efficiently compress the KV cache while maintaining performance on several long-context datasets and models.
-In particular, exact information retrieval tasks such as kv-retrieval are challenging for the current methods.
-Further methods could be explored:
-- {Layer,Head}-wise pruning: pruning with a different compression ratio for each layer or head as in [DMC](https://arxiv.org/abs/2403.09636), [FastGen](https://arxiv.org/abs/2310.01801) or [DuoAttention](https://arxiv.org/abs/2410.10819)
-- Adaptive pruning: pruning based on a score, and not a uniform fixed ratio
-- Taking into account inter-layer dependencies such as in [PyramidKV](https://arxiv.org/abs/2406.02069)
-- Move beyond pruning, as this method is fundamentally limited (see last figure in [this notebook](../notebooks/expected_attention.ipynb))
-- Fine-tuning LLMs to deal with compressed KV caches
-
-We encourage contributions to explore these ideas and improve the performance of long-context LLMs with compressed caches. We provide benchmark results from 7 presses and 3 models. We include a variant of SnapKV with query-aware compression as in the original paper (snapkv w/ query_aware). All performance curves can be found in the [assets](assets) directory, and predictions are available [here](https://drive.google.com/drive/folders/14BilGw07v8tOUUct-5nDhQlN3zIX9BUf?usp=drive_link).
