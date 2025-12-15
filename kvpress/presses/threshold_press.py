@@ -57,10 +57,9 @@ class ThresholdPress(BasePress):
 
         # Update masked key indices if the scores buffer is full
         if self.scores_buffer[module.layer_idx].shape[-1] > self.sliding_window_size:
-            scores_to_evict = self.scores_buffer[module.layer_idx][..., : -self.sliding_window_size]
-            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][
-                ..., -self.sliding_window_size :
-            ]
+            n_to_evict = self.scores_buffer[module.layer_idx].shape[-1] - self.sliding_window_size
+            scores_to_evict = self.scores_buffer[module.layer_idx][..., : n_to_evict]
+            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., n_to_evict :]
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
 
             if len(new_masked_key_indices[0]) > 0:
