@@ -238,8 +238,8 @@ def train_linear(X, y):
     # Load the parameters into a KVzapModel
     linear = KVzapModel(KVzapConfig(input_dim=X.shape[2], hidden_dim=None, output_dim=y.shape[2], n_modules=X.shape[1]))
     for layer_idx, (W, b) in enumerate(params):
-        linear.module_list[layer_idx].weight.data = torch.tensor(W, dtype=X.dtype)
-        linear.module_list[layer_idx].bias.data = torch.tensor(b, dtype=X.dtype)
+        linear.module_list[layer_idx].weight.data = torch.tensor(W, dtype=X.dtype)  # type: ignore[index]
+        linear.module_list[layer_idx].bias.data = torch.tensor(b, dtype=X.dtype)  # type: ignore[index]
     return linear
 
 

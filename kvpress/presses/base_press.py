@@ -134,7 +134,6 @@ class BasePress:
         cache = kwargs["past_key_values"]
         cache_layer = cache.layers[module.layer_idx]
         q_len = hidden_states.shape[1]
-        attentions = output[1] if len(output) > 1 else None
 
         # Don't compress after pre-filling
         if kwargs["cache_position"][-1] > q_len:
@@ -142,7 +141,7 @@ class BasePress:
 
         keys, values = extract_keys_and_values(cache, module.layer_idx)
 
-        keys, values = self.compress(module, hidden_states, keys, values, attentions, kwargs)
+        keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
         if isinstance(cache, QuantizedCache):
             cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)

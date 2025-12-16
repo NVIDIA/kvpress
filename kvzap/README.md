@@ -1,5 +1,7 @@
 # KVzap
 
+[![KVzap collection](https://img.shields.io/badge/🤗%20Hugging%20Face-Collection-orange)](https://huggingface.co/collections/nvidia/kvzap)
+
 KVzap approximates KVzip+ (an improved version of [KVzip](https://arxiv.org/abs/2505.23416)) by training a lightweight auxiliary model on top of the hidden states.
 
 ## Directory Contents
@@ -52,7 +54,7 @@ The evaluation script tests KVzap compression on the AIME25 mathematical reasoni
 ### Usage
 
 ```bash
-python evaluate_aime.py mlp --threshold=0.0 --model_name=Qwen/Qwen3-8B --device=cuda:0
+python evaluate_aime.py mlp --threshold 0.0 --model_name Qwen/Qwen3-8B --device cuda:0
 ```
 
 #### Arguments
@@ -73,7 +75,7 @@ from kvpress import KVzapPress, ThresholdPress
 # Create press with MLP model
 press = ThresholdPress(
     KVzapPress(model_type="mlp"),
-    threshold=0.0,
+    threshold=-3,
     decoding=True,
 )
 
@@ -81,10 +83,4 @@ press = ThresholdPress(
 with press(model):
     output = model.generate(input_ids)
 ```
-
-## Pre-trained Models
-
-Pre-trained KVzap models are available on HuggingFace:
-- `nvidia/KVzap-mlp-<model_name>`
-- `nvidia/KVzap-linear-<model_name>`
 
