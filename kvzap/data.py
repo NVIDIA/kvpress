@@ -86,7 +86,9 @@ def load_nemotron_dataset(
     return df
 
 
-def repeat_prompt_tokenization(tokenizer: PreTrainedTokenizerBase, prompt: str) -> tuple[torch.Tensor, int, int, int, int]:
+def repeat_prompt_tokenization(
+    tokenizer: PreTrainedTokenizerBase, prompt: str
+) -> tuple[torch.Tensor, int, int, int, int]:
     """
     Tokenize a prompt using the KVzip repeat method.
 
