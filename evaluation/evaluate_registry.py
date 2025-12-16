@@ -87,11 +87,6 @@ PRESS_REGISTRY = {
     "expected_attention": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
-    "keydiff_latency": KeyDiffPress(
-        measure_decoding_latency=True, 
-        num_decoding_tokens=127,
-        decoding_prompt="List 3 specific questions about this document. Only output the questions, do not provide answers. 1. ",
-    ),
     "kvsummary": KVSummaryPress(),
     "kvzip": KVzipPress(),
     "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),

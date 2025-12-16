@@ -223,10 +223,16 @@ class EvaluationRunner:
         """Configures the logging level based on the config."""
         log_level = self.config.log_level.upper()
 
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-        logger.addHandler(handler)
-        logger.setLevel(log_level)
+        # Configure root logger with INFO, but set kvpress loggers to requested level
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            force=True,
+        )
+        # Set kvpress loggers to the requested level (e.g., DEBUG)
+        logging.getLogger("kvpress").setLevel(log_level)
+        # Suppress noisy urllib3 debug logs
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     def _setup_directories(self) -> Path:
         """

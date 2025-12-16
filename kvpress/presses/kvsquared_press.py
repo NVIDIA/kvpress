@@ -47,7 +47,7 @@ class KVSquaredPress(KVzipPress):
     """
 
     inner_press: ScorerPress = field(default_factory=lambda: KeyDiffPress())
-    top_ratio: float = 0.02
+    top_ratio: float = 0.05
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
@@ -103,7 +103,7 @@ class KVSquaredPress(KVzipPress):
         self._context_ids = self._context_ids.to(model.device)
         self._init_score_val(model)
         ctx_ids = self._context_ids[:, self.prefix_length :].to("cpu")
-        chunked_input_ids = self._chunk_fn(ctx_ids, chunk_size=2048)
+        chunked_input_ids = self._chunk_fn(ctx_ids, chunk_size=4096)
 
         # Process each chunk
         self.start_idx = self.prefix_length
