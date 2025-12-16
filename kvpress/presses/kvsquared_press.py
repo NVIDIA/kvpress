@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class KVSquaredPress(KVzipPress):
     """
-    KV² (KV-Squared): A two-stage KV cache compression framework extending KVzip.
+    KV² (KV-Squared): A two-stage KV cache compression framework.
 
     For each chunk (size 2048):
     Stage 1: Score tokens using inner_press (e.g., KeyDiffPress) and select top tokens.
     Stage 2: Use selected tokens as queries to attend to the SAME chunk's KV pairs,
-             computing reconstruction scores (like KVzip).
+             computing reconstruction-based importance scores.
 
-    Based on KVzip (https://arxiv.org/abs/2505.23416).
+    Inherits infrastructure from KVzipPress (https://arxiv.org/abs/2505.23416).
 
     Parameters
     ----------
