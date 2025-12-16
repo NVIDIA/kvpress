@@ -129,10 +129,10 @@ def repeat_prompt_tokenization(tokenizer: AutoTokenizer, prompt: str) -> tuple[t
     # The tokenizer might add newlines at the beginning and end of the prompt
     prefix, repeat, _ = prompt_with_repeat.split(prompt)
     m = outputs.offset_mapping[0, :, 0]
-    start_prompt = torch.where(m >= len(prefix))[0][0].item()
-    end_prompt = torch.where(m >= len(prefix) + len(prompt))[0][0].item()
-    start_repeated_prompt = torch.where(m >= len(prefix) + len(prompt) + len(repeat))[0][0].item()
-    end_repeated_prompt = torch.where(m >= len(prefix) + 2 * len(prompt) + len(repeat))[0][0].item()
+    start_prompt = int(torch.where(m >= len(prefix))[0][0].item())
+    end_prompt = int(torch.where(m >= len(prefix) + len(prompt))[0][0].item())
+    start_repeated_prompt = int(torch.where(m >= len(prefix) + len(prompt) + len(repeat))[0][0].item())
+    end_repeated_prompt = int(torch.where(m >= len(prefix) + 2 * len(prompt) + len(repeat))[0][0].item())
 
     return outputs.input_ids, start_prompt, end_prompt, start_repeated_prompt, end_repeated_prompt
 
