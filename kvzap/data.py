@@ -14,12 +14,12 @@ import pandas as pd
 import torch
 from datasets import load_dataset
 from tqdm.auto import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from transformers.models.llama.modeling_llama import repeat_kv
 
 
 def load_nemotron_dataset(
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizerBase,
     min_tokens: int = 750,
     max_tokens: int = 1250,
     n_train_per_subset: int = 500,
@@ -86,7 +86,7 @@ def load_nemotron_dataset(
     return df
 
 
-def repeat_prompt_tokenization(tokenizer: AutoTokenizer, prompt: str) -> tuple[torch.Tensor, int, int, int, int]:
+def repeat_prompt_tokenization(tokenizer: PreTrainedTokenizerBase, prompt: str) -> tuple[torch.Tensor, int, int, int, int]:
     """
     Tokenize a prompt using the KVzip repeat method.
 
@@ -155,7 +155,7 @@ class KVzapDataCollector:
     >>> X, y = collector.collect(df, n_tokens=500)
     """
 
-    def __init__(self, model: AutoModelForCausalLM, tokenizer: AutoTokenizer):
+    def __init__(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase):
         self.model = model
         self.tokenizer = tokenizer
 
@@ -222,7 +222,7 @@ class KVzapDataCollector:
             List of hook handles (can be used to remove hooks later)
         """
         handles = []
-        for layer in self.model.model.layers:
+        for layer in self.model.model.layers:  # type: ignore[attr-defined]
             handle = layer.self_attn.register_forward_hook(self._forward_hook, with_kwargs=True)
             handles.append(handle)
         return handles
@@ -253,11 +253,10 @@ class KVzapDataCollector:
         handles = self._register_hooks()
 
         try:
-            n_layers = self.model.model.config.num_hidden_layers
-            X = torch.zeros(len(df) * n_tokens, n_layers, self.model.model.config.hidden_size, dtype=self.model.dtype)
-            y = torch.zeros(
-                len(df) * n_tokens, n_layers, self.model.model.config.num_key_value_heads, dtype=self.model.dtype
-            )
+            config = self.model.model.config  # type: ignore[attr-defined]
+            n_layers = config.num_hidden_layers
+            X = torch.zeros(len(df) * n_tokens, n_layers, config.hidden_size, dtype=self.model.dtype)
+            y = torch.zeros(len(df) * n_tokens, n_layers, config.num_key_value_heads, dtype=self.model.dtype)
 
             for i, text in tqdm(enumerate(df["text"]), total=len(df), desc="Extracting scores"):
                 # Get the scores using the repeat prompt method
@@ -266,7 +265,7 @@ class KVzapDataCollector:
                 )
                 self._data = []
                 with torch.no_grad():
-                    self.model.model(tokens.to(self.model.device))
+                    self.model.model(tokens.to(self.model.device))  # type: ignore[attr-defined]
 
                 # Sample n_tokens tokens randomly
                 mask = torch.randperm(len(self._data[0][0]))[:n_tokens]
