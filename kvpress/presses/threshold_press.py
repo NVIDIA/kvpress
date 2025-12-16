@@ -46,6 +46,9 @@ class ThresholdPress(BasePress):
     decoding: bool = False
     scores_buffer: dict[int, torch.Tensor] = field(default_factory=dict, init=False, repr=False)
     compression_ratios: dict[int, float] = field(default_factory=dict, init=False, repr=False)
+    
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
 
     @property
     def compression_ratio(self):
