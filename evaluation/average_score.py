@@ -1,7 +1,7 @@
 import json
 
 # Load the metrics
-with open('results/ruler__4096__meta-llama--Meta-Llama-3.1-8B-Instruct__kvsquared__0.90__fraction0.010/26/metrics.json', 'r') as f:
+with open('results/ruler__4096__meta-llama--Meta-Llama-3.1-8B-Instruct__kvsquared__0.90__fraction0.010/44/metrics.json', 'r') as f:
     metrics = json.load(f)
 
 # Calculate average across all tasks

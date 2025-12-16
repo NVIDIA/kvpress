@@ -13,7 +13,11 @@ from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.keydiff_press import KeyDiffPress
 from kvpress.presses.kvzip_press import KVzipPress
+from kvpress.presses.random_press import RandomPress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.knorm_press import KnormPress
+from kvpress.presses.expected_attention_press import ExpectedAttentionPress
+from kvpress.presses.pyramidkv_press import PyramidKVPress
 from kvpress.utils import extract_keys_and_values, get_prerope_query_states
 
 logger = logging.getLogger(__name__)
@@ -50,7 +54,7 @@ class KVSquaredPress(KVzipPress):
     """
 
     inner_press: ScorerPress = field(default_factory=lambda: KeyDiffPress())
-    query_compression_ratio: float = 0.8
+    query_compression_ratio: float = 0.98
 
     def __post_init__(self):
         super().__post_init__()
@@ -110,6 +114,9 @@ class KVSquaredPress(KVzipPress):
         """Execute per-chunk: Stage 1 (Score + Select) -> Stage 2 (Reconstruction) -> Compression."""
         self.context_length = self._context_ids.shape[1]
 
+        # Move context_ids to GPU once (avoid repeated device transfers)
+        self._context_ids = self._context_ids.to(model.device)
+
         # Use parent's prepare to get chunk boundaries
         chunked_context_pairs = super().prepare(model, tokenizer)
 
@@ -129,22 +136,22 @@ class KVSquaredPress(KVzipPress):
             self._current_chunk_end = chunk_end
             self._current_selected_positions = selected_positions
 
-            # Build repeat_ids using only selected tokens
-            selected_ids = self._context_ids[:, selected_positions.to("cpu")].to("cpu")
-            # repeat_ids structure: [prompt_tokens, suffix_tokens, chunk_tokens]
-            prompt_suffix_len = repeat_ids.shape[1] - prefill_ids.shape[1]
-            selected_repeat_ids = torch.cat(
-                [repeat_ids[:, :prompt_suffix_len], selected_ids], dim=1
-            )
+            # Stage 2: Pass only selected tokens (no prompt/suffix needed)
+            # HF assigns contiguous positions [past_len, past_len+1, ..., past_len+q_len-1]
+            # which matches our keys[:, :, -q_len:] in score_kvzip
+            pos = selected_positions.to(self._context_ids.device)
+            selected_ids = self._context_ids.index_select(1, pos)  # (bsz, q_len)
 
             logger.debug(f"[KV²] Chunk [{chunk_start}:{chunk_end}] -> {len(selected_positions)} queries")
 
-            # Stage 2: Reconstruction pass with selected tokens only
-            model(
-                input_ids=selected_repeat_ids.to(model.device),
-                past_key_values=self._cache,
-                num_logits_to_keep=1,
-            )
+            # Stage 2: Reconstruction pass with selected tokens only (contiguous positions)
+            with torch.inference_mode():
+                model(
+                    input_ids=selected_ids,
+                    past_key_values=self._cache,
+                    use_cache=True,
+                    num_logits_to_keep=1,
+                )
 
             self.start_idx = chunk_end
 
