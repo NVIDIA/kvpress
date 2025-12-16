@@ -218,6 +218,25 @@ class KVzipPress(BasePress):
 
         return chunked_input_ids
 
+    def _init_score_val(self, model: PreTrainedModel):
+        """
+        Initialize `self.score_val` for KVzip-style scoring.
+
+        Note: this assumes `self.context_length` is already set and we only support batch size 1,
+        consistent with the existing KVzip implementation.
+        """
+        self.score_val = torch.zeros(
+            (
+                model.config.num_hidden_layers,
+                1,
+                model.config.num_key_value_heads,
+                self.context_length,
+            ),
+            dtype=model.dtype,
+            device=model.device,
+        )
+        self.score_val[..., : self.n_sink] = 1.0
+
     def prepare(
         self,
         model: PreTrainedModel,
@@ -231,17 +250,7 @@ class KVzipPress(BasePress):
         ctx_ids = self._context_ids[:, self.prefix_length :].to("cpu")
 
         # initialize score values
-        self.score_val = torch.zeros(
-            (
-                model.config.num_hidden_layers,
-                1,
-                model.config.num_key_value_heads,
-                self.context_length,
-            ),  # only support batch size of 1
-            dtype=model.dtype,
-            device=model.device,
-        )
-        self.score_val[..., : self.n_sink] = 1.0
+        self._init_score_val(model)
 
         chunked_context_pairs = []
         chunked_input_ids = self._chunk_fn(ctx_ids, chunk_size)
