@@ -14,6 +14,9 @@ from kvpress import KVzapPress, ThresholdPress
 
 
 def calculate_metrics(df):
+    """
+    Calculate metrics for the AIME25 benchmark.
+    """
     correct = 0
     answered = 0
     for _, row in df.iterrows():
@@ -35,15 +38,21 @@ def evaluate(
     device: str = "cuda:0",
     max_new_tokens: int = 32000,
 ):
-    """
-    Evaluate KVzap on the AIME25 benchmark.
+    """Evaluate KVzap on the AIME25 benchmark using model.generate instead of the 
+    KVpress pipeline in order to use sampling parameters and not greedy decoding.
 
-    Args:
-        model_type: Model type - "mlp", "linear", or "no_press"
-        threshold: Threshold for KVzap scores
-        model_name: HuggingFace model name
-        device: Device to use
-        max_new_tokens: Maximum number of tokens to generate
+    Parameters
+    ----------
+    kvzap_model_type : str
+        Model type - "mlp", "linear", or "no_press"
+    threshold : float, optional
+        Threshold for KVzap scores, by default 0.0
+    model_name : str, optional
+        HuggingFace model name, by default "Qwen/Qwen3-8B"
+    device : str, optional
+        Device to use, by default "cuda:0"
+    max_new_tokens : int, optional
+        Maximum number of tokens to generate, by default 32000
     """
 
     # Create press
