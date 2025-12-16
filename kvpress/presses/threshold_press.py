@@ -46,7 +46,7 @@ class ThresholdPress(BasePress):
     decoding: bool = False
     scores_buffer: dict[int, torch.Tensor] = field(default_factory=dict, init=False, repr=False)
     compression_ratios: dict[int, float] = field(default_factory=dict, init=False, repr=False)
-    
+
     def post_init_from_model(self, model):
         self.press.post_init_from_model(model)
 
@@ -68,8 +68,11 @@ class ThresholdPress(BasePress):
         cache_len = kwargs["cache_position"][-1] + 1
         prefilling = cache_len == q_len
 
+        # Extract layer index as int for type safety
+        layer_idx: int = module.layer_idx  # type: ignore[assignment]
+
         # Reset the scores buffer and compression ratios if we are in prefilling
-        if prefilling and (module.layer_idx == 0):
+        if prefilling and (layer_idx == 0):
             self.scores_buffer.clear()
             self.compression_ratios.clear()
 
@@ -78,21 +81,21 @@ class ThresholdPress(BasePress):
             return output
 
         # Compute importance scores for the new tokens using the underlying scorer press
-        keys, values = extract_keys_and_values(cache, module.layer_idx)
+        keys, values = extract_keys_and_values(cache, layer_idx)
         scores = self.press.score(module, hidden_states, keys[:, :, -q_len:], values[:, :, -q_len:], None, kwargs)
 
         # Accumulate scores in the buffer: reset during prefill, append during decoding
         if prefilling:
-            self.scores_buffer[module.layer_idx] = scores
+            self.scores_buffer[layer_idx] = scores
         else:
-            self.scores_buffer[module.layer_idx] = torch.cat([self.scores_buffer[module.layer_idx], scores], dim=-1)
+            self.scores_buffer[layer_idx] = torch.cat([self.scores_buffer[layer_idx], scores], dim=-1)
 
         # Once the buffer exceeds the sliding window, evict tokens with low scores
-        if self.scores_buffer[module.layer_idx].shape[-1] > self.sliding_window_size:
+        if self.scores_buffer[layer_idx].shape[-1] > self.sliding_window_size:
             # Determine how many tokens have left the sliding window and can be evicted
-            n_to_evict = self.scores_buffer[module.layer_idx].shape[-1] - self.sliding_window_size
-            scores_to_evict = self.scores_buffer[module.layer_idx][..., :n_to_evict]
-            self.scores_buffer[module.layer_idx] = self.scores_buffer[module.layer_idx][..., n_to_evict:]
+            n_to_evict = self.scores_buffer[layer_idx].shape[-1] - self.sliding_window_size
+            scores_to_evict = self.scores_buffer[layer_idx][..., :n_to_evict]
+            self.scores_buffer[layer_idx] = self.scores_buffer[layer_idx][..., n_to_evict:]
 
             # Find tokens below threshold: returns (batch_idx, head_idx, token_idx) tuples
             new_masked_key_indices = list(torch.where(scores_to_evict < self.threshold))
@@ -114,9 +117,9 @@ class ThresholdPress(BasePress):
         # Track compression ratio as the fraction of masked tokens
         if module.masked_key_indices is not None:
             bsz, num_key_value_heads, cache_len, _ = keys.shape
-            n_masked = len(module.masked_key_indices[0])  # type: ignore[arg-type]
-            self.compression_ratios[module.layer_idx] = n_masked / (bsz * num_key_value_heads * cache_len)
+            n_masked = len(module.masked_key_indices[0])  # type: ignore[index]
+            self.compression_ratios[layer_idx] = n_masked / (bsz * num_key_value_heads * cache_len)
         else:
-            self.compression_ratios[module.layer_idx] = 0
+            self.compression_ratios[layer_idx] = 0
 
         return output

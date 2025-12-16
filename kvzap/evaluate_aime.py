@@ -47,6 +47,7 @@ def evaluate(
     """
 
     # Create press
+    press: ThresholdPress | type[nullcontext[None]]
     if kvzap_model_type == "no_press":
         press = nullcontext
     else:
@@ -76,10 +77,10 @@ def evaluate(
             )
             answer = tokenizer.decode(output_tokens[0, tokens.shape[1] :])
             df.loc[idx, "predicted_answer"] = answer
-            if press == nullcontext:
-                df.loc[idx, "compression_ratio"] = 0
-            else:
+            if isinstance(press, ThresholdPress):
                 df.loc[idx, "compression_ratio"] = press.compression_ratio
+            else:
+                df.loc[idx, "compression_ratio"] = 0
 
     # Save results in a new directory
     dir_id = uuid.uuid4().hex
