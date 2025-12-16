@@ -47,8 +47,8 @@ class KVzapModel(PreTrainedModel):
 @dataclass
 class KVzapPress(ScorerPress):
     """
-    KVzap approximates KVzip+ (an improved version of KVzip) by training a small auxiliary
-    model on top of the hidden states (see train_kvzap.py).
+    KVzap approximates KVzip+ (an improved version of KVzip) by training a
+    lightweight auxiliary model on top of the hidden states.
     The KVzapPress is designed to be used in conjunction with the ThresholdPress
     model_type can be "linear" or "mlp".
     """

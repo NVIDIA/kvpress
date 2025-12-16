@@ -23,7 +23,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.llama.modeling_llama import repeat_kv
 from datasets import load_dataset
 
-from kvpress.presses.kvzap.kvzap_press import KVzapModel, KVzapConfig
+from kvpress.presses.kvzap_press import KVzapModel, KVzapConfig
 
 # Global variables used for forward hook communication
 DATA: list = []
