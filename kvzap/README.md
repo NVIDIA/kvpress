@@ -2,85 +2,38 @@
 
 [![KVzap collection](https://img.shields.io/badge/🤗%20Hugging%20Face-Collection-orange)](https://huggingface.co/collections/nvidia/kvzap)
 
-KVzap approximates KVzip+ (an improved version of [KVzip](https://arxiv.org/abs/2505.23416)) by training a lightweight auxiliary model on top of the hidden states.
-
-## Directory Contents
-
-- `train.py`: Training script for the KVzap auxiliary model (Linear or MLP)
-- `evaluate_aime.py`: Evaluation script for KVzap on the AIME25 benchmark
+KVzap approximates KVzip+ (an improved version of [KVzip](https://arxiv.org/abs/2505.23416)) by training a lightweight surrogate model on top of the hidden states.
 
 ## Training
 
-The training script extracts KVzip+ scores from text samples and trains either a linear or MLP model to predict these scores from hidden states.
+Training uses the [Nemotron-Pretraining-Dataset-sample](https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Dataset-sample) to extract KVzip+ scores and train surrogate models. Pre-trained models are available in the [KVzap collection](https://huggingface.co/collections/nvidia/kvzap).
 
-### Requirements
-
-Install additional dependencies:
+To reproduce the training, you can use the following command:
 
 ```bash
 pip install skorch scikit-learn
+python train.py --model_name <model_name> --output_dir <output_dir>
 ```
 
-### Usage
-
-```bash
-python train.py \
-    --model_name <model_name> \
-    --output_dir <output_dir> \
-    --device cuda:0
-```
-
-#### Arguments
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--model_name` | HuggingFace model name | (required) |
-| `--output_dir` | Directory to save trained models | (required) |
-| `--device` | Device to use | `cuda:0` |
-| `--min_tokens` | Minimum tokens per sample | `750` |
-| `--max_tokens` | Maximum tokens per sample | `1250` |
-| `--n_train_per_subset` | Training samples per subset | `500` |
-| `--n_test_per_subset` | Test samples per subset | `5` |
-| `--n_tokens` | Tokens to sample per text | `500` |
-| `--hidden_dim` | MLP hidden dimension | `512` |
-| `--max_epochs` | Training epochs | `15` |
-| `--lr` | Learning rate | `5e-3` |
-| `--batch_size` | Batch size | `512` |
+Run `python train.py --help` for all options.
 
 ## Evaluation on AIME25
 
-The evaluation script tests KVzap compression on the AIME25 mathematical reasoning benchmark.
-
-### Usage
+This script evaluates KVzap on the AIME25 benchmark using `model.generate` directly - instead of the kvpress pipeline - to enable sampling-based decoding rather than greedy decoding.
 
 ```bash
-python evaluate_aime.py mlp --threshold 0.0 --model_name Qwen/Qwen3-8B --device cuda:0
+python evaluate_aime.py mlp --threshold -4 --model_name Qwen/Qwen3-8B
 ```
 
-#### Arguments
+## Usage
 
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `kvzap_model_type` | Model type: `mlp`, `linear`, or `no_press` | (required) |
-| `--threshold` | Threshold for KVzap scores | `0.0` |
-| `--model_name` | Model to evaluate | `Qwen/Qwen3-8B` |
-| `--device` | Device to use | `cuda:0` |
-| `--max_new_tokens` | Maximum generation tokens | `32000` |
-
-## Using KVzapPress
+KVzap is designed to be used in conjunction with the `ThresholdPress` from kvpress. You can use the following code to compress the KV cache during inference:
 
 ```python
 from kvpress import KVzapPress, ThresholdPress
 
-# Create press with MLP model
-press = ThresholdPress(
-    KVzapPress(model_type="mlp"),
-    threshold=-3,
-    decoding=True,
-)
+press = ThresholdPress(KVzapPress(model_type="mlp"), threshold=-4, decoding=True)
 
-# Use with model
 with press(model):
     output = model.generate(input_ids)
 ```
-

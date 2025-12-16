@@ -38,7 +38,7 @@ def evaluate(
     device: str = "cuda:0",
     max_new_tokens: int = 32000,
 ):
-    """Evaluate KVzap on the AIME25 benchmark using model.generate instead of the 
+    """Evaluate KVzap on the AIME25 benchmark using model.generate instead of the
     KVpress pipeline in order to use sampling parameters and not greedy decoding.
 
     Parameters
