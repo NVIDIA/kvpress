@@ -185,8 +185,9 @@ def train(
 
     # Load model and tokenizer
     print(f"Loading model {model_name} and tokenizer")
-    model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.bfloat16, attn_implementation="eager")
-    model.to(device)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, dtype="auto", device_map="auto", attn_implementation="eager"
+    )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Load dataset
