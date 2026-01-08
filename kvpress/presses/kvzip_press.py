@@ -43,14 +43,11 @@ class KVzipPress(BasePress):
         each layer has a different compression ratio.
     n_sink : int, default=4
         Number of initial tokens to preserve as attention sinks.
-    kvzip_plus_normalization: bool, default=False
-        Whether to enable KVzip+ normalization.
     """
 
     compression_ratio: float = 0.0
     layerwise: bool = False
     n_sink: int = 4
-    kvzip_plus_normalization: bool = False
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
@@ -279,7 +276,6 @@ class KVzipPress(BasePress):
         elif self.causal_mask_score.size(-1) != window_size:
             self._make_mask(attn_weights, window_size)
 
-        self.causal_mask_score = self.causal_mask_score.to(attn_weights.device)
         attn_weights[..., -window_size:, -window_size:] += self.causal_mask_score
 
     def score_kvzip(
@@ -329,22 +325,6 @@ class KVzipPress(BasePress):
         self._mask_causal(attn_weights, q_len)
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
-        if self.kvzip_plus_normalization:
-            # Divide by ||h|| (by row)
-            h_norm = torch.norm(hidden_states, dim=-1)
-            attn_weights = torch.einsum("b h g t i, b t -> b h g t i", attn_weights, 1 / h_norm)
-
-            # Multiply by ||WoV|| (by column)
-            Wo = module.o_proj.weight.transpose(0, 1)
-            Wo = Wo.view(num_heads_kv, num_key_value_groups, module.head_dim, module.config.hidden_size)
-            values_subsampled = torch.cat(
-                [values[:, :, :sink], values[:, :, self.start_idx : self.end_idx], values[:, :, -q_len:]], dim=2
-            )
-            values_subsampled = values_subsampled.unsqueeze(2).transpose(-2, -1).contiguous()
-            V = values_subsampled.repeat_interleave(module.num_key_value_groups, axis=2)
-            WoV_norm = torch.einsum("h g i j, b h g i t -> b h g t j", Wo, V).norm(dim=-1)
-            attn_weights = torch.einsum("b h g i t, b h g t -> b h g i t", attn_weights, WoV_norm)
-
         attn_weights = attn_weights[..., sink : sink + ctx_len]
         scores = attn_weights.amax(dim=(-3, -2))  # max over group, q
 
@@ -386,8 +366,8 @@ class KVzipPress(BasePress):
                 scores = self.score_val[layer_idx]
 
                 # Compute bottom-k across heads
-                n_pruned = n_pruned_layers[layer_idx].cpu()
-                indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten().cpu()
+                n_pruned = n_pruned_layers[layer_idx]
+                indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
 
                 # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for details
                 batch_indices = torch.arange(bsz, device=n_pruned.device).repeat_interleave(n_pruned)
