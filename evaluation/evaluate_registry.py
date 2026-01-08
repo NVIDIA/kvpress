@@ -82,6 +82,7 @@ PRESS_REGISTRY = {
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
     "kvzip": KVzipPress(),
+    "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "pyramidkv": PyramidKVPress(),

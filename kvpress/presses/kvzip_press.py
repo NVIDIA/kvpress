@@ -10,7 +10,7 @@ from typing import Generator, List
 
 import torch
 from torch import nn
-from transformers import AutoTokenizer, Gemma3ForCausalLM, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
+from transformers import AutoTokenizer, Gemma3ForConditionalGeneration, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
@@ -87,8 +87,8 @@ class KVzipPress(BasePress):
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
-        if isinstance(model, Gemma3ForCausalLM):
-            logger.warning("Compression in Gemma3 is only applied to layer without sliding window attention")
+        if isinstance(model, Gemma3ForConditionalGeneration):
+            raise ValueError("KVzipPress is not supported for Gemma3ForCausalLM")
 
         # Store model reference for later use
         tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
@@ -133,8 +133,6 @@ class KVzipPress(BasePress):
             if self.compression_ratio > 0 and self._context_ids is not None:
                 # Now register attention hooks for compression
                 for layer in model.model.layers:
-                    if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
-                        continue
                     layer.self_attn.rotary_emb = model.model.rotary_emb
                     hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
 
@@ -375,9 +373,6 @@ class KVzipPress(BasePress):
                 n_pruned_layers = (self.score_val.reshape(n_layer, -1) <= thres).sum(-1)  # n_prune
 
             for layer in model.model.layers:
-                if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
-                    # Skip layers with sliding window attention, only for Gemma3
-                    continue
                 module = layer.self_attn
                 layer_idx = int(module.layer_idx)
 
