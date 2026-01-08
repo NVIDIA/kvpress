@@ -190,9 +190,9 @@ def train(
     print(f"Loading model {model_name} and tokenizer")
     quantization_config = FineGrainedFP8Config() if fp8 else None
     model = AutoModelForCausalLM.from_pretrained(
-            model_name, dtype="auto", 
-            device_map="auto", 
-            attn_implementation="eager", 
+            model_name, dtype="auto",
+            device_map="auto",
+            attn_implementation="eager",
             quantization_config=quantization_config,
         )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
