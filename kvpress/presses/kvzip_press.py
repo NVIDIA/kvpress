@@ -10,7 +10,7 @@ from typing import Generator, List
 
 import torch
 from torch import nn
-from transformers import AutoTokenizer, Gemma3ForConditionalGeneration, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
+from transformers import AutoTokenizer, Gemma3PreTrainedModel, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
@@ -87,7 +87,7 @@ class KVzipPress(BasePress):
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
-        if isinstance(model, Gemma3ForConditionalGeneration):
+        if isinstance(model, Gemma3PreTrainedModel):
             raise ValueError("KVzipPress is not supported for Gemma3ForCausalLM")
 
         # Store model reference for later use
