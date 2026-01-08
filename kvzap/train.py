@@ -26,7 +26,7 @@ try:
 except:  # noqa: E722
     raise RuntimeError("skorch or scikit-learn is not installed. Please install them with `pip install skorch`")
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, FineGrainedFP8Config
 
 from kvpress.presses.kvzap_press import KVzapModel, KVzapConfig
 from kvzap.data import load_nemotron_dataset, KVzapDataCollector
@@ -139,6 +139,7 @@ def train(
     max_epochs: int = 15,
     lr: float = 5e-3,
     batch_size: int = 512,
+    fp8: bool = False,
 ):
     """
     Train KVzap models (MLP and linear) for a given language model.
@@ -157,7 +158,7 @@ def train(
     output_dir : str
         Directory to save trained models and predictions
     device : str, optional
-        Device to use for training, by default "cuda:0"
+        Device to use for training the MLP, by default "cuda:0"
     min_tokens : int, optional
         Minimum tokens per sample, by default 750
     max_tokens : int, optional
@@ -176,6 +177,8 @@ def train(
         Learning rate for MLP training, by default 5e-3
     batch_size : int, optional
         Batch size for MLP training, by default 512
+    fp8 : bool, optional
+        Whether to use FP8 quantization to run the model, by default False
     """
     # Verify input parameters
     assert n_tokens < min_tokens, "n_tokens must be less than min_tokens"
@@ -185,9 +188,10 @@ def train(
 
     # Load model and tokenizer
     print(f"Loading model {model_name} and tokenizer")
+    quantization_config = FineGrainedFP8Config() if fp8 else None
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, dtype="auto", device_map="auto", attn_implementation="eager"
-    )
+            model_name, dtype="auto", device_map="auto", attn_implementation="eager", quantization_config=quantization_config,
+        )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Load dataset

@@ -196,7 +196,7 @@ class KVzapDataCollector:
         Wo = module.o_proj.weight.transpose(0, 1)
         Wo = Wo.view(module.config.num_attention_heads, module.head_dim, module.config.hidden_size)
         V = repeat_kv(values, module.num_key_value_groups)
-        WoV_norm = torch.einsum("h i j, b h t i -> b h t j", Wo, V).norm(dim=-1)
+        WoV_norm = torch.einsum("h i j, b h t i -> b h t j", Wo.to(dtype=V.dtype), V).norm(dim=-1)
         scores = torch.einsum("b h t i, b h i -> b h t i", scores, WoV_norm)
 
         # Get max for each prompt across the repeated prompt tokens and the KV groups
