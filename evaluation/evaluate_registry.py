@@ -85,7 +85,6 @@ PRESS_REGISTRY = {
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
     "kvzip": KVzipPress(),
-    "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
     "kvzap_linear": ThresholdPress(press=KVzapPress(model_type="linear")),
     "kvzap_mlp": ThresholdPress(press=KVzapPress(model_type="mlp")),
     "kvzap_mlp_head": KVzapPress(model_type="mlp"),
