@@ -33,6 +33,8 @@ eval = [
     "tqdm>=4.66.4,<5",
     "scipy>=1.13.1,<2",
     "bert-score>=0.3.13,<0.4",
+    "jieba>=0.42.1,<0.43",
+    "fuzzywuzzy>=0.18.0,<0.19",
 ]
 flash-attn = [
     "flash-attn"
