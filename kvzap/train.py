@@ -127,19 +127,19 @@ def train_linear(X: torch.Tensor, y: torch.Tensor) -> KVzapModel:
 def train(
     model_name: str,
     output_dir: str,
-    device: str = "cuda:0",
     # Dataset parameters
     min_tokens: int = 750,
     max_tokens: int = 1250,
     n_train_per_subset: int = 500,
     n_test_per_subset: int = 5,
     n_tokens: int = 500,
+    fp8: bool = False,
     # MLP training parameters
     hidden_dim: int = 512,
     max_epochs: int = 15,
     lr: float = 5e-3,
     batch_size: int = 512,
-    fp8: bool = False,
+    device: str = "cuda:0",
 ):
     """
     Train KVzap models (MLP and linear) for a given language model.
@@ -157,8 +157,6 @@ def train(
         HuggingFace model name (e.g., "Qwen/Qwen3-8B")
     output_dir : str
         Directory to save trained models and predictions
-    device : str, optional
-        Device to use for training the MLP, by default "cuda:0"
     min_tokens : int, optional
         Minimum tokens per sample, by default 750
     max_tokens : int, optional
@@ -169,6 +167,8 @@ def train(
         Test samples per dataset subset, by default 5
     n_tokens : int, optional
         Tokens to sample per text sample, by default 500
+    fp8 : bool, optional
+        Whether to use FP8 quantization to run the model, by default False
     hidden_dim : int, optional
         Hidden dimension for MLP model, by default 512
     max_epochs : int, optional
@@ -177,8 +177,8 @@ def train(
         Learning rate for MLP training, by default 5e-3
     batch_size : int, optional
         Batch size for MLP training, by default 512
-    fp8 : bool, optional
-        Whether to use FP8 quantization to run the model, by default False
+    device : str, optional
+        Device to use for training the MLP, by default "cuda:0"
     """
     # Verify input parameters
     assert n_tokens < min_tokens, "n_tokens must be less than min_tokens"
