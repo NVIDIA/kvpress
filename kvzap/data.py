@@ -16,6 +16,7 @@ from datasets import load_dataset
 from tqdm.auto import tqdm
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 from transformers.models.llama.modeling_llama import repeat_kv
+from transformers.integrations.finegrained_fp8 import FP8Linear
 
 
 def load_nemotron_dataset(
@@ -194,8 +195,13 @@ class KVzapDataCollector:
 
         # Multiply by ||WoV|| (by column)
         Wo = module.o_proj.weight.transpose(0, 1)
-        Wo = Wo.view(module.config.num_attention_heads, module.head_dim, module.config.hidden_size)
         V = repeat_kv(values, module.num_key_value_groups)
+        if isinstance(module.o_proj, FP8Linear):
+            scale = module.o_proj.weight_scale_inv.to(V.dtype).transpose(0, 1)
+            scale = scale.repeat_interleave(module.o_proj.block_size[0], dim=0)
+            scale = scale.repeat_interleave(module.o_proj.block_size[1], dim=1)
+            Wo = Wo.to(V.dtype) * scale
+        Wo = Wo.view(module.config.num_attention_heads, module.head_dim, module.config.hidden_size)
         WoV_norm = torch.einsum("h i j, b h t i -> b h t j", Wo.to(dtype=V.dtype), V).norm(dim=-1)
         scores = torch.einsum("b h t i, b h i -> b h t i", scores, WoV_norm)
 

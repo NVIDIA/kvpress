@@ -19,6 +19,7 @@ query_aware: false                                # Whether to include question 
 needle_depth: null                                # Depth (int or list of ints) percentage of the needle in the haystack (0 to 100), only for needle_in_haystack dataset
 
 device: null  # Device to use (null = auto-detect, "cuda:0", "cpu", etc.)
+fp8: false    # Whether to use FP8 quantization (FineGrainedFP8Config() from transformers)
 
 # You can add any model kwargs here.
 model_kwargs:

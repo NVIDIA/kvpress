@@ -18,7 +18,7 @@ from datasets import load_dataset
 from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
 from tqdm import tqdm
-from transformers import Pipeline, pipeline
+from transformers import FineGrainedFP8Config, Pipeline, pipeline
 
 from kvpress import (
     ComposedPress,
@@ -72,6 +72,9 @@ class EvaluationConfig:
 
     # For reproducibility
     seed: int = 42
+
+    # Quantization
+    fp8: bool = False
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -350,6 +353,11 @@ class EvaluationRunner:
             logger.info(f"No device specified, auto-detected device: {device}")
 
         model_kwargs = self.config.model_kwargs or {}
+
+        if self.config.fp8:
+            model_kwargs["quantization_config"] = FineGrainedFP8Config()
+            logger.info("FP8 quantization enabled.")
+
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
