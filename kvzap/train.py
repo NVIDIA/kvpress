@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -17,14 +17,9 @@ from tqdm.auto import tqdm
 import torch
 from torch import nn
 
-try:
-    from skorch import NeuralNetRegressor
-    from skorch.callbacks import LRScheduler, GradientNormClipping
-    from skorch.dataset import ValidSplit
-
-    from sklearn.linear_model import Ridge
-except:  # noqa: E722
-    raise RuntimeError("skorch or scikit-learn is not installed. Please install them with `pip install skorch`")
+from skorch import NeuralNetRegressor
+from skorch.callbacks import LRScheduler, GradientNormClipping
+from skorch.dataset import ValidSplit
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, FineGrainedFP8Config
 

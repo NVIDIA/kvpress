@@ -131,7 +131,7 @@ Several presses inherit from `ScorerPress` ([source](kvpress/presses/scorer_pres
 - `LeverageScorePress` ([source](kvpress/presses/leverage_press.py), [paper](https://arxiv.org/abs/2507.08143)): evicts tokens based on approximate statistical leverage (i.e we preserve outliers in the key space).
 - `CompactorPress` ([source](kvpress/presses/compactor_press.py), [paper](https://arxiv.org/abs/2507.08143)): blends `NonCausalAttnPress` and `LeverageScorePress` based on the compression_ratio.
 - `CURPress` ([source](kvpress/presses/cur_press.py), [paper](https://arxiv.org/abs/2509.15038)): prune keys and values based on the CUR decomposition using approximate leverage scores.
-- `KVzapPress` ([source](kvpress/presses/kvzap/kvzap_press.py), paper coming soon): approximate KVzip+ using a fast surrogate model. To be used in conjunction with the `ThresholdPress`.
+- `KVzapPress` ([source](kvpress/presses/kvzap/kvzap_press.py), [paper](), [training](kvzap/README.md)): approximate KVzip+ using a fast surrogate model. To be used in conjunction with the `ThresholdPress`.
 
 Some presses rely on a different logic:
 - `ThinKPress` ([source](kvpress/presses/think_press.py), [paper](https://arxiv.org/pdf/2407.21018)): compress the dimensions of the keys based on the channel attention score on the last queries 

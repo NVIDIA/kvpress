@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass, field
@@ -54,7 +54,7 @@ class KVzapPress(ScorerPress):
     """
 
     model_type: Literal["linear", "mlp"] = "mlp"
-    kvzap_model_name: str = field(default_factory=lambda: None, init=False)
+    kvzap_model_name: Optional[str] = field(default=None, init=False)
 
     def post_init_from_model(self, model):
         kvzap_model_name = f"nvidia/KVzap-{self.model_type}-{model.config.name_or_path.split('/')[-1]}"
@@ -62,7 +62,15 @@ class KVzapPress(ScorerPress):
             self.kvzap_model_name = kvzap_model_name
             self.kvzap_model = KVzapModel.from_pretrained(self.kvzap_model_name)
 
-    def score(self, module, hidden_states, keys, values, attentions, kwargs):
+    def score(
+        self,
+        module: nn.Module,
+        hidden_states: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        attentions: torch.Tensor,
+        kwargs: dict,
+    ) -> torch.Tensor:
         module = self.kvzap_model.layers[module.layer_idx]
         module = module.to(hidden_states.device, dtype=hidden_states.dtype).eval()
         with torch.no_grad():

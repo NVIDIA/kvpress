@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass, field
@@ -18,7 +18,7 @@ class ThresholdPress(BasePress):
     Wraps a ScorerPress and evicts keys/values with scores below a given threshold.
 
     Unlike most presses that use a fixed compression_ratio, ThresholdPress uses a score threshold
-    to determine which KV paris to evict. This allows for adaptive compression where the actual
+    to determine which KV pairs to evict. This allows for adaptive compression where the actual
     compression ratio depends on the input content.
 
     Importantly, this press can be used both during prefilling and during decoding (if decoding=True).

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Script to run the leaderboard evaluation on 4 GPUs
 dataset="ruler"
 data_dir="4096"
@@ -29,9 +32,9 @@ done
 # Loop 2: presses requiring to compress questions
 press_names=("snapkv" "adakv_snapkv" "finch" "chunkkv")
 for press in "${press_names[@]}"; do  
-    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.25  --output_dir $output_dir --device "cuda:0" --compress_questions &
-    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.50  --output_dir $output_dir --device "cuda:1" --compress_questions &
-    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.75  --output_dir $output_dir --device "cuda:2" --compress_questions &
-    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.875 --output_dir $output_dir --device "cuda:3" --compress_questions &
+    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.25  --output_dir $output_dir --device "cuda:0" --query_aware &
+    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.50  --output_dir $output_dir --device "cuda:1" --query_aware &
+    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.75  --output_dir $output_dir --device "cuda:2" --query_aware &
+    python evaluate.py --dataset $dataset --data_dir $data_dir --model $model --press_name $press --compression_ratio 0.875 --output_dir $output_dir --device "cuda:3" --query_aware &
     wait
 done
