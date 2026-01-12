@@ -20,6 +20,7 @@ from torch import nn
 from skorch import NeuralNetRegressor
 from skorch.callbacks import LRScheduler, GradientNormClipping
 from skorch.dataset import ValidSplit
+from sklearn.linear_model import Ridge
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, FineGrainedFP8Config
 
