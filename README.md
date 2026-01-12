@@ -166,11 +166,6 @@ Please refer to the [evaluation](evaluation/README.md) directory in this repo fo
 
 Below we report the average performance on the RULER dataset with 4k context length for different presses, from our [![Hugging Face Leaderboard](https://img.shields.io/badge/🤗%20HuggingFace-Leaderboard-orange)](https://huggingface.co/spaces/nvidia/kvpress-leaderboard)
 
-<p>
-  <img src="leaderboard_plot_score.png" alt="Leaderboard">
-</p>
-
-
 ## Quantization
 
 We support KV cache quantization through the transformers `QuantizedCache` class (see [HF blog post](https://huggingface.co/blog/kv-cache-quantization#how-to-use-quantized-kv-cache-in-%F0%9F%A4%97-transformers)). To use it, simply pass a cache object to your pipeline:
