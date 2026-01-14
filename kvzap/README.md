@@ -10,15 +10,29 @@
 KVzap is designed to be used by combining the `KVzapPress` and the `ThresholdPress` from kvpress:
 
 ```python
+import requests
+from transformers import pipeline
 from kvpress import KVzapPress, ThresholdPress
 
-press = ThresholdPress(KVzapPress(model_type="mlp"), threshold=-4, decoding=True)
+model = "Qwen/Qwen3-8B"
+pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", dtype="auto")
+press = ThresholdPress(KVzapPress(model_type="mlp"), threshold=-4)
 
-with press(model):
-    outputs = model.generate(inputs)
+# Prefilling compression only, thinking disabled
+press.decoding = False
+context = requests.get("https://arxiv.org/abs/2601.07891").text
+question = "\n What is this article about in 2 sentences ?"
+answer = pipe(context, question=question, press=press)["answer"]
+print(f"Compression ratio: {press.compression_ratio:.2%}\nAnswer: {answer}")
 
-print(press.compression_ratio)
+# Prefilling and decoding compression, thinking enabled
+press.decoding = True
+prompt = "What is the best hardware to run LLMs and why ?"
+answer = pipe(prompt, press=press, enable_thinking=True, max_new_tokens=2000)["answer"]
+print(f"Compression ratio: {press.compression_ratio:.2%}\nAnswer: {answer}")
 ```
+
+The `KVzapPress` inherits from the `ScorerPress` class and only predicts the scores for every KV pair. The `ThresholdPress` then prunes the KV pairs with a score below a given threshold, rather than using a fixed compression ratio.
 
 Supported base models are provided in the [KVzap collection](https://huggingface.co/collections/nvidia/kvzap) but can easily be extended to any other model following the instructions in the [training section](#training).
 

@@ -55,10 +55,8 @@ KVPress provides a set of "presses" that compress the KV cache during the prefil
 from transformers import pipeline
 from kvpress import ExpectedAttentionPress
 
-device = "cuda:0"
-model = "meta-llama/Llama-3.1-8B-Instruct"
-model_kwargs = {"attn_implementation": "flash_attention_2"}
-pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
+model = "Qwen/Qwen3-8B"
+pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", dtype="auto")
 
 context = "A very long text you want to compress once and for all"
 question = "\nA question about the compressed context"  # optional
@@ -72,7 +70,7 @@ In the snippet above, the compression is only applied on the context tokens so t
 <details><summary>
 Decoding Compression
 </summary>
-By default, KVPress applies compression during the pre-filling phase. As a new (experimental) feature, we now support decoding compression via the `DecodingPress` wrapper. `DecodingPress` compresses the KV cache periodically during token generation, optionally maintaining a buffer of recent hidden states. `DecodingPress` supports the following parameters:
+By default, KVPress applies compression during the prefilling phase. As a new (experimental) feature, we now support decoding compression via the `DecodingPress` wrapper. `DecodingPress` compresses the KV cache periodically during token generation, optionally maintaining a buffer of recent hidden states. `DecodingPress` supports the following parameters:
 
 - `base_press`: Any ScorerPress (e.g., `KNormPress`, `CriticalKVPress`)
 - `compression_interval`: Steps between compressions (default: 10)
@@ -123,7 +121,7 @@ Several presses inherit from `ScorerPress` ([source](kvpress/presses/scorer_pres
 - `ExpectedAttentionPress` ([source](kvpress/presses/expected_attention_press.py), [notebook](notebooks/expected_attention.ipynb)): expected attention weight during the generation phase 
 - `StreamingLLMPress` ([source](kvpress/presses/streaming_llm_press.py), [paper](https://arxiv.org/abs/2309.17453)): keep only the initial and recent tokens 
 - `TOVAPress` ([source](kvpress/presses/tova_press.py), [paper](https://arxiv.org/abs/2401.06104)): attention weight of the last query averaged across heads 
-- `ObservedAttentionPress` ([source](kvpress/presses/observed_attention_press.py), [paper](https://arxiv.org/abs/2306.14048)): average attention weight observed during in pre-filling phase
+- `ObservedAttentionPress` ([source](kvpress/presses/observed_attention_press.py), [paper](https://arxiv.org/abs/2306.14048)): average attention weight observed during in prefilling phase
 - `QFilterPress` ([source](kvpress/presses/qfilter_press.py), [paper](https://arxiv.org/abs/2503.02812)): project the Key representations on the main SVD component of the Query vectors to approximate the attention scores.
 - `PyramidKVPress` ([source](kvpress/presses/pyramidkv_press.py), [paper](https://arxiv.org/abs/2406.02069)): maintain pyramid-like cache sizes, allocating more cache budget to lower layers and less to higher layers
 - `LagKVPress` ([source](kvpress/presses/lagkv_press.py), [paper](https://arxiv.org/abs/2504.04704)): leverage on the KV lag-relative information to compress. It's query free, attention-weight free, and flash-attention compatible.
@@ -152,7 +150,7 @@ Finally we provide wrapper presses that can be combined with other presses:
 - `BlockPress` ([source](kvpress/presses/block_press.py), [paper](https://arxiv.org/abs/2504.15364)): segments input sequence into non-overlapping blocks and compresses iteratively.
 - `DecodingPress` ([source](kvpress/presses/decoding_press.py)): allows for compression during decoding, see decoding section in this README.
 - `PrefillDecodingPress` ([source](kvpress/presses/prefill_decoding_press.py)): allows to compress both during prefilling and during decoding.
-- `ThresholdPress` ([source](kvpress/presses/threshold_press.py)): evict keys and values with scores below a given threshold of any `ScorerPress` instead of relying on top-k scores.
+- `ThresholdPress` ([source](kvpress/presses/threshold_press.py)): evict keys and values with scores below a given threshold of any `ScorerPress` instead of relying on top-k scores. Support both prefilling and decoding (if decoding=True).
 
 For a detailed list of existing KV cache compression methods, check [Awesome-KV-Cache-Compression](https://github.com/October2001/Awesome-KV-Cache-Compression) or [Awesome-LLM-Compression](https://github.com/HuangOwen/Awesome-LLM-Compression?tab=readme-ov-file#kv-cache-compression)
 
@@ -240,7 +238,7 @@ Memory usage should be reduced by around `compression_ratio * kv_cache_size`. As
 
 ### How does a press work ? </summary>
 
-A press registers a forward hook (`press.forward_hook` method) to each attention layer during the pre-filling phase. Registration can be applied using the press as a context manager (`press.__call__` method):
+A press registers a forward hook (`press.forward_hook` method) to each attention layer during the prefilling phase. Registration can be applied using the press as a context manager (`press.__call__` method):
 
 ```python
 import torch
