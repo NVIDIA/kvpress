@@ -26,6 +26,7 @@ from kvpress import (
     FinchPress,
     KeyDiffPress,
     KnormPress,
+    KVzapPress,
     KVzipPress,
     ObservedAttentionPress,
     PyramidKVPress,
@@ -33,8 +34,11 @@ from kvpress import (
     RandomPress,
     SnapKVPress,
     StreamingLLMPress,
+    ThresholdPress,
     ThinKPress,
     TOVAPress,
+    CURPress,
+    LagKVPress,
 )
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
@@ -67,8 +71,6 @@ SCORER_REGISTRY = {
 
 
 PRESS_REGISTRY = {
-    "adakv_expected_attention": AdaKVPress(ExpectedAttentionPress()),
-    "adakv_expected_attention_e2": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
     "adakv_snapkv": AdaKVPress(SnapKVPress()),
     "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
@@ -76,13 +78,19 @@ PRESS_REGISTRY = {
     "critical_adakv_snapkv": CriticalAdaKVPress(SnapKVPress()),
     "critical_expected_attention": CriticalKVPress(ExpectedAttentionPress(use_vnorm=False)),
     "critical_snapkv": CriticalKVPress(SnapKVPress()),
+    "cur": CURPress(),
     "duo_attention": DuoAttentionPress(),
     "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
-    "expected_attention": ExpectedAttentionPress(),
+    "expected_attention": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
     "finch": FinchPress(),
     "keydiff": KeyDiffPress(),
     "kvzip": KVzipPress(),
     "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
+    "kvzap_linear": ThresholdPress(press=KVzapPress(model_type="linear")),
+    "kvzap_mlp": ThresholdPress(press=KVzapPress(model_type="mlp")),
+    "kvzap_mlp_head": KVzapPress(model_type="mlp"),
+    "kvzap_mlp_layer": AdaKVPress(KVzapPress(model_type="mlp")),
+    "lagkv": LagKVPress(),
     "knorm": KnormPress(),
     "observed_attention": ObservedAttentionPress(),
     "pyramidkv": PyramidKVPress(),

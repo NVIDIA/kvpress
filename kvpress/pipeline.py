@@ -16,6 +16,7 @@ from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
+from kvpress.presses.threshold_press import ThresholdPress
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         press: Optional[BasePress] = None,
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
+        enable_thinking: bool = False,
         cache: Optional[Cache] = None,
         **kwargs,
     ):
@@ -68,6 +70,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             The maximum number of new tokens to generate for each answer.
         max_context_length : int, optional
             The maximum number of tokens in the context. By default will use the maximum length supported by the model.
+        enable_thinking: bool = False,
+            Whether to enable thinking in the chat template (chat template must support this argument)
         cache : Cache, optional
             The cache to use for the forward pass. Defaults to None (DynamicCache).
         **kwargs : dict
@@ -92,6 +96,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             "questions": questions,
             "answer_prefix": answer_prefix,
             "max_context_length": max_context_length,
+            "enable_thinking": enable_thinking,
         }
         forward_kwargs = {"press": press, "max_new_tokens": max_new_tokens, "cache": cache}
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
@@ -102,6 +107,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         questions: list[str],
         answer_prefix: str,
         max_context_length: int,
+        enable_thinking: bool = False,
     ):
         """
         Apply chat template and tokenize the context and questions.
@@ -120,6 +126,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             Optional prefix for generated answers.
         max_context_length : int
             Maximum tokens allowed in context (truncated if exceeded).
+        enable_thinking : bool
+            Whether to enable thinking in the chat template (chat template must support this argument)
 
         Returns
         -------
@@ -138,7 +146,7 @@ class KVPressTextGenerationPipeline(Pipeline):
                 [{"role": "user", "content": context + separator}],
                 add_generation_prompt=True,
                 tokenize=False,
-                enable_thinking=False,
+                enable_thinking=enable_thinking,
             )
             context, question_suffix = context.split(separator)
 
@@ -216,6 +224,8 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # We only perform decoding compression if the press is a decoding or prefill decoding press
         perform_decoding_compression = press is not None and isinstance(press, (DecodingPress, PrefillDecodingPress))
+        if isinstance(press, ThresholdPress):
+            perform_decoding_compression = press.decoding
         with press(self.model) if perform_decoding_compression else contextlib.nullcontext():
             # Greedy decoding for each question
             answers = []

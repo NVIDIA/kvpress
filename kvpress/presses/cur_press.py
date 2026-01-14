@@ -25,7 +25,6 @@ class CURPress(ScorerPress):
     Finally, the first `num_sinks` tokens are set to 1.0 to preserve some initial "attention sinks".
     """
 
-    compression_ratio: float
     num_sinks: int = 4
     leverage_type: Literal["key", "value", "kv_avg", "kv_product"] = "kv_product"
     use_random_leverage: bool = False

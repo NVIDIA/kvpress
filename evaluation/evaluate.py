@@ -18,7 +18,7 @@ from datasets import load_dataset
 from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
 from tqdm import tqdm
-from transformers import Pipeline, pipeline
+from transformers import FineGrainedFP8Config, Pipeline, pipeline
 
 from kvpress import (
     ComposedPress,
@@ -28,6 +28,7 @@ from kvpress import (
     ObservedAttentionPress,
     ScorerPress,
     ThinKPress,
+    ThresholdPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class EvaluationConfig:
     press_name: str = "knorm"
     compression_ratio: float = 1.0
     key_channel_compression_ratio: Optional[float] = None
+    threshold: Optional[float] = None
 
     # Dataset and generation parameters
     fraction: float = 1.0
@@ -71,6 +73,9 @@ class EvaluationConfig:
     # For reproducibility
     seed: int = 42
 
+    # Quantization
+    fp8: bool = False
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         # Validate dataset
@@ -84,11 +89,6 @@ class EvaluationConfig:
             # override compression_ratio to 0.0
             logger.info("Using 'no_press' configuration. Overriding compression_ratio to 0.0")
             self.compression_ratio = 0.0
-
-        # Validate compression ratios
-        assert (
-            0.0 <= self.compression_ratio <= 1.0
-        ), f"compression_ratio must be between 0.0 and 1.0, got {self.compression_ratio}"
 
         # Only validate key_channel_compression_ratio if it's not None
         if self.key_channel_compression_ratio is not None:
@@ -115,8 +115,6 @@ class EvaluationConfig:
         ----------
         output_dir : Path
             The output directory path
-        press
-            The press instance to check for ThinKPress components
 
         Returns
         -------
@@ -132,6 +130,8 @@ class EvaluationConfig:
             f"{self.compression_ratio:.2f}",
         ]
 
+        if self.threshold is not None:
+            components[-1] = f"{self.threshold:.2f}"
         if self.fraction < 1.0:
             components.append(f"fraction{self.fraction:.3f}")
         if self.max_context_length is not None:
@@ -256,6 +256,10 @@ class EvaluationRunner:
         if isinstance(press, DuoAttentionPress):
             press.head_compression_ratio = compression_ratio
             logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
+        elif isinstance(press, ThresholdPress):
+            assert self.config.threshold is not None, "threshold must be set for ThresholdPress"
+            press.threshold = self.config.threshold
+            logger.info(f"Set ThresholdPress threshold to {press.threshold}")
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
@@ -349,6 +353,11 @@ class EvaluationRunner:
             logger.info(f"No device specified, auto-detected device: {device}")
 
         model_kwargs = self.config.model_kwargs or {}
+
+        if self.config.fp8:
+            model_kwargs["quantization_config"] = FineGrainedFP8Config()
+            logger.info("FP8 quantization enabled.")
+
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")

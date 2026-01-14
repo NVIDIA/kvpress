@@ -19,6 +19,7 @@ from kvpress import (
     DecodingPress,
     KnormPress,
     PrefillDecodingPress,
+    KVzapPress,
 )
 from tests.default_presses import default_presses
 
@@ -238,6 +239,10 @@ def test_all_presses_work_with_decoding_press(press_config):
     if isinstance(base_press, (CompactorPress, NonCausalAttnPress, LeverageScorePress)):
         # CompactorPress -> Meant for prefill scenario.
         logger.info(f"Press {press_cls.__name__} is not supported, skipping test")
+        return
+
+    if isinstance(base_press, KVzapPress):
+        logger.info(f"Press {press_cls.__name__} is not compatible with DecodingPress, skipping test")
         return
 
     # Create DecodingPress with this base press
