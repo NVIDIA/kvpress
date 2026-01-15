@@ -90,8 +90,10 @@ class KVzipPress(BasePress):
         if isinstance(model, Gemma3PreTrainedModel):
             raise ValueError("KVzipPress is not supported for Gemma3ForCausalLM")
 
-        # Store model reference for later use
-        tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+        # Cache tokenizer to avoid reloading every call
+        if not hasattr(self, '_tokenizer') or self._tokenizer is None:
+            self._tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+        tokenizer = self._tokenizer
 
         # Get suffix_ids directly using tokenizer's chat template (do this once, not in hook)
         if tokenizer.chat_template is None:
