@@ -99,13 +99,6 @@ aggregator_by_name = {
 }
 
 
-def copy_cache(cache: DynamicCache):
-    new_cache = DynamicCache()
-    for (layer, (k, v)) in enumerate(cache):
-        new_cache.update(layer_idx=layer, key_states=k.clone(), value_states=v.clone())
-    return new_cache
-
-
 @dataclass
 class KVComposePress(BasePress):
     """
@@ -362,6 +355,9 @@ class KVComposePress(BasePress):
             Model to apply the compression method to
         """
 
+        logger.warning(
+            "KVComposePress temporarily creates a KV cache of ~2x the context length during prefill; "
+        )
         if not isinstance(model, (LlamaForCausalLM, Qwen2ForCausalLM, Qwen3ForCausalLM)):
             logger.warning(f"Model {type(model)} not tested")
 
