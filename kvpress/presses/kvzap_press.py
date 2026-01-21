@@ -50,7 +50,7 @@ class KVzapPress(ScorerPress):
     KVzap (https://arxiv.org/abs/2601.07891) is a fast approximation of KVzip that works
     in both prefilling and decoding. It applies a lightweight surrogate model to the hidden
     states to predict importance scores for every KV pair.
-    KVzapPress is designed to be used in conjunction with the ThresholdPress
+    KVzapPress is designed to be used in conjunction with the DMSPress
     model_type can be "linear" or "mlp".
     """
 

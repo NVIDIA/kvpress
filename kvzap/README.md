@@ -3,20 +3,20 @@
 [![KVzap collection](https://img.shields.io/badge/🤗%20Hugging%20Face-Collection-orange)](https://huggingface.co/collections/nvidia/kvzap) 
 [![arXiv](https://img.shields.io/badge/arXiv-2601.07891-b31b1b.svg)](https://arxiv.org/abs/2601.07891)
 
-[KVzap](https://arxiv.org/abs/2601.07891) is a fast approximation of [KVzip](https://arxiv.org/abs/2505.23416) that works in both prefilling and decoding. It applies a lightweight surrogate model to the hidden states to predict importance scores, and removes the KV pairs with a score below a given threshold.
+[KVzap](https://arxiv.org/abs/2601.07891) is a fast approximation of [KVzip](https://arxiv.org/abs/2505.23416) that works in both prefilling and decoding. It applies a lightweight surrogate model to the hidden states to predict importance scores, and removes the KV pairs with a score below a given threshold, following the Dynamic Memory Sparsification ([DMS](https://arxiv.org/abs/2506.05345)) inference strategy.
 
 ## Usage
 
-KVzap is designed to be used by combining the `KVzapPress` and the `ThresholdPress` from kvpress:
+KVzap is designed to be used by combining the `KVzapPress` and the `DMSPress` from kvpress:
 
 ```python
 import requests
 from transformers import pipeline
-from kvpress import KVzapPress, ThresholdPress
+from kvpress import KVzapPress, DMSPress
 
 model = "Qwen/Qwen3-8B"
 pipe = pipeline("kv-press-text-generation", model=model, device_map="auto", dtype="auto")
-press = ThresholdPress(KVzapPress(model_type="mlp"), threshold=-4)
+press = DMSPress(KVzapPress(model_type="mlp"), threshold=-4)
 
 # Prefilling compression only, thinking disabled
 press.decoding = False
@@ -32,7 +32,7 @@ answer = pipe(prompt, press=press, enable_thinking=True, max_new_tokens=2000)["a
 print(f"Compression ratio: {press.compression_ratio:.2%}\nAnswer: {answer}")
 ```
 
-The `KVzapPress` inherits from the `ScorerPress` class and only predicts the scores for every KV pair. The `ThresholdPress` then prunes the KV pairs with a score below a given threshold, rather than using a fixed compression ratio.
+The `KVzapPress` inherits from the `ScorerPress` class and only predicts the scores for every KV pair. The `DMSPress` then prunes the KV pairs with a score below a given threshold, rather than using a fixed compression ratio.
 
 Supported base models are provided in the [KVzap collection](https://huggingface.co/collections/nvidia/kvzap) but can easily be extended to any other model following the instructions in the [training section](#training).
 

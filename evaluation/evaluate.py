@@ -28,7 +28,7 @@ from kvpress import (
     ObservedAttentionPress,
     ScorerPress,
     ThinKPress,
-    ThresholdPress,
+    DMSPress,
 )
 
 logger = logging.getLogger(__name__)
@@ -256,10 +256,10 @@ class EvaluationRunner:
         if isinstance(press, DuoAttentionPress):
             press.head_compression_ratio = compression_ratio
             logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
-        elif isinstance(press, ThresholdPress):
-            assert self.config.threshold is not None, "threshold must be set for ThresholdPress"
+        elif isinstance(press, DMSPress):
+            assert self.config.threshold is not None, "threshold must be set for DMSPress"
             press.threshold = self.config.threshold
-            logger.info(f"Set ThresholdPress threshold to {press.threshold}")
+            logger.info(f"Set DMSPress threshold to {press.threshold}")
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):

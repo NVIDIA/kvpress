@@ -10,7 +10,7 @@ from contextlib import nullcontext
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
 
-from kvpress import KVzapPress, ThresholdPress
+from kvpress import KVzapPress, DMSPress
 
 
 def calculate_metrics(df):
@@ -56,11 +56,11 @@ def evaluate(
     """
 
     # Create press
-    press: ThresholdPress | type[nullcontext[None]]
+    press: DMSPress | type[nullcontext[None]]
     if kvzap_model_type == "no_press":
         press = nullcontext
     else:
-        press = ThresholdPress(
+        press = DMSPress(
             KVzapPress(model_type=kvzap_model_type),
             threshold=threshold,
             decoding=True,
@@ -86,7 +86,7 @@ def evaluate(
             )
             answer = tokenizer.decode(output_tokens[0, tokens.shape[1] :])
             df.loc[idx, "predicted_answer"] = answer
-            if isinstance(press, ThresholdPress):
+            if isinstance(press, DMSPress):
                 df.loc[idx, "compression_ratio"] = press.compression_ratio
             else:
                 df.loc[idx, "compression_ratio"] = 0
