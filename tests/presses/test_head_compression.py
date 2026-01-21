@@ -4,7 +4,7 @@ import pytest
 import torch
 from transformers import DynamicCache
 
-from kvpress import AdaKVPress, CriticalAdaKVPress, KnormPress, KVzipPress, RandomPress, ThresholdPress
+from kvpress import AdaKVPress, CriticalAdaKVPress, KnormPress, KVzipPress, RandomPress, DMSPress
 from tests.fixtures import unit_test_model, kv_press_unit_test_pipeline  # noqa: F401
 
 
@@ -59,9 +59,9 @@ def test_head_compression(unit_test_model, press, compression_ratio, layerwise):
     assert abs(cumulative_compression_ratio - press.compression_ratio) < 1e-2  # tolerate small differences
 
 
-def test_threshold_press_compression_ratio(kv_press_unit_test_pipeline):  # noqa: F811
-    """Test that ThresholdPress.compression_ratio matches the actual masked percentage."""
-    press = ThresholdPress(
+def test_dms_press_compression_ratio(kv_press_unit_test_pipeline):  # noqa: F811
+    """Test that DMSPress.compression_ratio matches the actual masked percentage."""
+    press = DMSPress(
         press=RandomPress(),
         threshold=0.5,
         sliding_window_size=0,

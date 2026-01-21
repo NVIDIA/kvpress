@@ -13,11 +13,12 @@ from kvpress.utils import extract_keys_and_values
 
 
 @dataclass
-class ThresholdPress(BasePress):
+class DMSPress(BasePress):
     """
+    Based on Dynamic Memory Sparsification (DMS, https://arxiv.org/abs/2506.05345) inference.
     Wraps a ScorerPress and evicts keys/values with scores below a given threshold.
 
-    Unlike most presses that use a fixed compression_ratio, ThresholdPress uses a score threshold
+    Unlike most presses that use a fixed compression_ratio, DMSPress uses a score threshold
     to determine which KV pairs to evict. This allows for adaptive compression where the actual
     compression ratio depends on the input content.
 

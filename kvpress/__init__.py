@@ -37,7 +37,7 @@ from kvpress.presses.simlayerkv_press import SimLayerKVPress
 from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
-from kvpress.presses.threshold_press import ThresholdPress
+from kvpress.presses.dms_press import DMSPress
 from kvpress.presses.tova_press import TOVAPress
 
 # Patch the attention functions to support head-wise compression
@@ -80,5 +80,5 @@ __all__ = [
     "LeverageScorePress",
     "NonCausalAttnPress",
     "KVzapPress",
-    "ThresholdPress",
+    "DMSPress",
 ]
