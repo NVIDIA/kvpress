@@ -27,7 +27,6 @@ from kvpress import (
     KeyDiffPress,
     KnormPress,
     KVzapPress,
-    KVPressSquaredPress,
     KVSquaredPress,
     KVSummaryPress,
     KVzipPress,
@@ -95,10 +94,7 @@ PRESS_REGISTRY = {
     "kvzap_mlp_head": KVzapPress(model_type="mlp"),
     "kvzap_mlp_layer": AdaKVPress(KVzapPress(model_type="mlp")),
     "lagkv": LagKVPress(),
-    "kvpress_squared": KVPressSquaredPress(),  # default: inner compression_ratio=0.8 -> top 20%
-    "kvpress_squared_top10": KVPressSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.9)),  # top 10%
-    "kvpress_squared_top30": KVPressSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.7)),  # top 30%
-    "kvsquared": KVSquaredPress(),  # default: inner compression_ratio=0.5 -> top 50%
+    "kvsquared": KVSquaredPress(),
     "kvsquared_top10": KVSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.9)),  # top 10%
     "kvsquared_top20": KVSquaredPress(inner_press=KeyDiffPress(compression_ratio=0.8)),  # top 20%
     "knorm": KnormPress(),

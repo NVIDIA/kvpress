@@ -324,7 +324,10 @@ class EvaluationRunner:
             df = df.sample(frac=fraction, random_state=self.config.seed)
             logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
 
-        logger.info(f"Dataset loaded with {len(df)} entries.")
+        # TEMP: Filter to only the 124k token sample (2nd sample, index 1)
+        df = df.iloc[[3]]
+        context_tokens = len(self.pipeline.tokenizer.encode(df.iloc[0]["context"]))
+        logger.info(f"TEMP FILTER: Running only sample index 3 ({context_tokens} tokens)")
 
         # if we have needle in a haystack, we need to insert it in the context
         if self.config.dataset == "needle_in_haystack":
