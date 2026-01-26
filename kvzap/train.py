@@ -106,10 +106,8 @@ def train_linear(X: torch.Tensor, y: torch.Tensor) -> KVzapModel:
     # Train a linear model for each layer
     params = []
     for layer_idx in tqdm(range(X.shape[1]), desc="Training linear models"):
-        X_train = X[:, layer_idx].clone().to(torch.float32).numpy()
-        y_train = y[:, layer_idx].clone().to(torch.float32).numpy()
         linear = Ridge()
-        linear.fit(X_train, y_train)
+        linear.fit(X[:, layer_idx].float(), y[:, layer_idx].float())
         params.append((linear.coef_, linear.intercept_))
 
     # Load the parameters into a KVzapModel
