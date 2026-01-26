@@ -29,6 +29,12 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Cache flash-attn build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: flash-attn-${{ runner.os }}-cuda12.5-py3.10-${{ hashFiles('uv.lock') }}
+
       - name: Install dependencies
         run: uv sync --all-groups
 

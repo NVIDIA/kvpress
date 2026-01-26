@@ -42,7 +42,7 @@ reports:
 .PHONY: test
 test: reports
 	$(UV) pip install optimum-quanto
-	$(UV) pip install flash-attn --find-links https://github.com/Dao-AILab/flash-attention/releases/expanded_assets/v2.8.3
+	$(UV) pip install flash-attn --no-build-isolation
 	PYTHONPATH=. \
 	$(UV) run pytest \
 		--cov-report xml:reports/coverage.xml \
