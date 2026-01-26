@@ -106,8 +106,10 @@ def train_linear(X: torch.Tensor, y: torch.Tensor) -> KVzapModel:
     # Train a linear model for each layer
     params = []
     for layer_idx in tqdm(range(X.shape[1]), desc="Training linear models"):
+        X_train = X[:, layer_idx].clone().to(torch.float32).numpy()
+        y_train = y[:, layer_idx].clone().to(torch.float32).numpy()
         linear = Ridge()
-        linear.fit(X[:, layer_idx].float(), y[:, layer_idx].float())
+        linear.fit(X_train, y_train)
         params.append((linear.coef_, linear.intercept_))
 
     # Load the parameters into a KVzapModel
@@ -115,8 +117,10 @@ def train_linear(X: torch.Tensor, y: torch.Tensor) -> KVzapModel:
         KVzapConfig(input_dim=X.shape[2], hidden_dim=None, output_dim=y.shape[2], n_modules=X.shape[1])
     )
     for layer_idx, (W, b) in enumerate(params):
-        linear_model.layers[layer_idx].weight.data = torch.tensor(W, dtype=X.dtype)  # type: ignore[index]
-        linear_model.layers[layer_idx].bias.data = torch.tensor(b, dtype=X.dtype)  # type: ignore[index]
+        W = torch.tensor(np.atleast_2d(W), dtype=X.dtype)
+        b = torch.tensor(np.atleast_1d(b), dtype=X.dtype)
+        linear_model.layers[layer_idx].weight.data = W  # type: ignore[index]
+        linear_model.layers[layer_idx].bias.data = b  # type: ignore[index]
     return linear_model
 
 

@@ -201,7 +201,7 @@ class KVzapDataCollector:
             scale = scale.repeat_interleave(module.o_proj.block_size[0], dim=0)
             scale = scale.repeat_interleave(module.o_proj.block_size[1], dim=1)
             Wo = Wo.to(V.dtype) * scale
-        Wo = Wo.view(module.config.num_attention_heads, module.head_dim, module.config.hidden_size)
+        Wo = Wo.view(module.config.num_attention_heads, V.shape[-1], module.config.hidden_size)
         WoV_norm = torch.einsum("h i j, b h t i -> b h t j", Wo.to(dtype=V.dtype), V).norm(dim=-1)
         scores = torch.einsum("b h t i, b h i -> b h t i", scores, WoV_norm)
 
