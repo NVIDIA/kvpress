@@ -17,6 +17,7 @@ class DMSPress(BasePress):
     """
     Based on Dynamic Memory Sparsification (DMS, https://arxiv.org/abs/2506.05345) inference.
     Wraps a ScorerPress and evicts keys/values with scores below a given threshold.
+    This press implements a dense-prefill version of DMS, not the sparse-prefill version.
 
     Unlike most presses that use a fixed compression_ratio, DMSPress uses a score threshold
     to determine which KV pairs to evict. This allows for adaptive compression where the actual

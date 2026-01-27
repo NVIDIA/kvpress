@@ -311,7 +311,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             generated_ids.append(new_id)
             if new_id.item() in should_stop_token_ids:
                 break
-        answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
+        answer = str(self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True))
         return answer
 
     def postprocess(self, model_outputs, single_question):

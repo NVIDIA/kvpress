@@ -24,6 +24,7 @@ class KVzapModel(PreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
+        self.all_tied_weights_keys = {}
         if config.hidden_dim is None:
             # Linear model
             self.layers = nn.ModuleList(
@@ -72,8 +73,7 @@ class KVzapPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs: dict,
     ) -> torch.Tensor:
-        module = self.kvzap_model.layers[module.layer_idx]
-        module = module.to(hidden_states.device, dtype=hidden_states.dtype).eval()
-        with torch.no_grad():
-            scores = module(hidden_states).transpose(1, 2)
+        kvzap_module = self.kvzap_model.layers[module.layer_idx]
+        kvzap_module = kvzap_module.to(hidden_states.device, dtype=hidden_states.dtype).eval()
+        scores = kvzap_module(hidden_states).transpose(1, 2)
         return scores
