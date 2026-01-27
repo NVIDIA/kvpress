@@ -9,22 +9,12 @@ on:
 jobs:
   test:
     runs-on: linux-amd64-gpu-l4-latest-1
-    container:
-      image: nvidia/cuda:13.0.0-devel-ubuntu24.04
     steps:
       - uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.12
-
       - name: Verify environment
         run: |
           nvidia-smi
-          nvcc --version
           python3 --version
-          echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
