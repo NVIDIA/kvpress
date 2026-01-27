@@ -1,6 +1,6 @@
 [project]
 name = "kvpress"
-version = "0.4.2"
+version = "0.4.3"
 description = "Efficiently compress the KV cache of any pretrained transformer"
 authors = [
     { name = "Simon Jegou" },
