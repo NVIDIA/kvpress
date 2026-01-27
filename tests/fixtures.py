@@ -14,21 +14,21 @@ def get_device():
 
 @pytest.fixture(scope="session")
 def unit_test_model():
-    model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B").eval()
+    model = AutoModelForCausalLM.from_pretrained("MaxJeblick/llama2-0b-unit-test").eval()
     return model.to(get_device())
 
 
 @pytest.fixture(scope="session")
 def unit_test_model_output_attention():
     model = AutoModelForCausalLM.from_pretrained(
-        "Qwen/Qwen3-0.6B", attn_implementation="eager"
+        "MaxJeblick/llama2-0b-unit-test", attn_implementation="eager"
     ).eval()
     return model.to(get_device())
 
 
 @pytest.fixture(scope="session")
-def qwen3_600m_model():
-    model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B").eval()
+def danube_500m_model():
+    model = AutoModelForCausalLM.from_pretrained("h2oai/h2o-danube3-500m-chat").eval()
     return model.to(get_device())
 
 
@@ -36,16 +36,16 @@ def qwen3_600m_model():
 def kv_press_unit_test_pipeline():
     return pipeline(
         "kv-press-text-generation",
-        model="Qwen/Qwen3-0.6B",
+        model="maxjeblick/llama2-0b-unit-test",
         device=get_device(),
     )
 
 
 @pytest.fixture(scope="session")
-def kv_press_qwen3_600m_pipeline():
+def kv_press_danube_pipeline():
     return pipeline(
         "kv-press-text-generation",
-        model="Qwen/Qwen3-0.6B",
+        model="h2oai/h2o-danube3-500m-chat",
         device=get_device(),
     )
 

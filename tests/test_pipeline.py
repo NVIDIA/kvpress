@@ -11,8 +11,8 @@ from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_avai
 
 from kvpress import ExpectedAttentionPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
-from tests.fixtures import qwen3_600m_model  # noqa: F401
-from tests.fixtures import kv_press_qwen3_600m_pipeline  # noqa: F401
+from tests.fixtures import danube_500m_model  # noqa: F401
+from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
 from tests.fixtures import unit_test_model  # noqa: F401
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_unit_test_pipeline  # noqa: F401
 
@@ -94,9 +94,9 @@ def test_pipeline_no_press_works(kv_press_unit_test_pipeline, caplog):  # noqa: 
     kv_press_unit_test_pipeline(context, question=question)
 
 
-def test_pipeline_answer_is_correct(qwen3_600m_model, caplog):  # noqa: F811
+def test_pipeline_answer_is_correct(danube_500m_model, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
-        answers = generate_answer(qwen3_600m_model)
+        answers = generate_answer(danube_500m_model)
 
     for answer in answers:
         assert answer == "This article was written on January 1, 2022."
@@ -107,13 +107,13 @@ def test_pipeline_answer_is_correct(qwen3_600m_model, caplog):  # noqa: F811
 
 
 @pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
-def test_pipeline_with_quantized_cache(kv_press_qwen3_600m_pipeline, caplog):  # noqa: F811
+def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        cache = QuantoQuantizedCache(config=kv_press_qwen3_600m_pipeline.model.config, nbits=4)
-        answers = kv_press_qwen3_600m_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+        cache = QuantoQuantizedCache(config=kv_press_danube_pipeline.model.config, nbits=4)
+        answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
     assert isinstance(answers[0], str)

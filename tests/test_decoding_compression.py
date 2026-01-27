@@ -31,7 +31,7 @@ def test_decoding_compression(token_buffer_size):
     """Test that DecodingPress compresses the cache during decoding."""
 
     # Initialize pipeline with a small model
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create a DecodingPress with KnormPress
     press = DecodingPress(
@@ -65,7 +65,7 @@ def test_prefill_decoding_press_calls_both_phases():
     """Test that PrefillDecodingPress calls both prefilling and decoding presses."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create PrefillDecodingPress with both presses
     combined_press = PrefillDecodingPress(
@@ -99,7 +99,7 @@ def test_decoding_press_without_prefill():
     """Test that DecodingPress works correctly when used standalone (no prefill compression)."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create DecodingPress only
     decoding_press = DecodingPress(base_press=KnormPress(compression_ratio=0.4), compression_interval=5, target_size=64)
@@ -129,7 +129,7 @@ def test_prefill_decoding_press_decoding_only():
     """Test PrefillDecodingPress with only decoding press (no prefill compression)."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
@@ -167,7 +167,7 @@ def test_decoding_press_equivalence():
     torch.manual_seed(42)
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create standalone decoding press
     decoding_press = DecodingPress(base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52)
@@ -222,7 +222,7 @@ def test_all_presses_work_with_decoding_press(press_config):
     """Test that all default presses work as base presses for DecodingPress."""
 
     # Initialize pipeline
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Get press class and use the first (easier) configuration
     press_cls = press_config["cls"]
@@ -274,7 +274,7 @@ def test_all_presses_work_with_decoding_press(press_config):
 def test_compression_actually_reduces_memory():
     """Test that compression actually reduces memory usage compared to no compression."""
 
-    pipe = pipeline("kv-press-text-generation", model="Qwen/Qwen3-0.6B", device_map="auto")
+    pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     context = "The quick brown fox jumps over the lazy dog. " * 15  # Long context
     question = "What animal jumps over the dog?"
