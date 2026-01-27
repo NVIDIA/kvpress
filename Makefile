@@ -49,12 +49,6 @@ test: reports
 		--junitxml=./reports/junit.xml \
 		-v \
 		tests/ | tee reports/pytest_output.log
-	@# Note: Some tests are intentionally skipped (e.g., quantization tests)
-	@# @if grep -q "SKIPPED" reports/pytest_output.log; then \
-	@# 	echo "Error: Tests were skipped. All tests must run."; \
-	@# 	grep "SKIPPED" reports/pytest_output.log; \
-	@# 	exit 1; \
-	@# fi
 	@if grep -q "FAILED" reports/pytest_output.log; then \
 		echo "Error: Some tests failed."; \
 		grep "FAILED" reports/pytest_output.log; \
