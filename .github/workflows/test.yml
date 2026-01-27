@@ -16,10 +16,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check CUDA
+      - name: Check CUDA runtime
         run: |
-          nvcc --version || echo "nvcc not in PATH, checking /usr/local/cuda"
-          echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV
+          nvidia-smi
+          echo "Checking for CUDA libraries..."
+          ls /usr/local/cuda*/lib64/libcudart.so* 2>/dev/null || ls /usr/lib/x86_64-linux-gnu/libcuda.so* 2>/dev/null || echo "No CUDA libs found in standard paths"
+          ldconfig -p | grep -i cuda || true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
