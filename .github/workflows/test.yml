@@ -5,23 +5,19 @@ on:
     branches:
       - main
       - "pull-request/[0-9]+"
+  workflow_dispatch:  # Allows manual triggering from any branch
 
 jobs:
   test:
     runs-on: linux-amd64-gpu-l4-latest-1
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
 
-      - name: Check CUDA runtime
+      - name: Verify environment
         run: |
           nvidia-smi
-          echo "Checking for CUDA libraries..."
-          ls /usr/local/cuda*/lib64/libcudart.so* 2>/dev/null || ls /usr/lib/x86_64-linux-gnu/libcuda.so* 2>/dev/null || echo "No CUDA libs found in standard paths"
-          ldconfig -p | grep -i cuda || true
+          python3 --version
+          which python3
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -30,8 +26,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install torch==2.9.0
           uv sync --all-groups
+          uv pip install torch==2.10.0
 
       - run: make test
         env:
