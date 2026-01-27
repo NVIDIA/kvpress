@@ -17,8 +17,6 @@ jobs:
         run: |
           nvidia-smi
           python3 --version
-          which python3
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -27,7 +25,9 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-groups
-          uv pip install torch==2.10.0
+          uv pip install torch==2.10
+        env:
+          UV_HTTP_TIMEOUT: 300
 
       - run: make test
         env:
