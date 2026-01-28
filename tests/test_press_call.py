@@ -28,13 +28,13 @@ def test_context_manager_applies_compression(unit_test_model):  # noqa: F811
 
     seq_len = input_ids.shape[-1]
 
-    for key, values in past_key_values:
-        assert key.shape[2] == int(seq_len * 0.8) == past_key_values.get_seq_length()
-        assert values.shape[2] == int(seq_len * 0.8) == past_key_values.get_seq_length()
+    for layer in past_key_values.layers:
+        assert layer.keys.shape[2] == int(seq_len * 0.8) == past_key_values.get_seq_length()
+        assert layer.values.shape[2] == int(seq_len * 0.8) == past_key_values.get_seq_length()
 
     input_ids = unit_test_model.dummy_inputs["input_ids"].to(unit_test_model.device)
     past_key_values = unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
 
-    for key, values in past_key_values:
-        assert key.shape[2] == seq_len == past_key_values.get_seq_length()
-        assert values.shape[2] == seq_len == past_key_values.get_seq_length()
+    for layer in past_key_values.layers:
+        assert layer.keys.shape[2] == seq_len == past_key_values.get_seq_length()
+        assert layer.values.shape[2] == seq_len == past_key_values.get_seq_length()
