@@ -170,10 +170,9 @@ Below we report the average performance on the RULER dataset with 4k context len
 We support KV cache quantization through the transformers `QuantizedCache` class (see [HF blog post](https://huggingface.co/blog/kv-cache-quantization#how-to-use-quantized-kv-cache-in-%F0%9F%A4%97-transformers)). To use it, simply pass a cache object to your pipeline:
 
 ```python
-from transformers import QuantizedCacheConfig, QuantoQuantizedCache
+from transformers import QuantizedCache
 
-config = QuantizedCacheConfig(nbits=4)
-cache = QuantoQuantizedCache(config)
+cache = QuantizedCache(backend="quanto", nbits=4)
 
 pipe(..., cache=cache)
 ```

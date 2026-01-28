@@ -363,14 +363,13 @@ class KVzipPress(BasePress):
 
             # calculate the pruned KV pairs across layers
             if self.layerwise:
-                nl = int(num_key_value_heads * ctx_len * self.compression_ratio)
+                nl = int(bsz * num_key_value_heads * ctx_len * self.compression_ratio)
                 n_pruned_layers = nl * torch.ones(n_layer, device=self.score_val.device, dtype=torch.int)
             else:
-                score_sort = torch.sort(self.score_val.reshape(-1)).values  # ascending order
-                n = max(int(len(score_sort) * self.compression_ratio) - 1, 0)
-                thres = score_sort[n].item()
-
-                n_pruned_layers = (self.score_val.reshape(n_layer, -1) <= thres).sum(-1)  # n_prune
+                n_pruned_indices = int(self.score_val.numel() * self.compression_ratio)
+                pruned_indices = torch.topk(-self.score_val.reshape(-1), n_pruned_indices).indices
+                n_tokens_per_layer = bsz * num_key_value_heads * ctx_len
+                n_pruned_layers = torch.bincount(pruned_indices // n_tokens_per_layer, minlength=n_layer).int()
 
             for layer in model.model.layers:
                 module = layer.self_attn

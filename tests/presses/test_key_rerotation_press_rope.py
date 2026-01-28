@@ -48,6 +48,7 @@ def test_rerotate_keys_is_matches_reference_implementation(
             "rope_type": "yarn",
         }
         cfg.max_position_embeddings = 131072
+        cfg.rope_theta = 500000.0
         try:
             unit_test_model.model.rotary_emb = LlamaRotaryEmbedding(cfg, device=unit_test_model.device)
         except KeyError:
@@ -63,6 +64,8 @@ def test_rerotate_keys_is_matches_reference_implementation(
         unit_test_model = unit_test_model.cuda().half()
     elif precision == "half":
         pytest.skip("Half-precision test skipped because CUDA is not available.")
+    elif precision == "full":
+        unit_test_model = unit_test_model.float()
 
     original_press = RandomPressStoreIndices(compression_ratio=0.5)
     key_rerotation_press = KeyRerotationPress(press=original_press)
