@@ -10,7 +10,7 @@ from typing import Generator
 import torch
 from torch import nn
 from transformers import (
-    Gemma3ForConditionalGeneration,
+    Gemma3ForCausalLM,
     LlamaForCausalLM,
     MistralForCausalLM,
     Phi3ForCausalLM,
@@ -18,9 +18,10 @@ from transformers import (
     QuantizedCache,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
+    LlavaNextForConditionalGeneration,
+    LlavaNextProcessor,
+    Qwen2AudioForConditionalGeneration,
 )
-
-from kvpress.presses.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,10 @@ SUPPORTED_MODELS = (
     Phi3ForCausalLM,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
-    Gemma3ForConditionalGeneration,
+    Gemma3ForCausalLM,
+    LlavaNextForConditionalGeneration,
+    LlavaNextProcessor,
+    Qwen2AudioForConditionalGeneration,
 )
 
 
@@ -109,7 +113,7 @@ class BasePress:
         kwargs : dict
             Keyword arguments passed to the attention layer's forward method, including:
             - hidden_states: Input embeddings to the attention layer
-            - past_key_values: The KV cache object being modified
+            - past_key_value: The KV cache object being modified
             - cache_position: Position indices indicating where we are in the sequence
             - position_embeddings: RoPE embeddings if applicable
         output : list
@@ -125,27 +129,33 @@ class BasePress:
         """
 
         hidden_states = kwargs["hidden_states"]
-        cache = kwargs["past_key_values"]
-        cache_layer = cache.layers[module.layer_idx]
+        cache = kwargs["past_key_value"] if "past_key_value" in kwargs else kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
         if kwargs["cache_position"][-1] > q_len:
             return output
 
-        keys, values = extract_keys_and_values(cache, module.layer_idx)
+        if isinstance(cache, QuantizedCache):
+            keys = cache._dequantize(cache._quantized_key_cache[module.layer_idx])
+            values = cache._dequantize(cache._quantized_value_cache[module.layer_idx])
+        else:
+            keys = cache.key_cache[module.layer_idx]
+            values = cache.value_cache[module.layer_idx]
 
         keys, values = self.compress(module, hidden_states, keys, values, output[1], kwargs)
 
+        #print("keys shape after compression", keys.shape)
+
         if isinstance(cache, QuantizedCache):
-            cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
-            cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
-            cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-            cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-            cache_layer.cumulative_length = keys.shape[2]
+            cache._quantized_key_cache[module.layer_idx] = cache._quantize(keys, axis=cache.axis_key)
+            cache._quantized_value_cache[module.layer_idx] = cache._quantize(values, axis=cache.axis_value)
+            cache.key_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
+            cache.value_cache[module.layer_idx] = torch.zeros(0, dtype=keys.dtype, device=keys.device)
+            cache._seen_tokens = keys.shape[2]
         else:
-            cache_layer.keys = keys
-            cache_layer.values = values
+            cache.key_cache[module.layer_idx] = keys
+            cache.value_cache[module.layer_idx] = values
 
         return output
 
@@ -176,19 +186,37 @@ class BasePress:
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
-        if isinstance(model, Gemma3ForConditionalGeneration):
-            logger.warning_once("Compression in Gemma3 is only applied to layer without sliding window attention")
+        if isinstance(model, Gemma3ForCausalLM):
+            logger.warning("Compression in Gemma3 is only applied to layer without sliding window attention")
 
         hooks = []
-        try:
-            language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model
-            for layer in language_model.layers:
-                if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
-                    # Skip layers with sliding window attention, only for Gemma3
-                    continue
-                layer.self_attn.rotary_emb = language_model.rotary_emb
-                hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
-            yield
-        finally:
-            for forward_hook in hooks:
-                forward_hook.remove()
+        if isinstance(model, LlavaNextForConditionalGeneration) or isinstance(model, LlavaNextProcessor):
+            try:
+                for layer in model.language_model.layers:
+                    layer.self_attn.rotary_emb = model.language_model.rotary_emb
+                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
+                yield
+            finally:
+                for forward_hook in hooks:
+                    forward_hook.remove()
+        elif isinstance(model, Qwen2AudioForConditionalGeneration):
+            try:
+                for layer in model.language_model.model.layers:
+                    layer.self_attn.rotary_emb = model.language_model.model.rotary_emb
+                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
+                yield
+            finally:
+                for forward_hook in hooks:
+                    forward_hook.remove()
+        else:
+            try:
+                for layer in model.model.layers:
+                    if isinstance(model, Gemma3ForCausalLM) and layer.is_sliding:
+                        # Skip layers with sliding window attention, only for Gemma3
+                        continue
+                    layer.self_attn.rotary_emb = model.model.rotary_emb
+                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
+                yield
+            finally:
+                for forward_hook in hooks:
+                    forward_hook.remove()

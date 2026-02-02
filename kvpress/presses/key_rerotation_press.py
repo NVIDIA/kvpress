@@ -74,6 +74,10 @@ class KeyRerotationPress(BasePress):
         # Original positional indices
         idx = torch.arange(0, n_kept, device=device)  # (n_kept,)
         idx = idx.unsqueeze(0)  # (1, n_kept)
+
+        # Ensure inv_freq is on the same device as the input tensors (important for multi-GPU)
+        inv_freq = inv_freq.to(device)
+        
         inv_freq = inv_freq[None, None, :, None].float().expand(bsz, num_key_value_heads, -1, 1)
         idx = idx[:, None, :].float().expand(bsz, num_key_value_heads, n_kept)
         # Compute delta between original and selected positions
@@ -137,7 +141,7 @@ class KeyRerotationPress(BasePress):
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Get indices of KV pairs with the lowest scores
-        q_len = keys.shape[2]
+        q_len = hidden_states.shape[1]
         n_kept = int(q_len * (1 - self.press.compression_ratio))
         indices = scores.topk(n_kept, dim=-1).indices
         indices = torch.sort(indices, dim=2).values

@@ -4,19 +4,18 @@
 
 import contextlib
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, AutoProcessor
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
-from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
+from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +23,7 @@ logger = logging.getLogger(__name__)
 class KVPressTextGenerationPipeline(Pipeline):
     """
     Pipeline for key-value cache compression in causal language models.
-
-    Enables efficient processing of long contexts by applying KV cache compression
-    during pre-filling, then generating answers using greedy decoding.
-
-    Example:
-    ```python
-    pipeline = KVPressTextGenerationPipeline(model=model, tokenizer=tokenizer)
-    press = SnapKVPress(compression_ratio=0.5)
-    result = pipeline(context="Long text...", question="A question about the long context.", press=press)
-    ```
+    Supports Text-only, Image+Text, and Audio+Text contexts.
     """
 
     def _sanitize_parameters(
@@ -45,54 +35,27 @@ class KVPressTextGenerationPipeline(Pipeline):
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
         cache: Optional[Cache] = None,
+        image: Optional[Any] = None,
+        audio: Optional[Any] = None,
         **kwargs,
     ):
-        """
-        Sanitize the input parameters for the pipeline.
-        The user can either provide a single question or a list of questions to be asked about the context.
-
-        Parameters
-        ----------
-        question : str, optional
-            The question to be asked about the context. Exclusive with `questions`.
-        questions : list[str], optional
-            A list of questions to be asked about the context. Exclusive with `question`.
-        answer_prefix : str, optional
-            The prefix to be added to the generated answer.
-        press : BasePress, optional
-            The key-value cache compression method to apply during pre-filling.
-
-            Accepts any KVPress compression method (SnapKVPress, KnormPress,
-            ExpectedAttentionPress, BlockPress, AdaKVPress, ComposedPress, etc.).
-            If None, no compression is applied.
-        max_new_tokens : int, optional
-            The maximum number of new tokens to generate for each answer.
-        max_context_length : int, optional
-            The maximum number of tokens in the context. By default will use the maximum length supported by the model.
-        cache : Cache, optional
-            The cache to use for the forward pass. Defaults to None (DynamicCache).
-        **kwargs : dict
-            Additional keyword arguments, currently ignored.
-
-        Returns
-        -------
-        Tuple[dict, dict, dict]
-            A tuple containing three dictionaries:
-                - preprocess_kwargs: The keyword arguments for the preprocess function.
-                - forward_kwargs: The keyword arguments for the forward function.
-                - postprocess_kwargs: The keyword arguments for the postprocess function.
-        """
-
         answer_prefix = answer_prefix or ""
         postprocess_kwargs = {"single_question": questions is None}
         assert question is None or questions is None, "Either question or questions should be provided, not both."
+        
+        # Ensure we don't process both image and audio at the same time for now
+        assert not (image is not None and audio is not None), "Provide either an image OR audio, but not both."
+
         questions = questions or ([question] if question else [""])
         if max_context_length is None:
             max_context_length = min(self.tokenizer.model_max_length, int(1e10))  # 1e10 to avoid overflow
+        
         preprocess_kwargs = {
             "questions": questions,
             "answer_prefix": answer_prefix,
             "max_context_length": max_context_length,
+            "image": image,
+            "audio": audio,
         }
         forward_kwargs = {"press": press, "max_new_tokens": max_new_tokens, "cache": cache}
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
@@ -103,64 +66,112 @@ class KVPressTextGenerationPipeline(Pipeline):
         questions: list[str],
         answer_prefix: str,
         max_context_length: int,
+        image: Optional[Any] = None,
+        audio: Optional[Any] = None,
     ):
         """
-        Apply chat template and tokenize the context and questions.
-
-        Prepares input text for KV cache compression and generation by applying
-        appropriate chat templates and tokenizing. Handles models with and without
-        chat templates.
-
-        Parameters
-        ----------
-        context : str
-            Long context text to be compressed using the press method.
-        questions : list[str]
-            Questions to be asked about the context.
-        answer_prefix : str
-            Optional prefix for generated answers.
-        max_context_length : int
-            Maximum tokens allowed in context (truncated if exceeded).
-
-        Returns
-        -------
-        dict[str, GenericTensor]
-            Dictionary with "context_ids" and "questions_ids" tensors.
+        Apply chat template and tokenize. 
+        Handles Text-only, Image inputs, or Audio inputs via AutoProcessor.
         """
+        separator = "\n" + "#" * len(context)
+        
+        # 1. Handle Image Input
+        if image is not None:
+            processor = AutoProcessor.from_pretrained(self.model.name_or_path)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": context + separator},
+                    ],
+                }
+            ]
+            prompt = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            context_for_proc, question_suffix = prompt.split(separator)
 
-        # Apply chat template if available
-        if self.tokenizer.chat_template is None:
-            bos_token = getattr(self.tokenizer, "bos_token", "")
-            context = bos_token + context
-            question_suffix = "\n"  # to separate the question from the answer
+            processed_inputs = processor(text=prompt, images=image, return_tensors="pt")
+            
+            # Prepare return dict
+            result = {
+                "context_ids": processed_inputs["input_ids"],
+                "pixel_values": processed_inputs["pixel_values"],
+                "image_sizes": processed_inputs.get("image_sizes"),
+                "attention_mask": processed_inputs.get("attention_mask"),
+            }
+
+        # 2. Handle Audio Input
+        elif audio is not None:
+            processor = AutoProcessor.from_pretrained(self.model.name_or_path)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "audio"},
+                        {"type": "text", "text": context + separator},
+                    ],
+                }
+            ]
+            prompt = processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            context_for_proc, question_suffix = prompt.split(separator)
+
+            processed_inputs = processor(text=prompt, audio=[audio], return_tensors="pt", padding=True)
+
+            # Prepare return dict (Extract common audio features)
+            result = {
+                "context_ids": processed_inputs["input_ids"],
+                "attention_mask": processed_inputs.get("attention_mask"),
+                "input_features": processed_inputs.get("input_features"),
+                "feature_attention_mask": processed_inputs.get("feature_attention_mask"),
+            }
+
+        # 3. Handle Text-Only Input
         else:
-            separator = "\n" + "#" * len(context)
-            context = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": context + separator}],
-                add_generation_prompt=True,
-                tokenize=False,
-                enable_thinking=False,
-            )
-            context, question_suffix = context.split(separator)
+            if self.tokenizer.chat_template is None:
+                bos_token = getattr(self.tokenizer, "bos_token", "")
+                context = bos_token + context
+                question_suffix = "\n"
+            else:
+                context = self.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": context + separator}],
+                    add_generation_prompt=True,
+                    tokenize=False,
+                    enable_thinking=False,
+                )
+                context, question_suffix = context.split(separator)
+            
+            context_ids = self.tokenizer.encode(context, return_tensors="pt", add_special_tokens=False)
+            
+            # Truncate context for text-only path
+            if context_ids.shape[1] > max_context_length:
+                logger.warning(
+                    f"Context length truncated from {context_ids.shape[1]} to {max_context_length} tokens."
+                )
+                context_ids = context_ids[:, :max_context_length]
+                
+            result = {"context_ids": context_ids}
 
-        # Add question_suffix and answer prefix
-        # e.g. for llama3.1, question_suffix="<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
-        questions = [question + question_suffix + answer_prefix for question in questions]
+        
+        questions_processed = [question + question_suffix + answer_prefix for question in questions]
+        
+        
+        if image is not None or audio is not None:
+         
+             question_ids_list = [
+                 self.tokenizer.encode(
+                    questions_processed[0], 
+                    return_tensors="pt", 
+                    add_special_tokens=False
+                )
+             ]
+        else:
+            question_ids_list = [
+                self.tokenizer.encode(q, return_tensors="pt", add_special_tokens=False) 
+                for q in questions_processed
+            ]
 
-        # Tokenize the context and questions
-        context_ids = self.tokenizer.encode(context, return_tensors="pt", add_special_tokens=False)
-        question_ids = [
-            self.tokenizer.encode(question, return_tensors="pt", add_special_tokens=False) for question in questions
-        ]
-
-        # Truncate context
-        if context_ids.shape[1] > max_context_length:
-            logger.warning(
-                f"Context length has been truncated from {context_ids.shape[1]} to {max_context_length} tokens."
-            )
-            context_ids = context_ids[:, :max_context_length]
-
-        return {"context_ids": context_ids, "questions_ids": question_ids}
+        result["questions_ids"] = question_ids_list
+        return result
 
     def _forward(
         self,
@@ -169,147 +180,83 @@ class KVPressTextGenerationPipeline(Pipeline):
         press: Optional[BasePress] = None,
         cache: Optional[Cache] = None,
     ):
-        """
-        Execute KV cache compression and text generation pipeline.
-
-        Performs context compression using the press method during pre-filling,
-        then generates answers using greedy decoding.
-
-        Parameters
-        ----------
-        input_tensors : dict[str, GenericTensor]
-            Tokenized inputs with "context_ids" and "questions_ids".
-        max_new_tokens : int, default=50
-            Maximum tokens to generate for each answer.
-        press : BasePress, optional
-            Compression method for context pre-filling. If None, no compression.
-        cache : Cache, optional
-            Cache object for forward pass. If None, creates new DynamicCache.
-
-        Returns
-        -------
-        list[str]
-            Generated answers for each input question.
-        """
-        if isinstance(press, (DecodingPress, PrefillDecodingPress)) and len(input_tensors["questions_ids"]) > 1:
-            raise ValueError(
-                "DecodingPress is not compatible with multiple questions. Please specify a single question."
-            )
-
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
 
-        # Prefilling using the press on the context
+        # Extract multimodal tensors if they exist
+        pixel_values = input_tensors.get("pixel_values")
+        image_sizes = input_tensors.get("image_sizes")
+        
+        # Extract audio tensors
+        input_features = input_tensors.get("input_features")
+        feature_attention_mask = input_tensors.get("feature_attention_mask")
+        
+        attention_mask = input_tensors.get("attention_mask")
+
+        # Move to device
+        if pixel_values is not None: pixel_values = pixel_values.to(self.model.device)
+        if image_sizes is not None: image_sizes = image_sizes.to(self.model.device)
+        if input_features is not None: input_features = input_features.to(self.model.device)
+        if feature_attention_mask is not None: feature_attention_mask = feature_attention_mask.to(self.model.device)
+        if attention_mask is not None: attention_mask = attention_mask.to(self.model.device)
+
+        # Prefilling
         if cache is None:
             cache = DynamicCache()
 
-        # We only perform prefill compression if the press is a prefill press
-        perform_prefill_compression = press is not None and not isinstance(press, DecodingPress)
-        with press(self.model) if perform_prefill_compression else contextlib.nullcontext():
-            # We run the model without the lm head for pre-filling.
-            self.model.model(
-                input_ids=context_ids,
-                past_key_values=cache,
-                output_attentions=self.output_attentions(press),
-            )
+        ctx_manager = press(self.model) if press is not None else contextlib.nullcontext()
+        with ctx_manager:
+            model_call_kwargs = {
+                "input_ids": context_ids,
+                "past_key_values": cache,
+                "output_attentions": self.output_attentions(press),
+            }
+            
+            # Add Image args
+            if pixel_values is not None:
+                model_call_kwargs["pixel_values"] = pixel_values
+            if image_sizes is not None:
+                model_call_kwargs["image_sizes"] = image_sizes
+            
+            # Add Audio args
+            if input_features is not None:
+                model_call_kwargs["input_features"] = input_features
+            # Note: feature_attention_mask is not compatible with flash_attention_2 in audio tower
+            # Flash attention handles padding internally, so we skip it
+            if feature_attention_mask is not None:
+                model_call_kwargs["feature_attention_mask"] = feature_attention_mask
+
+            # Add common args
+            if attention_mask is not None:
+                model_call_kwargs["attention_mask"] = attention_mask
+                
+            self.model(**model_call_kwargs) # For Qwen2Audio
+            #self.model.model(**model_call_kwargs) # For Llava and Llama
 
             logger.debug(f"Context Length: {context_length}")
             logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
-        # We only perform decoding compression if the press is a decoding or prefill decoding press
-        perform_decoding_compression = press is not None and isinstance(press, (DecodingPress, PrefillDecodingPress))
-        with press(self.model) if perform_decoding_compression else contextlib.nullcontext():
-            # Greedy decoding for each question
-            answers = []
-            for question_ids in input_tensors["questions_ids"]:
-                if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
-                    context_length = cache.get_seq_length()
+        answers = []
+        for question_ids in input_tensors["questions_ids"]:
+            if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
+                context_length = cache.get_seq_length()
 
-                cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
-                answer = self.generate_answer(
-                    question_ids=question_ids.to(self.model.device),
-                    cache=cache,
-                    context_length=context_length,
-                    max_new_tokens=max_new_tokens,
-                )
-                self._remove_answer_from_cache(cache, cache_seq_lengths)
-
-                answers.append(answer)
-        return answers
-
-    def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
-
-        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
-            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
-
-        if isinstance(cache, QuantizedCache):
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
-                    :, :, :sequence_length
-                ]
-                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
-                    :, :, :sequence_length
-                ]
-
-    def generate_answer(
-        self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
-    ) -> str:
-        """
-        Generate an answer to a question using greedy decoding.
-
-        Parameters
-        ----------
-        question_ids : torch.Tensor
-            The tokenized question.
-        cache : Cache
-            The compressed key-value cache.
-        context_length : int
-            The length of the context.
-        max_new_tokens : int
-            The maximum number of new tokens to generate.
-
-        Returns
-        -------
-        str
-            The generated answer.
-        """
-        position_ids = torch.arange(
-            context_length, context_length + question_ids.shape[1], device=self.model.device
-        ).unsqueeze(0)
-
-        # if the user doesn't provide a question, skip forward pass
-        outputs = self.model(
-            input_ids=question_ids.to(self.model.device),
-            past_key_values=cache,
-            position_ids=position_ids,
-            num_logits_to_keep=1,
-        )
-
-        position_ids = position_ids[:, -1:] + 1
-        generated_ids = [outputs.logits[0, -1].argmax()]
-
-        should_stop_token_ids = self.model.generation_config.eos_token_id
-        if not isinstance(should_stop_token_ids, list):
-            should_stop_token_ids = [should_stop_token_ids]
-
-        for i in range(max_new_tokens - 1):
-            outputs = self.model(
-                input_ids=generated_ids[-1].unsqueeze(0).unsqueeze(0),
-                past_key_values=cache,
-                position_ids=position_ids + i,
+            answer = self.generate_answer(
+                question_ids=question_ids.to(self.model.device),
+                cache=cache,
+                context_length=context_length,
+                max_new_tokens=max_new_tokens,
             )
-            new_id = outputs.logits[0, -1].argmax()
-            generated_ids.append(new_id)
-            if new_id.item() in should_stop_token_ids:
-                break
-        answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-        return answer
+            answers.append(answer)
+
+        return answers
 
     def output_attentions(self, press: BasePress):
         if isinstance(press, ObservedAttentionPress):
             return True
-        if hasattr(press, "press") and isinstance(press.press, ObservedAttentionPress):
+        if isinstance(press, (KeyRerotationPress, PerLayerCompressionPress)) and isinstance(
+            press.press, ObservedAttentionPress
+        ):
             return True
         return False
 
@@ -317,6 +264,67 @@ class KVPressTextGenerationPipeline(Pipeline):
         if single_question:
             return {"answer": model_outputs[0]}
         return {"answers": model_outputs}
+
+    def generate_answer(self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int) -> str:
+
+        question_ids = question_ids.to(self.model.device)
+        position_ids = torch.arange(
+            context_length, context_length + question_ids.shape[1], device=self.model.device
+        ).unsqueeze(0)
+
+        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+
+        outputs = self.model(
+            input_ids=question_ids,
+            past_key_values=cache,
+            position_ids=position_ids,
+            #num_logits_to_keep=1, # Not used  for Qwen2Audio
+        )
+
+        generated_ids = []
+        last_logit = outputs.logits[0, -1]
+        next_token = last_logit.argmax(dim=-1)
+        generated_ids.append(next_token)
+        current_position = position_ids[:, -1:].clone() + 1
+
+        should_stop_token_ids = self.model.generation_config.eos_token_id
+        if not isinstance(should_stop_token_ids, list):
+            should_stop_token_ids = [should_stop_token_ids]
+
+        for i in range(max_new_tokens - 1):
+            token_input = generated_ids[-1].unsqueeze(0).unsqueeze(0)
+            outputs = self.model(
+                input_ids=token_input,
+                past_key_values=cache,
+                position_ids=current_position + i,
+            )
+            new_id = outputs.logits[0, -1].argmax()
+            generated_ids.append(new_id)
+            if new_id.item() in should_stop_token_ids:
+                break
+
+        generated_tensor = torch.stack(generated_ids).squeeze(-1)
+        answer = self.tokenizer.decode(generated_tensor, skip_special_tokens=True)
+
+        cache.key_cache = [
+            cache.key_cache[layer_idx][:, :, :sequence_length]
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+        ]
+        cache.value_cache = [
+            cache.value_cache[layer_idx][:, :, :sequence_length]
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+        ]
+        if hasattr(cache, "_quantized_key_cache"):
+            cache._quantized_key_cache = [
+                cache._quantized_key_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
+            cache._quantized_value_cache = [
+                cache._quantized_value_cache[layer_idx][:, :, :sequence_length]
+                for layer_idx, sequence_length in enumerate(cache_seq_lengths)
+            ]
+
+        return answer
 
 
 PIPELINE_REGISTRY.register_pipeline(
