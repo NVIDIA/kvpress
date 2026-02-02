@@ -12,15 +12,24 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 import torch
-import yaml  # type: ignore[import-untyped]
+import yaml
 from benchmarks.needle_in_haystack.utils import insert_needle_in_haystack
 from datasets import load_dataset
 from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
 from tqdm import tqdm
-from transformers import Pipeline, pipeline
+from transformers import FineGrainedFP8Config, Pipeline, pipeline
 
-from kvpress import ComposedPress, DuoAttentionPress, FinchPress, ObservedAttentionPress, ThinKPress
+from kvpress import (
+    ComposedPress,
+    DecodingPress,
+    DuoAttentionPress,
+    FinchPress,
+    ObservedAttentionPress,
+    ScorerPress,
+    ThinKPress,
+    DMSPress,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +46,19 @@ class EvaluationConfig:
     press_name: str = "knorm"
     compression_ratio: float = 1.0
     key_channel_compression_ratio: Optional[float] = None
+    threshold: Optional[float] = None
 
     # Dataset and generation parameters
     fraction: float = 1.0
     max_new_tokens: Optional[int] = None
     max_context_length: Optional[int] = None
-    compress_questions: bool = False
+    query_aware: bool = False
     needle_depth: Optional[int] = None
+
+    # Decoding parameters
+    compression_interval: Optional[int] = None
+    target_size: Optional[int] = None
+    hidden_states_buffer_size: Optional[int] = None
 
     # Output and logging
     output_dir: str = "./results"
@@ -58,6 +73,9 @@ class EvaluationConfig:
     # For reproducibility
     seed: int = 42
 
+    # Quantization
+    fp8: bool = False
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         # Validate dataset
@@ -71,11 +89,6 @@ class EvaluationConfig:
             # override compression_ratio to 0.0
             logger.info("Using 'no_press' configuration. Overriding compression_ratio to 0.0")
             self.compression_ratio = 0.0
-
-        # Validate compression ratios
-        assert (
-            0.0 <= self.compression_ratio <= 1.0
-        ), f"compression_ratio must be between 0.0 and 1.0, got {self.compression_ratio}"
 
         # Only validate key_channel_compression_ratio if it's not None
         if self.key_channel_compression_ratio is not None:
@@ -102,8 +115,6 @@ class EvaluationConfig:
         ----------
         output_dir : Path
             The output directory path
-        press
-            The press instance to check for ThinKPress components
 
         Returns
         -------
@@ -119,12 +130,14 @@ class EvaluationConfig:
             f"{self.compression_ratio:.2f}",
         ]
 
+        if self.threshold is not None:
+            components[-1] = f"{self.threshold:.2f}"
         if self.fraction < 1.0:
             components.append(f"fraction{self.fraction:.3f}")
         if self.max_context_length is not None:
             components.append(f"max_context{self.max_context_length}")
-        if self.compress_questions:
-            components.append("compressed_questions")
+        if self.query_aware:
+            components.append("query_aware")
         if self.key_channel_compression_ratio is not None:
             components.append(f"key_channel_cr{self.key_channel_compression_ratio:.2f}")
         if self.needle_depth is not None and self.dataset == "needle_in_haystack":
@@ -187,7 +200,7 @@ class EvaluationRunner:
         """
         self.config = config
         self.pipeline: Optional[Pipeline] = None  # Will be set by _setup_model_pipeline()
-        self.press = None  # Will be set by _setup_press()
+        self.press: None | ScorerPress = None  # Will be set by _setup_press()
         self.df: Optional[pd.DataFrame] = None  # Will be set by _load_dataset()
         self._setup_logging()
         self._setup_deterministic_seeds()
@@ -243,6 +256,10 @@ class EvaluationRunner:
         if isinstance(press, DuoAttentionPress):
             press.head_compression_ratio = compression_ratio
             logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
+        elif isinstance(press, DMSPress):
+            assert self.config.threshold is not None, "threshold must be set for DMSPress"
+            press.threshold = self.config.threshold
+            logger.info(f"Set DMSPress threshold to {press.threshold}")
         elif isinstance(press, ComposedPress):
             for ps in press.presses:
                 if isinstance(ps, ThinKPress):
@@ -264,6 +281,13 @@ class EvaluationRunner:
             assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress"
             press.key_channel_compression_ratio = key_channel_compression_ratio
             logger.info(f"Set ThinKPress key_channel_compression_ratio to {key_channel_compression_ratio}")
+        elif isinstance(press, DecodingPress):
+            press.compression_interval = self.config.compression_interval or press.compression_interval
+            press.target_size = self.config.target_size or press.target_size
+            press.hidden_states_buffer_size = self.config.hidden_states_buffer_size or press.hidden_states_buffer_size
+            logger.info(
+                f"Set DecodingPress compression_interval to {self.config.compression_interval}, target_size to {self.config.target_size}, hidden_states_buffer_size to {self.config.hidden_states_buffer_size}"
+            )
         else:
             if hasattr(press, "compression_ratio"):
                 press.compression_ratio = compression_ratio
@@ -303,17 +327,17 @@ class EvaluationRunner:
             )
 
         if isinstance(self.press, FinchPress):
-            if not self.config.compress_questions:
-                logger.error("FinchPress requires 'compress_questions' to be set to True.")
-                raise ValueError("FinchPress requires compress_questions to be set to True")
+            if not self.config.query_aware:
+                logger.error("FinchPress requires 'query_aware' to be set to True.")
+                raise ValueError("FinchPress requires query_aware to be set to True")
             # FinchPress uses a delimiter token to separate context and question
             # So we need to update the tokenizer and the model embeddings.
             logger.info("FinchPress detected, updating model and tokenizer with delimiter token.")
             self.press.update_model_and_tokenizer(self.pipeline.model, self.pipeline.tokenizer)  # type: ignore[attr-defined]
             df["context"] = df["context"] + self.press.delimiter_token  # type: ignore[attr-defined, index]
 
-        if self.config.compress_questions:
-            logger.info("Compressing questions into context.")
+        if self.config.query_aware:
+            logger.info("Query-aware compression: including question in context for compression.")
             df["context"] = df["context"] + df["question"]  # type: ignore[index]
             df["question"] = ""  # type: ignore[index]
 
@@ -329,6 +353,11 @@ class EvaluationRunner:
             logger.info(f"No device specified, auto-detected device: {device}")
 
         model_kwargs = self.config.model_kwargs or {}
+
+        if self.config.fp8:
+            model_kwargs["quantization_config"] = FineGrainedFP8Config()
+            logger.info("FP8 quantization enabled.")
+
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
@@ -364,30 +393,54 @@ class EvaluationRunner:
         """
 
         self.df["predicted_answer"] = None  # type: ignore[index]
-        df_context_grouped = self.df.groupby("context")  # type: ignore[union-attr]
-        assert all(
-            df_context_grouped["answer_prefix"].nunique() == 1
-        ), "Inconsistent 'answer_prefix' within the same context group detected."
 
-        logger.info("Starting inference...")
-        for context, df_group in tqdm(df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"):  # type: ignore[union-attr]
-            questions = df_group["question"].to_list()
-            # Use max_new_tokens from config, or fallback to dataset's default for the task
-            max_new_tokens = self.config.max_new_tokens or df_group["max_new_tokens"].iloc[0]
-            answer_prefix = df_group["answer_prefix"].iloc[0]
+        if isinstance(self.press, DecodingPress):
+            logger.info("DecodingPress detected, running inference for each context-question pair.")
+            for index, row in tqdm(self.df.iterrows(), total=len(self.df), desc="Running Inference"):
+                context = row["context"]
+                question = row["question"]
+                answer_prefix = row["answer_prefix"]
+                max_new_tokens = self.config.max_new_tokens or row["max_new_tokens"]
+                output = self.pipeline(
+                    context,
+                    question=question,
+                    answer_prefix=answer_prefix,
+                    press=self.press,
+                    max_new_tokens=max_new_tokens,
+                    max_context_length=self.config.max_context_length,
+                )
+                self.df.loc[index, "predicted_answer"] = output["answer"]  # type: ignore[union-attr]
+                torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
-            output = self.pipeline(  # type: ignore[misc]
-                context,
-                questions=questions,
-                answer_prefix=answer_prefix,
-                press=self.press,
-                max_new_tokens=max_new_tokens,
-                max_context_length=self.config.max_context_length,
-            )
-            self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
-            # Store the actual compression ratio used (if the press has one)
-            self.df.loc[df_group.index, "compression_ratio"] = self.press.compression_ratio if self.press is not None else 0.0  # type: ignore[union-attr, attr-defined]
-            torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
+        else:
+            df_context_grouped = self.df.groupby("context")  # type: ignore[union-attr]
+            assert all(
+                df_context_grouped["answer_prefix"].nunique() == 1
+            ), "Inconsistent 'answer_prefix' within the same context group detected."
+
+            logger.info("Starting inference...")
+            for context, df_group in tqdm(
+                df_context_grouped, total=self.df["context"].nunique(), desc="Running Inference"
+            ):  # type: ignore[union-attr]
+                questions = df_group["question"].to_list()
+                # Use max_new_tokens from config, or fallback to dataset's default for the task
+                max_new_tokens = self.config.max_new_tokens or df_group["max_new_tokens"].iloc[0]
+                answer_prefix = df_group["answer_prefix"].iloc[0]
+
+                output = self.pipeline(  # type: ignore[misc]
+                    context,
+                    questions=questions,
+                    answer_prefix=answer_prefix,
+                    press=self.press,
+                    max_new_tokens=max_new_tokens,
+                    max_context_length=self.config.max_context_length,
+                )
+                self.df.loc[df_group.index, "predicted_answer"] = output["answers"]  # type: ignore[union-attr]
+                # Store the actual compression ratio used (if the press has one)
+                self.df.loc[df_group.index, "compression_ratio"] = (
+                    self.press.compression_ratio if self.press is not None else 0.0  # type: ignore[attr-defined]
+                )  # type: ignore[union-attr, attr-defined]
+                torch.cuda.empty_cache()  # Clear CUDA cache to free up memory
 
         logger.info("Inference completed.")
 
@@ -403,7 +456,9 @@ class EvaluationRunner:
         if save_filename.exists():
             logger.warning(f"Results CSV already exists at {save_filename}. Overwriting.")
 
-        self.df[list(set(self.df.columns) - set(["context"]))].to_csv(str(save_filename), index=False)  # type: ignore[index]
+        self.df[list(set(self.df.columns) - set(["context"]))].to_csv(
+            str(save_filename), index=False
+        )  # type: ignore[index]
         logger.info(f"Results saved to {save_filename}")
 
     def _calculate_and_save_metrics(self, save_filename: Path):
@@ -425,7 +480,6 @@ class EvaluationRunner:
             json.dump(metrics, f, indent=4)  # Pretty print JSON
 
         logger.info(f"Metrics saved to {save_filename}")
-        logger.info(f"Average compression ratio: {self.df['compression_ratio'].mean():.2f}")  # type: ignore[index]
         logger.info(f"Metrics:\n{json.dumps(metrics, indent=2)}")
 
     def run_evaluation(self):

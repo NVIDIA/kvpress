@@ -9,7 +9,7 @@ from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 
-def get_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
+def get_prerope_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
     """
     Extracts the query states from a given attention module and hidden states tensor.
 
@@ -51,6 +51,48 @@ def get_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Te
         query_states = module.q_norm(query_states)
 
     return query_states
+
+
+def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
+    """
+    Extracts the key states from a given attention module and hidden states tensor.
+
+    This function supports multiple attention module types: Phi3Attention, Qwen3Attention, Gemma3Attention,
+    and Llama-like modules. It handles the appropriate projection and reshaping to obtain the key states
+    in the expected format.
+
+    Parameters
+    ----------
+    module : nn.Module
+        The attention module from which to extract key states. Must be one of
+        Phi3Attention, Qwen3Attention, Gemma3Attention, or a Llama-like attention module
+        with a 'k_proj' attribute.
+    hidden_states : torch.Tensor
+        The input hidden states of shape (batch_size, seq_len, hidden_dim).
+
+    Returns
+    -------
+    key_states : torch.Tensor
+        The extracted key states of shape (batch_size, num_heads, seq_len, head_dim).
+    """
+    bsz, k_len, _ = hidden_states.shape
+    head_dim = module.head_dim
+    if isinstance(module, Phi3Attention):
+        qkv = module.qkv_proj(hidden_states)
+        query_pos = module.config.num_attention_heads * module.head_dim
+        key_states = qkv[..., query_pos : query_pos + module.num_key_value_heads * module.head_dim]
+    elif hasattr(module, "k_proj"):
+        # Assume Llama-like attention layer
+        key_states = module.k_proj(hidden_states)
+    else:
+        raise NotImplementedError(f"Press not yet implemented for {module.__class__}.")
+
+    key_states = key_states.view(bsz, k_len, -1, head_dim).transpose(1, 2)
+
+    # Support for Qwen3 and Gemma3 QK norm
+    if isinstance(module, (Qwen3Attention, Gemma3Attention)):
+        key_states = module.k_norm(key_states)
+    return key_states
 
 
 def dequantize_layer(cache_layer) -> tuple[torch.Tensor, torch.Tensor]:

@@ -6,7 +6,7 @@ import logging
 
 import pytest
 import torch
-from transformers import AutoTokenizer, DynamicCache, QuantoQuantizedCache
+from transformers import AutoTokenizer, DynamicCache, QuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress
@@ -47,6 +47,7 @@ class TestPipelineFA2:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU is not available")
     @pytest.mark.skipif(not is_flash_attn_2_available(), reason="flash_attn is not installed")
     @pytest.mark.parametrize("compression_ratio", [0.0, 0.2])
+    @pytest.mark.xfail(reason="Known issue (https://github.com/huggingface/transformers/issues/42550)", strict=False)
     def test_pipeline_fa2(self, kv_press_llama3_2_flash_attn_pipeline, compression_ratio):  # noqa: F811
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["Repeat the last sentence"]
@@ -111,7 +112,7 @@ def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noq
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        cache = QuantoQuantizedCache(config=kv_press_danube_pipeline.model.config, nbits=4)
+        cache = QuantizedCache(backend="quanto", config=kv_press_danube_pipeline.model.config, nbits=4)
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1

@@ -1,5 +1,5 @@
 dev_notebooks/
-results/
+results*/
 reports/
 .DS_Store
 uv.lock

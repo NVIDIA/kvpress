@@ -9,7 +9,7 @@ from torch import nn
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
-from kvpress.presses.utils import get_query_states
+from kvpress.utils import get_prerope_query_states
 
 
 @dataclass
@@ -45,7 +45,7 @@ class ThinKPress(BasePress):
         Re-compute the last window_size query states
         """
         # Get last self.window_size queries
-        query_states = get_query_states(module, hidden_states[:, -self.window_size :])
+        query_states = get_prerope_query_states(module, hidden_states[:, -self.window_size :])
 
         # Apply RoPE
         cos, sin = position_embeddings

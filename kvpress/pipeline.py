@@ -16,6 +16,8 @@ from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
+from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
+from kvpress.presses.dms_press import DMSPress
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         press: Optional[BasePress] = None,
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
+        enable_thinking: bool = False,
         cache: Optional[Cache] = None,
         image: Optional[Any] = None,
         audio: Optional[Any] = None,

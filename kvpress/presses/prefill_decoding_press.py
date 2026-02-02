@@ -11,8 +11,7 @@ import torch.nn as nn
 from transformers import PreTrainedModel
 
 from kvpress.presses.base_press import BasePress
-
-from .decoding_press import DecodingPress
+from kvpress.presses.decoding_press import DecodingPress
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +35,12 @@ class PrefillDecodingPress(BasePress):
 
     prefilling_press: Optional[BasePress] = None
     decoding_press: Optional[DecodingPress] = None
+
+    def post_init_from_model(self, model):
+        if self.prefilling_press is not None:
+            self.prefilling_press.post_init_from_model(model)
+        if self.decoding_press is not None:
+            self.decoding_press.post_init_from_model(model)
 
     def compress(
         self,

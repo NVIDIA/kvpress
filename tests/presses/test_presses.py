@@ -20,6 +20,7 @@ from kvpress import (
     ObservedAttentionPress,
     ScorerPress,
     SnapKVPress,
+    DMSPress,
     ThinKPress,
 )
 from tests.default_presses import default_presses
@@ -60,15 +61,24 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize(
     "wrapper_press",
-    [None, ComposedPress, KeyRerotationPress, AdaKVPress, ChunkPress, CriticalKVPress, CriticalAdaKVPress],
+    [
+        None,
+        ComposedPress,
+        KeyRerotationPress,
+        AdaKVPress,
+        ChunkPress,
+        CriticalKVPress,
+        CriticalAdaKVPress,
+        DMSPress,
+    ],
 )
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
     cls = press_dict["cls"]
     for kwargs in press_dict["kwargs"]:
         press = cls(**kwargs)
         if wrapper_press is not None:
-            if hasattr(press, "__post_init_from_model__"):
-                press.__post_init_from_model__(unit_test_model)
+            if hasattr(press, "post_init_from_model"):
+                press.post_init_from_model(unit_test_model)
             if issubclass(wrapper_press, ComposedPress):
                 if isinstance(press, KVzipPress):  # KVzipPress is currently not compatible with ComposedPress
                     return
@@ -79,10 +89,12 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
                 press = wrapper_press(press=press)
             elif issubclass(wrapper_press, ChunkPress):
                 press = ChunkPress(press=press, chunk_length=24)
+            elif issubclass(wrapper_press, DMSPress):
+                press = DMSPress(press=press, threshold=-0.5, sliding_window_size=32)
 
-        # TODO: Handle __post_init_from_model__ differently
-        if hasattr(press, "__post_init_from_model__"):
-            press.__post_init_from_model__(unit_test_model)
+        # TODO: Handle post_init_from_model differently
+        if hasattr(press, "post_init_from_model"):
+            press.post_init_from_model(unit_test_model)
         with press(unit_test_model):
             input_ids = torch.randint(0, 1024, (1, 128), device=unit_test_model.device)
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
