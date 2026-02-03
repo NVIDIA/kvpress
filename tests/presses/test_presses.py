@@ -14,13 +14,14 @@ from kvpress import (
     ComposedPress,
     CriticalAdaKVPress,
     CriticalKVPress,
+    DMSPress,
+    FastKVzipPress,
     KeyRerotationPress,
     KnormPress,
     KVzipPress,
     ObservedAttentionPress,
     ScorerPress,
     SnapKVPress,
-    DMSPress,
     ThinKPress,
 )
 from tests.default_presses import default_presses
@@ -80,7 +81,9 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             if hasattr(press, "post_init_from_model"):
                 press.post_init_from_model(unit_test_model)
             if issubclass(wrapper_press, ComposedPress):
-                if isinstance(press, KVzipPress):  # KVzipPress is currently not compatible with ComposedPress
+                if isinstance(press, KVzipPress) or isinstance(
+                    press, FastKVzipPress
+                ):  # KVzipPress and FastKVzipPress are currently not compatible with ComposedPress
                     return
                 press = ComposedPress(presses=[press])
             elif not isinstance(press, ScorerPress):  # remaining wrapper presses only support ScorerPress
