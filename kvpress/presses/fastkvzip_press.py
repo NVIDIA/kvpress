@@ -142,6 +142,10 @@ class FastKVzipPress(BasePress):
     """
     Fast KVzip estimates KV importance scores using gates trained on KVzip scores.
 
+    In this code, we implement Fast KVzip with minimal changes to this repository.
+    For a fully optimized implementation with actual compression and chunked-prefill,
+    please refer to the original repository (https://github.com/Janghyun1230/FastKVzip).
+
     Based on Fast KVzip (https://arxiv.org/abs/2601.17668).
     Authors: Jang-Hyun Kim, Dongyoon Han, Sangdoo Yun
     Affiliation: NAVER AI Lab
