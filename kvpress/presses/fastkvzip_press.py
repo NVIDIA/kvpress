@@ -12,7 +12,7 @@ from typing import Generator
 import torch
 from huggingface_hub import hf_hub_download
 from torch import nn
-from transformers import AutoConfig, PreTrainedModel
+from transformers import AutoConfig, PreTrainedModel, Gemma3ForConditionalGeneration
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class Weight(nn.Module):
+    """
+    Fast KVzip gate architecture (https://arxiv.org/abs/2601.17668).
+    """
     def __init__(
         self,
         index: int,
@@ -28,8 +31,8 @@ class Weight(nn.Module):
         output_dim: int,
         nhead: int,
         ngroup: int,
-        dtype,
-        sink=1,
+        dtype: torch.dtype,
+        sink: int = 1,
     ):
         super().__init__()
         self.index = index
@@ -75,7 +78,8 @@ class Weight(nn.Module):
         return repr_str
 
 
-def init_fastkvzip(model_config, device="cuda"):
+def init_fastkvzip(model_config, device: str = "cuda"):
+    """ Random initialization of gate weights """
     dtype = model_config.dtype
     input_dim = model_config.hidden_size
     sink, output_dim = 16, 16
@@ -90,7 +94,8 @@ def init_fastkvzip(model_config, device="cuda"):
     return modules
 
 
-def load_fastkvzip(model_name="Qwen/Qwen3-8B", file_name="fastkvzip", device="cuda"):
+def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", file_name: str = "fastkvzip", device: str = "cuda"):
+    """ Load trained gate weights """
     if not model_name:
         raise AssertionError("Model_name is empty. Please check load_gate.")
     state_dict, gate_id = get_gate_weight(model_name, file_name)
@@ -115,7 +120,8 @@ def load_fastkvzip(model_name="Qwen/Qwen3-8B", file_name="fastkvzip", device="cu
     return modules
 
 
-def get_gate_id(model_name, file_name="fastkvzip"):
+def get_gate_id(model_name: str, file_name: str = "fastkvzip"):
+    """ Get the gate id from model names """
     if file_name == "fastkvzip":
         config = AutoConfig.from_pretrained(model_name)
         if hasattr(config, "text_config"):
@@ -128,7 +134,8 @@ def get_gate_id(model_name, file_name="fastkvzip"):
     return gate_id
 
 
-def get_gate_weight(model_name, file_name):
+def get_gate_weight(model_name: str, file_name: str):
+    """ Load trained gate weights from HuggingFace """
     gate_id = get_gate_id(model_name, file_name)
     file_path = hf_hub_download(repo_id="Jang-Hyun/Fast-KVzip", filename=gate_id, repo_type="model")
 
@@ -176,7 +183,7 @@ class FastKVzipPress(BasePress):
     gates: list[nn.Module] | None = field(init=False, default=None)
     score_val: list[torch.Tensor] | torch.Tensor | None = field(init=False, default=None)
 
-    def __post_init_from_model__(self, model):
+    def post_init_from_model(self, model):
         """
         Automatically load gates for the model.
         """
@@ -189,16 +196,26 @@ class FastKVzipPress(BasePress):
 
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:
-        self.__post_init_from_model__(model)
+        """
+        Context manager that handles both initial prefilling and Fast KVzip scoring/compression.
 
+        This overrides the base class __call__ method to implement the Fast KVzip algorithm:
+        1. First yield: allows initial prefilling with context and KV importance scoring via gates
+        2. After yield: performs KV eviction based on the importance scores
+        """
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
+        self.post_init_from_model(model)
         hooks = []
         try:
             self.score_val = [None for _ in range(len(model.model.layers))]  # reset every prefilling
-            for layer in model.model.layers:
-                layer.self_attn.rotary_emb = model.model.rotary_emb
+            language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model
+            for layer in language_model.layers:
+                if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
+                    # Skip layers with sliding window attention, only for Gemma3
+                    continue
+                layer.self_attn.rotary_emb = language_model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield
 
@@ -211,7 +228,7 @@ class FastKVzipPress(BasePress):
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
         Override the forward_hook of BasePress.
-        During the forward_hook, KVzip only calculates importance scores,
+        During the forward_hook, Fast KVzip calculates importance scores,
         aggregates scores across all layers, and then performs compression.
         """
 
