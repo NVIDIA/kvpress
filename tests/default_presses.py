@@ -27,6 +27,7 @@ from kvpress import (
     TOVAPress,
 )
 from kvpress.presses.kvzap_press import KVzapConfig, KVzapModel
+from kvpress.presses.fastkvzip_press import FastKVzipGate
 
 
 class TestDuoAttentionPress(DuoAttentionPress):
@@ -47,6 +48,22 @@ class TestKVzapPress(KVzapPress):
             n_modules=model.config.num_hidden_layers,
         )
         self.kvzap_model = KVzapModel(config)
+
+
+class TestFastKVzipPress(FastKVzipPress):
+    """Test version of FastKVzipPress that creates a mock model instead of loading from HuggingFace."""
+
+    def post_init_from_model(self, model):
+        if self.gates is None:
+            dtype = model.config.dtype
+            input_dim = model.config.hidden_size
+            ngroup = model.config.num_attention_heads // model.config.num_key_value_heads
+            nhead = model.config.num_key_value_heads
+
+            self.gates = []
+            for idx in range(model.config.num_hidden_layers):
+                module = FastKVzipGate(idx, input_dim, nhead, ngroup, dtype).to(model.device)
+                self.gates.append(module)
 
 
 # contains all presses to be tested
@@ -94,7 +111,7 @@ default_presses = [
         "cls": KVzipPress,
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },
-    {"cls": FastKVzipPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
+    {"cls": TestFastKVzipPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": CURPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": TestKVzapPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {

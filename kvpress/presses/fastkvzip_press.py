@@ -20,7 +20,7 @@ from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
 logger = logging.getLogger(__name__)
 
 
-class Weight(nn.Module):
+class FastKVzipGate(nn.Module):
     """
     Fast KVzip gate architecture (https://arxiv.org/abs/2601.17668).
     """
@@ -28,11 +28,11 @@ class Weight(nn.Module):
         self,
         index: int,
         input_dim: int,
-        output_dim: int,
         nhead: int,
         ngroup: int,
         dtype: torch.dtype,
-        sink: int = 1,
+        output_dim: int = 16,
+        sink: int = 16,
     ):
         super().__init__()
         self.index = index
@@ -78,27 +78,11 @@ class Weight(nn.Module):
         return repr_str
 
 
-def init_fastkvzip(model_config, device: str = "cuda"):
-    """ Random initialization of gate weights """
-    dtype = model_config.dtype
-    input_dim = model_config.hidden_size
-    sink, output_dim = 16, 16
-    ngroup = model_config.num_attention_heads // model_config.num_key_value_heads
-    nhead = model_config.num_key_value_heads
-
-    modules = []
-    for idx in range(model_config.num_hidden_layers):
-        module = Weight(idx, input_dim, output_dim, nhead, ngroup, dtype, sink=sink).to(device)
-        modules.append(module)
-    print(f"load random gate ({module})")
-    return modules
-
-
-def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", file_name: str = "fastkvzip", device: str = "cuda"):
+def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", device: str = "cuda"):
     """ Load trained gate weights """
     if not model_name:
         raise AssertionError("Model_name is empty. Please check load_gate.")
-    state_dict, gate_id = get_gate_weight(model_name, file_name)
+    state_dict, gate_id = get_gate_weight(model_name)
 
     dtype = state_dict[0]["q_proj.weight"].dtype
     head_group_outdim, input_dim = state_dict[0]["q_proj.weight"].shape
@@ -112,7 +96,7 @@ def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", file_name: str = "fastkvzi
 
     modules = []
     for idx, weight in enumerate(state_dict):
-        module = Weight(idx, input_dim, output_dim, nhead, ngroup, dtype, sink=sink).to(device)
+        module = FastKVzipGate(idx, input_dim, nhead, ngroup, dtype, output_dim, sink).to(device)
         module.load_state_dict(weight)
         modules.append(module)
 
@@ -120,23 +104,22 @@ def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", file_name: str = "fastkvzi
     return modules
 
 
-def get_gate_id(model_name: str, file_name: str = "fastkvzip"):
+def get_gate_id(model_name: str):
     """ Get the gate id from model names """
-    if file_name == "fastkvzip":
-        config = AutoConfig.from_pretrained(model_name)
-        if hasattr(config, "text_config"):
-            config = config.text_config
-        ngroup = config.num_attention_heads // config.num_key_value_heads
-        file_name = f"q{ngroup}_dim16_sink16"
+    config = AutoConfig.from_pretrained(model_name)
+    if hasattr(config, "text_config"):
+        config = config.text_config
+    ngroup = config.num_attention_heads // config.num_key_value_heads
+    file_name = f"q{ngroup}_dim16_sink16"
 
     model_name = model_name.split("/")[-1].lower()
     gate_id = os.path.join(model_name, file_name + ".pt")
     return gate_id
 
 
-def get_gate_weight(model_name: str, file_name: str):
+def get_gate_weight(model_name: str):
     """ Load trained gate weights from HuggingFace """
-    gate_id = get_gate_id(model_name, file_name)
+    gate_id = get_gate_id(model_name)
     file_path = hf_hub_download(repo_id="Jang-Hyun/Fast-KVzip", filename=gate_id, repo_type="model")
 
     # Load the PyTorch tensor/dictionary
@@ -169,7 +152,7 @@ class FastKVzipPress(BasePress):
         Number of initial tokens to preserve as attention sinks.
     window_size : int, default=4096
         Number of tokens in the local window retained during chunked prefilling.
-    window_size : float, default=0.02
+    window_ratio : float, default=0.02
         Fraction of the context length used to calculate the local window size retained during short-context prefilling.
     """
 
@@ -190,9 +173,12 @@ class FastKVzipPress(BasePress):
         if self.gates is None:
             try:
                 self.gates = load_fastkvzip(model_name=model.config.name_or_path, device=model.device)
-            except Exception:
-                print("The gates for the given model are not released!")
-                self.gates = init_fastkvzip(model.config, device=model.device)
+            except Exception as e:
+                raise RuntimeError(
+                    "The gates for the given model are not released! "
+                    "Please check the available models at: "
+                    "https://huggingface.co/Jang-Hyun/Fast-KVzip/tree/main"
+                ) from e
 
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:
@@ -246,8 +232,10 @@ class FastKVzipPress(BasePress):
         """
         Calculate the KV importance scores.
         """
+        layer_idx = int(module.layer_idx)
 
-        scores = self.gates[int(module.layer_idx)](hidden_states)
+        self.gates[layer_idx] = self.gates[layer_idx].to(hidden_states.device)
+        scores = self.gates[layer_idx](hidden_states)
         scores[:, :, : self.n_sink] = 1.0
 
         ctx_len = scores.size(-1)
@@ -257,7 +245,7 @@ class FastKVzipPress(BasePress):
             window_size = self.window_size
         scores[:, :, -window_size:] = 1.0
 
-        self.score_val[int(module.layer_idx)] = scores
+        self.score_val[layer_idx] = scores
 
     def compress_post(self, model: PreTrainedModel):
         """
