@@ -18,34 +18,21 @@ Deploying long-context LLMs is costly due to the linear growth of the key-value 
 pip install kvpress
 ```
 
-For a local installation with all dev dependencies, use uv:
+For a local installation, use [uv](https://docs.astral.sh/uv/):
 
 ```bash
 git clone https://github.com/NVIDIA/kvpress.git
 cd kvpress
-uv sync --all-groups
+uv sync
 ```
-<details><summary>
-Advanced installation settings
-</summary>
 
-To install optional packages, you can use [uv](https://docs.astral.sh/uv/). 
-To install with flash attention, just run:
+To install with all optional dependencies, run:
 
 ```bash
 git clone https://github.com/NVIDIA/kvpress.git
 cd kvpress
-uv sync --extra flash-attn
+uv sync --extra eval --extra flash-attn
 ```
-
-To install with dependencies for evaluation, run 
-
-```bash
-git clone https://github.com/NVIDIA/kvpress.git
-cd kvpress
-uv sync --extra eval
-```
-</details>
 
 ## Usage
 
