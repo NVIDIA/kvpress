@@ -26,8 +26,8 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
 )
-from kvpress.presses.kvzap_press import KVzapConfig, KVzapModel
 from kvpress.presses.fastkvzip_press import FastKVzipGate
+from kvpress.presses.kvzap_press import KVzapConfig, KVzapModel
 
 
 class TestDuoAttentionPress(DuoAttentionPress):

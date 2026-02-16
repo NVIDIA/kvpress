@@ -12,14 +12,14 @@ from transformers import DynamicCache, pipeline
 
 from kvpress import (
     CompactorPress,
-    LeverageScorePress,
-    NonCausalAttnPress,
-    PyramidKVPress,
-    ScorerPress,
     DecodingPress,
     KnormPress,
-    PrefillDecodingPress,
     KVzapPress,
+    LeverageScorePress,
+    NonCausalAttnPress,
+    PrefillDecodingPress,
+    PyramidKVPress,
+    ScorerPress,
 )
 from tests.default_presses import default_presses
 

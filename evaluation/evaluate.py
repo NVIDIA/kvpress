@@ -23,12 +23,12 @@ from transformers import FineGrainedFP8Config, Pipeline, pipeline
 from kvpress import (
     ComposedPress,
     DecodingPress,
+    DMSPress,
     DuoAttentionPress,
     FinchPress,
     ObservedAttentionPress,
     ScorerPress,
     ThinKPress,
-    DMSPress,
 )
 
 logger = logging.getLogger(__name__)

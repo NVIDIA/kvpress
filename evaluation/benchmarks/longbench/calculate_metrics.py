@@ -5,18 +5,10 @@ import re
 import string
 from collections import Counter
 
+import jieba
 import numpy as np
+from fuzzywuzzy import fuzz
 from rouge import Rouge
-
-try:
-    import jieba
-    from fuzzywuzzy import fuzz
-except ImportError as e:
-    missing_module = str(e).split()[-1].strip("'")  # Extract missing module name
-    print(
-        f"Module '{missing_module}' not found. \
-          If test Longbench, please install it using 'pip install {missing_module}'"
-    )
 
 
 def calculate_metrics(df):
