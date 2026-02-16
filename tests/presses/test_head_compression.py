@@ -4,8 +4,8 @@ import pytest
 import torch
 from transformers import DynamicCache
 
-from kvpress import AdaKVPress, CriticalAdaKVPress, KnormPress, KVzipPress, RandomPress, DMSPress
-from tests.fixtures import unit_test_model, kv_press_unit_test_pipeline  # noqa: F401
+from kvpress import AdaKVPress, CriticalAdaKVPress, DMSPress, KnormPress, KVzipPress, RandomPress
+from tests.fixtures import kv_press_unit_test_pipeline, unit_test_model  # noqa: F401
 
 
 def compute_masked_percentage(module, batch_size, num_key_value_heads, seq_len):

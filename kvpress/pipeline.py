@@ -13,10 +13,10 @@ from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.decoding_press import DecodingPress
+from kvpress.presses.dms_press import DMSPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
-from kvpress.presses.dms_press import DMSPress
 
 logger = logging.getLogger(__name__)
 

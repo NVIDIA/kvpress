@@ -9,23 +9,20 @@ KVzip+ importance scores from hidden states. The trained models can be used with
 KVzapPress to compress the KV cache during inference.
 """
 
-import numpy as np
 from pathlib import Path
 
-from tqdm.auto import tqdm
-
+import numpy as np
 import torch
-from torch import nn
-
-from skorch import NeuralNetRegressor
-from skorch.callbacks import LRScheduler, GradientNormClipping
-from skorch.dataset import ValidSplit
 from sklearn.linear_model import Ridge
-
+from skorch import NeuralNetRegressor
+from skorch.callbacks import GradientNormClipping, LRScheduler
+from skorch.dataset import ValidSplit
+from torch import nn
+from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, FineGrainedFP8Config
 
-from kvpress.presses.kvzap_press import KVzapModel, KVzapConfig
-from kvzap.data import load_nemotron_dataset, KVzapDataCollector
+from kvpress.presses.kvzap_press import KVzapConfig, KVzapModel
+from kvzap.data import KVzapDataCollector, load_nemotron_dataset
 
 
 def train_mlp(
@@ -188,11 +185,12 @@ def train(
     print(f"Loading model {model_name} and tokenizer")
     quantization_config = FineGrainedFP8Config() if fp8 else None
     model = AutoModelForCausalLM.from_pretrained(
-            model_name, dtype="auto",
-            device_map="auto",
-            attn_implementation="eager",
-            quantization_config=quantization_config,
-        )
+        model_name,
+        dtype="auto",
+        device_map="auto",
+        attn_implementation="eager",
+        quantization_config=quantization_config,
+    )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Load dataset

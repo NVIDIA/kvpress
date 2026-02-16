@@ -12,7 +12,7 @@ from typing import Generator
 import torch
 from huggingface_hub import hf_hub_download
 from torch import nn
-from transformers import AutoConfig, PreTrainedModel, Gemma3ForConditionalGeneration
+from transformers import AutoConfig, Gemma3ForConditionalGeneration, PreTrainedModel
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
@@ -24,6 +24,7 @@ class FastKVzipGate(nn.Module):
     """
     Fast KVzip gate architecture (https://arxiv.org/abs/2601.17668).
     """
+
     def __init__(
         self,
         index: int,
@@ -79,7 +80,7 @@ class FastKVzipGate(nn.Module):
 
 
 def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", device: str = "cuda"):
-    """ Load trained gate weights """
+    """Load trained gate weights"""
     if not model_name:
         raise AssertionError("Model_name is empty. Please check load_gate.")
     state_dict, gate_id = get_gate_weight(model_name)
@@ -105,7 +106,7 @@ def load_fastkvzip(model_name: str = "Qwen/Qwen3-8B", device: str = "cuda"):
 
 
 def get_gate_id(model_name: str):
-    """ Get the gate id from model names """
+    """Get the gate id from model names"""
     config = AutoConfig.from_pretrained(model_name)
     if hasattr(config, "text_config"):
         config = config.text_config
@@ -118,7 +119,7 @@ def get_gate_id(model_name: str):
 
 
 def get_gate_weight(model_name: str):
-    """ Load trained gate weights from HuggingFace """
+    """Load trained gate weights from HuggingFace"""
     gate_id = get_gate_id(model_name)
     file_path = hf_hub_download(repo_id="Jang-Hyun/Fast-KVzip", filename=gate_id, repo_type="model")
 

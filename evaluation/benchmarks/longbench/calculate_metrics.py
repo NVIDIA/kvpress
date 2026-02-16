@@ -5,10 +5,10 @@ import re
 import string
 from collections import Counter
 
-import numpy as np
-from rouge import Rouge
 import jieba
+import numpy as np
 from fuzzywuzzy import fuzz
+from rouge import Rouge
 
 
 def calculate_metrics(df):
