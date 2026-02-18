@@ -18,7 +18,7 @@ class BlockPress(BasePress):
     Simulates block prompt processing described in the KeyDiff paper (https://arxiv.org/abs/2504.15364).
     Segments the input sequence into non-overlapping blocks and compresses iteratively.
 
-    ⚠️ This is not a true chunked-prefill implementation: all keys and values are computed in a single
+    ⚠️ This is not a true chunked-prefill implementation: all inputs are computed in a single
     forward pass before block-wise scoring and pruning.
 
     Parameters
