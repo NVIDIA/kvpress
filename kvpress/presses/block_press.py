@@ -15,12 +15,11 @@ class BlockPress(BasePress):
     """
     BlockPress: Block-wise iterative KV cache compression.
 
-    Applies compression in fixed-size blocks. Iteratively scores and prunes tokens block by block, maintaining
-    a buffer of previously kept tokens for context. Mathematically equivalent to global compression when
-    scoring uses only local information. It was introduced in the KeyDiff paper as part of the KeyDiff press,
-    but it can also work as a standalone press.
+    Simulates block prompt processing described in the KeyDiff paper (https://arxiv.org/abs/2504.15364).
+    Segments the input sequence into non-overlapping blocks and compresses iteratively.
 
-    Based on the KeyDiff paper (https://arxiv.org/abs/2504.15364).
+    ⚠️ This is not a true chunked-prefill implementation: all keys and values are computed in a single
+    forward pass before block-wise scoring and pruning.
 
     Parameters
     ----------
