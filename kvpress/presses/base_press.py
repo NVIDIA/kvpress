@@ -18,7 +18,10 @@ from transformers import (
     QuantizedCache,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
+    Lfm2ForCausalLM
 )
+
+from transformers.models.lfm2.modeling_lfm2 import Lfm2HybridConvCache
 
 from kvpress.utils import extract_keys_and_values
 
@@ -31,6 +34,7 @@ SUPPORTED_MODELS = (
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
     Gemma3ForConditionalGeneration,
+    Lfm2ForCausalLM
 )
 
 
@@ -132,7 +136,13 @@ class BasePress:
 
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_values"]
-        cache_layer = cache.layers[module.layer_idx]
+        cache = kwargs["past_key_values"]
+
+        if isinstance(cache, Lfm2HybridConvCache):
+            cache_layer = None # TODO: implement for Lfm2
+        else:
+            cache_layer = cache.layers[module.layer_idx]
+
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
@@ -150,8 +160,12 @@ class BasePress:
             cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
             cache_layer.cumulative_length = keys.shape[2]
         else:
-            cache_layer.keys = keys
-            cache_layer.values = values
+            if isinstance(cache, Lfm2HybridConvCache):
+                cache.key_cache[module.layer_idx] = keys
+                cache.value_cache[module.layer_idx] = values
+            else:
+                cache_layer.keys = keys
+                cache_layer.values = values
 
         return output
 
@@ -193,6 +207,11 @@ class BasePress:
                 if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
                     # Skip layers with sliding window attention, only for Gemma3
                     continue
+
+                # for some models/layers, self_attn might be None (e.g., LFM's convolutional layers), so we check before registering the hook
+                if not hasattr(layer, "self_attn") or layer.self_attn is None:
+                    continue
+
                 layer.self_attn.rotary_emb = language_model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield

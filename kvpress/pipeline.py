@@ -7,7 +7,8 @@ import logging
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, Cache, DynamicCache, Pipeline, QuantizedCache
+from transformers import AutoModelForCausalLM, Cache, DynamicCache, Lfm2ForCausalLM, Pipeline, QuantizedCache
+from transformers.models.lfm2.modeling_lfm2 import Lfm2HybridConvCache
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
@@ -208,7 +209,11 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Prefilling using the press on the context
         if cache is None:
-            cache = DynamicCache()
+            if isinstance(self.model, Lfm2ForCausalLM):
+                cache = Lfm2HybridConvCache(config=self.model.config, max_batch_size=context_ids.shape[0])
+            else:
+                cache = DynamicCache()
+
 
         # We only perform prefill compression if the press is a prefill press
         perform_prefill_compression = press is not None and not isinstance(press, DecodingPress)
@@ -248,8 +253,12 @@ class KVPressTextGenerationPipeline(Pipeline):
     def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
 
         for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
-            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
+            if isinstance(cache, Lfm2HybridConvCache):
+                cache.key_cache[layer_idx] = cache.key_cache[layer_idx][:sequence_length]
+                cache.value_cache[layer_idx] = cache.value_cache[layer_idx][:sequence_length]
+            else:
+                cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
+                cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
 
         if isinstance(cache, QuantizedCache):
             for layer_idx, sequence_length in enumerate(cache_seq_lengths):

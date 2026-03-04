@@ -7,6 +7,7 @@ from transformers import Cache, QuantizedCache
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
+from transformers.models.lfm2.modeling_lfm2 import Lfm2HybridConvCache
 
 
 def get_prerope_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
@@ -108,7 +109,11 @@ def extract_keys_and_values(cache: Cache, layer_idx: int) -> tuple[torch.Tensor,
     """
     if isinstance(cache, QuantizedCache):
         keys, values = dequantize_layer(cache.layers[layer_idx])
+    elif isinstance(cache, Lfm2HybridConvCache):
+        keys = cache.key_cache[layer_idx]
+        values = cache.value_cache[layer_idx]
     else:
         keys = cache.layers[layer_idx].keys
         values = cache.layers[layer_idx].values
+
     return keys, values
