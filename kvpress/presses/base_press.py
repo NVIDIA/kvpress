@@ -11,6 +11,7 @@ import torch
 from torch import nn
 from transformers import (
     Gemma3ForConditionalGeneration,
+    Lfm2ForCausalLM,
     LlamaForCausalLM,
     MistralForCausalLM,
     Phi3ForCausalLM,
@@ -18,9 +19,7 @@ from transformers import (
     QuantizedCache,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
-    Lfm2ForCausalLM
 )
-
 from transformers.models.lfm2.modeling_lfm2 import Lfm2HybridConvCache
 
 from kvpress.utils import extract_keys_and_values
@@ -34,7 +33,7 @@ SUPPORTED_MODELS = (
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
     Gemma3ForConditionalGeneration,
-    Lfm2ForCausalLM
+    Lfm2ForCausalLM,
 )
 
 
@@ -139,7 +138,7 @@ class BasePress:
         cache = kwargs["past_key_values"]
 
         if isinstance(cache, Lfm2HybridConvCache):
-            cache_layer = None # TODO: implement for Lfm2
+            cache_layer = None  # TODO: implement for Lfm2
         else:
             cache_layer = cache.layers[module.layer_idx]
 
@@ -161,8 +160,8 @@ class BasePress:
             cache_layer.cumulative_length = keys.shape[2]
         else:
             if isinstance(cache, Lfm2HybridConvCache):
-                cache.key_cache[module.layer_idx] = keys
-                cache.value_cache[module.layer_idx] = values
+                cache.key_cache[module.layer_idx] = keys  # type: ignore[index]
+                cache.value_cache[module.layer_idx] = values  # type: ignore[index]
             else:
                 cache_layer.keys = keys
                 cache_layer.values = values
@@ -208,7 +207,8 @@ class BasePress:
                     # Skip layers with sliding window attention, only for Gemma3
                     continue
 
-                # for some models/layers, self_attn might be None (e.g., LFM's convolutional layers), so we check before registering the hook
+                # for some models/layers, self_attn might be None (e.g., LFM's convolutional layers),
+                # so we check before registering the hook
                 if not hasattr(layer, "self_attn") or layer.self_attn is None:
                     continue
 
