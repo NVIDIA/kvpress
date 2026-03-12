@@ -21,6 +21,7 @@ from tqdm import tqdm
 from transformers import FineGrainedFP8Config, Pipeline, pipeline
 
 from kvpress import (
+    CAMPress,
     ComposedPress,
     DecodingPress,
     DMSPress,
@@ -281,6 +282,9 @@ class EvaluationRunner:
             assert key_channel_compression_ratio is not None, "key_channel_compression_ratio must be set for ThinKPress"
             press.key_channel_compression_ratio = key_channel_compression_ratio
             logger.info(f"Set ThinKPress key_channel_compression_ratio to {key_channel_compression_ratio}")
+        elif isinstance(press, CAMPress):
+            press.compression_ratio = compression_ratio
+            logger.info(f"Set CAMPress compression_ratio to {compression_ratio}")
         elif isinstance(press, DecodingPress):
             press.compression_interval = self.config.compression_interval or press.compression_interval
             press.target_size = self.config.target_size or press.target_size
