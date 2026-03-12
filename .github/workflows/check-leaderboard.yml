@@ -1,0 +1,69 @@
+name: Check Leaderboard Status
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check HuggingFace Space status
+        id: check
+        run: |
+          SPACE_API="https://huggingface.co/api/spaces/nvidia/kvpress-leaderboard"
+          SPACE_URL="https://nvidia-kvpress-leaderboard.hf.space"
+
+          STAGE=$(curl -sf "$SPACE_API" | python3 -c "import sys,json; print(json.load(sys.stdin)['runtime']['stage'])" 2>/dev/null || echo "UNREACHABLE")
+
+          HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" --max-time 30 "$SPACE_URL" 2>/dev/null || echo "000")
+
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+
+          if [ "$STAGE" = "RUNNING" ] && [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for existing open issue
+        if: steps.check.outputs.healthy == 'false'
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COUNT=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "leaderboard-down" \
+            --state open \
+            --json number \
+            --jq 'length')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Open issue
+        if: steps.check.outputs.healthy == 'false' && steps.existing.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STAGE: ${{ steps.check.outputs.stage }}
+          HTTP_CODE: ${{ steps.check.outputs.http_code }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+
+          BODY="The [KVPress Leaderboard](https://huggingface.co/spaces/nvidia/kvpress-leaderboard) appears to be down.
+
+          - **HF Space runtime stage:** \`${STAGE}\` (expected \`RUNNING\`)
+          - **HTTP status code:** \`${HTTP_CODE}\`
+          - **Detected at:** ${DATE} (UTC)
+
+          You can restart the space from the HuggingFace settings page:
+          https://huggingface.co/spaces/nvidia/kvpress-leaderboard/settings"
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Leaderboard is down ($DATE)" \
+            --label "leaderboard-down" \
+            --body "$BODY"
