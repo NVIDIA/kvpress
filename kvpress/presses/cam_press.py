@@ -32,15 +32,15 @@ except ImportError:
 
 def _aggregate_attention_per_kv_head(
     attentions: torch.Tensor,
-    num_kv_heads: int,
+    num_key_value_heads: int,
 ) -> torch.Tensor:
     """Average attention scores across query heads that share a KV head."""
     num_query_heads = attentions.shape[1]
-    if num_query_heads == num_kv_heads:
+    if num_query_heads == num_key_value_heads:
         return attentions
-    group_size = num_query_heads // num_kv_heads
-    batch, _, seq_q, seq_k = attentions.shape
-    return attentions.reshape(batch, num_kv_heads, group_size, seq_q, seq_k).mean(dim=2)
+    group_size = num_query_heads // num_key_value_heads
+    bsz, _, seq_q, seq_k = attentions.shape
+    return attentions.reshape(bsz, num_key_value_heads, group_size, seq_q, seq_k).mean(dim=2)
 
 
 @dataclass
@@ -72,19 +72,19 @@ class CAMPress(DecodingPress):
     merge_budget: Optional[int] = 64
     use_triton: bool = True
 
-    def __init__(
-        self,
-        base_press: ScorerPress,
-        compression_ratio: float = 0.0,
-        merge_budget: Optional[int] = 64,
-        use_triton: bool = True,
-    ):
-        self.base_press = base_press
-        self.compression_ratio = compression_ratio
-        self.merge_budget = merge_budget
-        self.use_triton = use_triton
+    def __post_init__(self):
+        assert isinstance(self.base_press, ScorerPress), "CAMPress requires a ScorerPress as base_press"
+        assert self.compression_ratio >= 0.0, "compression_ratio must be non-negative"
+        assert self.merge_budget is None or self.merge_budget > 0, "merge_budget must be positive or None"
+        assert isinstance(self.merge_budget, (int, type(None))), "merge_budget must be an int or None"
+        assert isinstance(self.use_triton, bool), "use_triton must be a boolean"
+
         self._target_cache_size: dict[int, int] = {}
         self._first_eviction_done: dict[int, bool] = defaultdict(lambda: False)
+
+        if self.use_triton and not HAS_TRITON:
+            logger.warning(f"Triton is not available. Falling back to PyTorch merge implementation for {self.__class__.__name__}.")
+
 
     def post_init_from_model(self, model: PreTrainedModel):
         if hasattr(self.base_press, "post_init_from_model"):
@@ -137,22 +137,22 @@ class CAMPress(DecodingPress):
 
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
 
-        batch, kv_heads, _ = scores.shape
-        dev = scores.device
+        bsz, num_key_value_heads, _ = scores.shape
+        device = scores.device
         n_kept = cache_len - n_to_evict
 
         kept_indices = scores.topk(n_kept, dim=-1).indices
         kept_indices = torch.sort(kept_indices, dim=-1).values
 
-        all_idx = torch.arange(cache_len, device=dev)
-        kept_mask = torch.zeros(batch, kv_heads, cache_len, dtype=torch.bool, device=dev)
+        all_idx = torch.arange(cache_len, device=device)
+        kept_mask = torch.zeros(bsz, num_key_value_heads, cache_len, dtype=torch.bool, device=device)
         kept_mask.scatter_(2, kept_indices, True)
-        evicted_positions = all_idx.expand(batch, kv_heads, -1)[~kept_mask].reshape(batch, kv_heads, n_to_evict)
+        evicted_positions = all_idx.expand(bsz, num_key_value_heads, -1)[~kept_mask].reshape(bsz, num_key_value_heads, n_to_evict)
 
         effective_budget = self.merge_budget if self.merge_budget is not None else (cache_len - 1)
         actual_budget = min(effective_budget, cache_len - 1)
 
-        offsets = torch.arange(actual_budget, device=dev)
+        offsets = torch.arange(actual_budget, device=device)
         per_token_targets = (evicted_positions.unsqueeze(-1) + 1 + offsets).clamp(max=cache_len - 1)
         valid_targets = (evicted_positions.unsqueeze(-1) + 1 + offsets) < cache_len
 
@@ -162,7 +162,7 @@ class CAMPress(DecodingPress):
             attentions = self._compute_current_token_attention(module, hidden_states, keys, kwargs)
 
         if attentions is not None and actual_budget > 0 and n_to_evict > 0:
-            attn_per_kv = _aggregate_attention_per_kv_head(attentions, kv_heads)
+            attn_per_kv = _aggregate_attention_per_kv_head(attentions, num_key_value_heads)
             if attn_per_kv.shape[2] > 1:
                 attn_per_kv = attn_per_kv[:, :, -1:, :]
             attn_squeezed = attn_per_kv.squeeze(2)
@@ -185,8 +185,8 @@ class CAMPress(DecodingPress):
 
             non_merge = merge_mask < 0.5
             if non_merge.any():
-                b_idx = torch.arange(batch, device=dev)[:, None, None].expand_as(evicted_positions)
-                h_idx = torch.arange(kv_heads, device=dev)[None, :, None].expand_as(evicted_positions)
+                b_idx = torch.arange(bsz, device=device)[:, None, None].expand_as(evicted_positions)
+                h_idx = torch.arange(num_key_value_heads, device=device)[None, :, None].expand_as(evicted_positions)
                 pos_to_zero = evicted_positions[non_merge]
                 if pos_to_zero.numel() > 0:
                     values[b_idx[non_merge], h_idx[non_merge], pos_to_zero, :] = 0.0
@@ -236,9 +236,9 @@ class CAMPress(DecodingPress):
         kwargs: dict,
     ) -> torch.Tensor:
         """Compute softmax attention from the last query token to all cached keys."""
-        _, num_kv_heads, cache_len, head_dim = keys.shape
+        _, num_key_value_heads, cache_len, head_dim = keys.shape
         num_query_heads = module.config.num_attention_heads
-        num_key_value_groups = num_query_heads // num_kv_heads
+        num_key_value_groups = num_query_heads // num_key_value_heads
 
         query_states = get_prerope_query_states(module, hidden_states)
         query_states = query_states[:, :, -1:, :]
@@ -292,7 +292,10 @@ class CAMPress(DecodingPress):
         return output
 
     def _torch_merge(self, values, evicted_positions, per_token_targets, actual_budget, valid_targets):
-        """Merge each evicted token's value into its sequential neighbors (pure PyTorch fallback)."""
+        """Merge each evicted token's value into its sequential neighbors (pure PyTorch fallback).
+
+        Used when Triton is unavailable (not installed) or when values are not on a CUDA device.
+        """
         n_evicted = evicted_positions.shape[2]
 
         for i in range(n_evicted):
@@ -315,12 +318,12 @@ class CAMPress(DecodingPress):
         if not HAS_TRITON:
             return self._torch_merge(values, evicted_positions, per_token_targets, actual_budget, valid_targets)
 
-        batch_size, num_kv_heads, seq_len, head_dim = values.shape
+        bsz, num_key_value_heads, seq_len, head_dim = values.shape
         n_evicted = evicted_positions.shape[2]
 
         BLOCK_D = triton.next_power_of_2(head_dim)
         TILE_R = min(64, triton.next_power_of_2(actual_budget))
-        grid = (batch_size, num_kv_heads)
+        grid = (bsz, num_key_value_heads)
 
         _cam_decoding_merge_kernel[grid](
             values_ptr=values,
@@ -373,15 +376,15 @@ if HAS_TRITON:
         TILE_R: tl.constexpr,
     ):
         """
-        Tiled scatter-add merge kernel. Grid: (batch_size, num_kv_heads).
+        Tiled scatter-add merge kernel. Grid: (batch_size, num_key_value_heads).
         Each evicted token scatters its contribution into its own neighbor list.
         """
-        batch_idx = tl.program_id(0)
+        bsz_idx = tl.program_id(0)
         head_idx = tl.program_id(1)
 
-        v_base = values_ptr + batch_idx * v_stride_b + head_idx * v_stride_h
-        ep_base = evicted_pos_ptr + batch_idx * ep_stride_b + head_idx * ep_stride_h
-        mt_base = merge_targets_ptr + batch_idx * mt_stride_b + head_idx * mt_stride_h
+        v_base = values_ptr + bsz_idx * v_stride_b + head_idx * v_stride_h
+        ep_base = evicted_pos_ptr + bsz_idx * ep_stride_b + head_idx * ep_stride_h
+        mt_base = merge_targets_ptr + bsz_idx * mt_stride_b + head_idx * mt_stride_h
 
         d_offsets = tl.arange(0, BLOCK_D)
         d_mask = d_offsets < head_dim
