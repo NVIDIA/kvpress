@@ -4,7 +4,6 @@
 import numpy as np
 
 from kvpress import (
-    CAMPress,
     CompactorPress,
     CURPress,
     DuoAttentionPress,
@@ -140,13 +139,6 @@ default_presses = [
                 "compression_ratio": 0.5,
                 "chunk_size": 256,
             },
-        ],
-    },
-    {
-        "cls": CAMPress,
-        "kwargs": [
-            {"base_press": StreamingLLMPress(), "compression_ratio": 0.2},
-            {"base_press": StreamingLLMPress(), "compression_ratio": 0.8},
         ],
     },
 ]
