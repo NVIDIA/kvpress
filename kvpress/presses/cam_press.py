@@ -57,7 +57,7 @@ class CAMPress(DecodingPress):
     target_size: int = 2048
     hidden_states_buffer_size: int = 256
     merge_budget: int = 32
-    use_triton: bool = True
+    use_triton: bool = False
 
     def __post_init__(self):
         super().__post_init__()
@@ -278,13 +278,14 @@ class CAMPress(DecodingPress):
         # 3. Actual budget per merge token
         actual_budget = valid_mask.sum(dim=-1)
 
-        # 4. Suffix mean via cumsum
+        # 4. Window mean via cumsum (from target_start to min(target_start + merge_budget, seq_len))
         attn_cumsum = torch.nn.functional.pad(attentions_per_kv.cumsum(dim=-1), (1, 0))
-        total_sum = attn_cumsum[:, :, -1:]
         start_sum = attn_cumsum.gather(2, target_starts.unsqueeze(1).expand(-1, num_kv_heads, -1))
-        suffix_sum = total_sum - start_sum
-        suffix_len = (seq_len - target_starts).unsqueeze(1)
-        mean_attn = suffix_sum / suffix_len
+        window_end = (target_starts + merge_budget).clamp(max=seq_len)
+        end_sum = attn_cumsum.gather(2, window_end.unsqueeze(1).expand(-1, num_kv_heads, -1))
+        window_sum = end_sum - start_sum
+        window_len = (window_end - target_starts).unsqueeze(1)
+        mean_attn = window_sum / window_len
 
         # 5. Merge probability
         merge_token_attn = attentions_per_kv.gather(2, merge_indices.unsqueeze(1).expand(-1, num_kv_heads, -1))
@@ -405,13 +406,14 @@ if HAS_TRITON:
         if num_targets <= 0:
             return
 
-        # Compute mean attention of suffix [target_start:] via cumulative sums (O(1))
+        # Compute mean attention of window [target_start:target_start+merge_budget] via cumulative sums (O(1))
         cumsum_base = attn_cumsum_ptr + batch_idx * cs_stride_batch + head_idx * cs_stride_head
-        attn_suffix_sum = tl.load(cumsum_base + seq_len * cs_stride_seq) - tl.load(
+        window_end = tl.minimum(target_start + merge_budget, seq_len)
+        attn_window_sum = tl.load(cumsum_base + window_end * cs_stride_seq) - tl.load(
             cumsum_base + target_start * cs_stride_seq
         )
-        attn_suffix_len = seq_len - target_start
-        mean_attn = attn_suffix_sum / attn_suffix_len
+        attn_window_len = window_end - target_start
+        mean_attn = attn_window_sum / attn_window_len
 
         # Load attention weight for the token being merged
         attn_weights_base = attn_weights_ptr + batch_idx * attn_stride_batch + head_idx * attn_stride_head
