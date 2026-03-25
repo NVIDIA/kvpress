@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging
 import math
-from collections import defaultdict
 from dataclasses import dataclass
 
 import torch
@@ -13,9 +12,9 @@ import torch.nn as nn
 from transformers import QuantizedCache
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
+from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.utils import extract_keys_and_values, get_prerope_query_states
 
 logger = logging.getLogger(__name__)
@@ -54,21 +53,18 @@ class CAMPress(DecodingPress):
     """
 
     base_press: ScorerPress | AdaKVPress = None
-    compression_interval: int = 2
-    target_size: int = 3048
+    compression_interval: int = 512
+    target_size: int = 2048
     hidden_states_buffer_size: int = 256
     merge_budget: int = 32
-    use_triton: bool = False
+    use_triton: bool = True
 
     def __post_init__(self):
-        assert isinstance(self.base_press, (ScorerPress, AdaKVPress)), "CAMPress requires a ScorerPress as base_press"
-        assert self.compression_interval > 0, "compression_interval must be greater than 0"
-        assert self.target_size > 0, "target_size must be greater than 0"
+        super().__post_init__()
         assert self.merge_budget > 0, "merge_budget must be positive "
         assert isinstance(self.use_triton, bool), "use_triton must be a boolean"
 
-        # State Variables
-        self.layer_step_counts = defaultdict(int)
+        # To maintain cumulative attention sum across generation steps
         self._running_attn_sum: dict[int, torch.Tensor] = {}
 
         if self.use_triton and not HAS_TRITON:
@@ -88,10 +84,9 @@ class CAMPress(DecodingPress):
         layer_idx = int(module.layer_idx)
         cache_len = keys.shape[2]
 
-        n_to_evict = cache_len-self.target_size
+        n_to_evict = cache_len - self.target_size
 
         target_compression_ratio = self._find_target_compression_ratio(cache_len, self.target_size)
-        
 
         if n_to_evict <= 0:
             return keys, values
@@ -124,7 +119,9 @@ class CAMPress(DecodingPress):
                 values = self._torch_merge(values, merge_indices, kept_indices, attentions, self.merge_budget)
 
         # Physical Pruning
-        kept_indices_expand = kept_indices.view(bsz, 1, self.target_size, 1).expand(bsz, num_key_value_heads, self.target_size, head_dim)
+        kept_indices_expand = kept_indices.view(bsz, 1, self.target_size, 1).expand(
+            bsz, num_key_value_heads, self.target_size, head_dim
+        )
         keys = keys.gather(2, kept_indices_expand).contiguous()
         values = values.gather(2, kept_indices_expand).contiguous()
 
@@ -150,6 +147,9 @@ class CAMPress(DecodingPress):
         if kwargs["cache_position"][-1] <= q_len:
             return output
 
+        # All hidden_states_buffer code is borrowed from DecodingPress
+        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
+
         cache_layer = cache.layers[module.layer_idx]
         keys, values = extract_keys_and_values(cache, layer_idx)
         bsz, num_key_value_heads, seq_len, _ = keys.shape
@@ -159,7 +159,7 @@ class CAMPress(DecodingPress):
         if attentions is None:
             attentions = self._compute_current_token_attention(module, hidden_states, keys, kwargs)
         else:
-            attentions = attentions[:,:,-1:,:]
+            attentions = attentions[:, :, -1:, :]
 
         attentions = self._aggregate_attention_per_kv_head(attentions, num_key_value_heads)
 
@@ -184,10 +184,14 @@ class CAMPress(DecodingPress):
         self.layer_step_counts[layer_idx] += 1
 
         # Trigger interval-based bulk eviction
-        if (self.layer_step_counts[layer_idx] >= self.compression_interval and seq_len>self.target_size) or (q_len >= self.target_size):
+        if (self.layer_step_counts[layer_idx] >= self.compression_interval and seq_len > self.target_size) or (
+            q_len >= self.target_size
+        ):
 
+            # Apply compression using cumulative attention scores and buffered hidden states
             attn_squeezed = self._running_attn_sum[layer_idx]
-            keys, values = self.compress(module, hidden_states, keys, values, attn_squeezed, kwargs)
+            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
+            keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, kwargs)
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
@@ -201,13 +205,22 @@ class CAMPress(DecodingPress):
                 cache_layer.values = values
 
             self.layer_step_counts[layer_idx] = 0
+            # Always clear the buffer after compression - otherwise there's a mismatch between
+            # hidden states buffer and kv cache
+            self.hidden_states_buffer[layer_idx] = []
+
+        self.hidden_states_buffer[layer_idx] = (
+            self.hidden_states_buffer[layer_idx][-self.hidden_states_buffer_size :]
+            if self.hidden_states_buffer_size > 0
+            else []
+        )
 
         return output
 
     def reset(self):
         """Reset per-sequence state."""
-        self.layer_step_counts = defaultdict(int)
-        self._running_attn_sum: dict[int, torch.Tensor] = {}
+        super().reset()
+        self._running_attn_sum = {}
 
     @staticmethod
     def _compute_current_token_attention(
@@ -394,7 +407,9 @@ if HAS_TRITON:
 
         # Compute mean attention of suffix [target_start:] via cumulative sums (O(1))
         cumsum_base = attn_cumsum_ptr + batch_idx * cs_stride_batch + head_idx * cs_stride_head
-        attn_suffix_sum = tl.load(cumsum_base + seq_len * cs_stride_seq) - tl.load(cumsum_base + target_start * cs_stride_seq)
+        attn_suffix_sum = tl.load(cumsum_base + seq_len * cs_stride_seq) - tl.load(
+            cumsum_base + target_start * cs_stride_seq
+        )
         attn_suffix_len = seq_len - target_start
         mean_attn = attn_suffix_sum / attn_suffix_len
 
@@ -411,7 +426,10 @@ if HAS_TRITON:
 
         # Bernoulli draw using pre-computed random thresholds
         rand_val = tl.load(
-            rand_thresholds_ptr + batch_idx * (tl.num_programs(1) * tl.num_programs(2)) + head_idx * tl.num_programs(2) + merge_idx
+            rand_thresholds_ptr
+            + batch_idx * (tl.num_programs(1) * tl.num_programs(2))
+            + head_idx * tl.num_programs(2)
+            + merge_idx
         )
 
         if merge_prob > rand_val:
@@ -421,14 +439,18 @@ if HAS_TRITON:
             value_base = value_states_ptr + batch_idx * v_stride_batch + head_idx * v_stride_head
 
             # Load value vector of the token being merged
-            merge_token_value = tl.load(value_base + merge_token_pos * v_stride_seq + dim_offsets * v_stride_dim, mask=dim_mask, other=0.0)
+            merge_token_value = tl.load(
+                value_base + merge_token_pos * v_stride_seq + dim_offsets * v_stride_dim, mask=dim_mask, other=0.0
+            )
             contribution = merge_token_value / num_targets
 
             # Scatter-add contribution equally across target tokens
             for i in range(merge_budget):
                 if i < num_targets:
                     target_offset = target_start + i
-                    target_token_pos = tl.load(kept_token_ids_ptr + batch_idx * idx_stride_batch + target_offset * idx_stride_seq)
+                    target_token_pos = tl.load(
+                        kept_token_ids_ptr + batch_idx * idx_stride_batch + target_offset * idx_stride_seq
+                    )
 
                     target_value_ptrs = value_base + target_token_pos * v_stride_seq + dim_offsets * v_stride_dim
                     tl.atomic_add(target_value_ptrs, contribution, mask=dim_mask)
