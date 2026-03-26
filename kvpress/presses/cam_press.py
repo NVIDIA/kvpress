@@ -19,6 +19,7 @@ from kvpress.utils import extract_keys_and_values, get_prerope_query_states
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class CAMPress(DecodingPress):
     """
@@ -151,7 +152,7 @@ class CAMPress(DecodingPress):
         kept_indices = torch.sort(kept_indices, dim=-1).values
 
         n_to_merge = merge_indices.shape[1]
-        
+
         base_idx_first = torch.searchsorted(kept_indices, merge_indices[:, 0:1], right=True)
         target_starts = torch.arange(n_to_merge, device=kept_indices.device).unsqueeze(0) + base_idx_first
 
@@ -185,14 +186,18 @@ class CAMPress(DecodingPress):
         merge_mask = torch.bernoulli(merge_prob)
 
         # 7. Build contributions and scatter-add
-        merge_values = values.gather(2, merge_indices.view(bsz, 1, n_to_merge, 1).expand(-1, num_key_value_heads, -1, head_dim))
+        merge_values = values.gather(
+            2, merge_indices.view(bsz, 1, n_to_merge, 1).expand(-1, num_key_value_heads, -1, head_dim)
+        )
         scale = (merge_mask / actual_budget.unsqueeze(1)).unsqueeze(-1)
         scale = torch.where(actual_budget.unsqueeze(1).unsqueeze(-1) == 0, torch.zeros_like(scale), scale)
         contributions = merge_values * scale
         contributions = contributions.unsqueeze(3).expand(-1, -1, -1, self.merge_budget, -1)
         contributions = contributions * valid_mask.view(bsz, 1, n_to_merge, self.merge_budget, 1)
         contributions = contributions.reshape(bsz, num_key_value_heads, n_to_merge * self.merge_budget, head_dim)
-        scatter_idx = target_positions.view(bsz, 1, n_to_merge * self.merge_budget, 1).expand(-1, num_key_value_heads, -1, head_dim)
+        scatter_idx = target_positions.view(bsz, 1, n_to_merge * self.merge_budget, 1).expand(
+            -1, num_key_value_heads, -1, head_dim
+        )
 
         values.scatter_add_(2, scatter_idx, contributions)
 
@@ -221,7 +226,6 @@ class CAMPress(DecodingPress):
 
         Extends `DecodingPress.forward_hook` with per-step attention accumulation.
 
-        This hook:
         This hook:
         1. Detects when we're in decoding phase (not prefilling)
         2. Accumulates hidden states in a buffer
@@ -349,4 +353,3 @@ class CAMPress(DecodingPress):
         group_size = num_query_heads // num_key_value_heads
         bsz, _, seq_q, seq_k = attentions.shape
         return attentions.reshape(bsz, num_key_value_heads, group_size, seq_q, seq_k).mean(dim=2)
-

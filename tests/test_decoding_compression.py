@@ -190,9 +190,7 @@ def test_decoding_press_equivalence(press_factory):
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create standalone decoding press
-    decoding_press = press_factory(
-            target_size=52, compression_interval=3, base_press=KnormPress(compression_ratio=0.5)
-        )
+    decoding_press = press_factory(target_size=52, compression_interval=3, base_press=KnormPress(compression_ratio=0.5))
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
