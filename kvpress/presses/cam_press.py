@@ -57,7 +57,7 @@ class CAMPress(DecodingPress):
         more evenly.
     """
 
-    base_press: ScorerPress | AdaKVPress = None
+    base_press: ScorerPress | AdaKVPress
     compression_interval: int = 512
     target_size: int = 2048
     hidden_states_buffer_size: int = 256
