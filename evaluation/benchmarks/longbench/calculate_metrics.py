@@ -5,18 +5,10 @@ import re
 import string
 from collections import Counter
 
+import jieba
 import numpy as np
+from fuzzywuzzy import fuzz
 from rouge import Rouge
-
-try:
-    import jieba
-    from fuzzywuzzy import fuzz
-except ImportError as e:
-    missing_module = str(e).split()[-1].strip("'")  # Extract missing module name
-    print(
-        f"Module '{missing_module}' not found. \
-          If test Longbench, please install it using 'pip install {missing_module}'"
-    )
 
 
 def calculate_metrics(df):
@@ -60,9 +52,9 @@ def scorer(dataset, predictions, answers, all_classes):
     for prediction, ground_truths in zip(predictions, answers):
         score = 0.0
         if dataset in ["trec", "triviaqa", "samsum", "lsht"]:
-            prediction = prediction.lstrip("\n").split("\n")[0]
+            prediction = prediction.lstrip().split("\n")[0]
         for ground_truth in ground_truths:
-            score = max(score, dataset2metric[dataset](prediction, ground_truth, all_classes=all_classes))
+            score = max(score, dataset2metric[dataset](prediction.lstrip(), ground_truth, all_classes=all_classes))
         total_score += score
     return round(100 * total_score / len(predictions), 2)
 

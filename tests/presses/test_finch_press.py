@@ -16,6 +16,6 @@ def test_finch_press(unit_test_model):  # noqa: F811
     ]:
         press.delimiter_token_id = unit_test_model.config.eos_token_id
         with press(unit_test_model):
-            input_ids = torch.arange(10, 20)
+            input_ids = torch.arange(10, 20).to(unit_test_model.device)
             input_ids[8] = press.delimiter_token_id
             unit_test_model(input_ids.unsqueeze(0))

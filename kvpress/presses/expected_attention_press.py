@@ -11,7 +11,7 @@ from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.presses.utils import get_query_states
+from kvpress.utils import get_prerope_query_states
 
 
 @dataclass
@@ -68,7 +68,7 @@ class ExpectedAttentionPress(ScorerPress):
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
-        query_states = get_query_states(module, h)
+        query_states = get_prerope_query_states(module, h)
 
         # Query mean
         mu = query_states.mean(dim=2, keepdim=True)

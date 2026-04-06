@@ -15,12 +15,11 @@ class BlockPress(BasePress):
     """
     BlockPress: Block-wise iterative KV cache compression.
 
-    Applies compression in fixed-size blocks. Iteratively scores and prunes tokens block by block, maintaining
-    a buffer of previously kept tokens for context. Mathematically equivalent to global compression when
-    scoring uses only local information. It was introduced in the KeyDiff paper as part of the KeyDiff press,
-    but it can also work as a standalone press.
+    Simulates block prompt processing described in the KeyDiff paper (https://arxiv.org/abs/2504.15364).
+    Segments the input sequence into non-overlapping blocks and compresses iteratively.
 
-    Based on the KeyDiff paper (https://arxiv.org/abs/2504.15364).
+    ⚠️ This is not a true chunked-prefill implementation: all inputs are computed in a single
+    forward pass before block-wise scoring and pruning.
 
     Parameters
     ----------
@@ -35,6 +34,9 @@ class BlockPress(BasePress):
 
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress), "BlockPress requires a ScorerPress"
+
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
 
     @property
     def compression_ratio(self):
@@ -58,18 +60,18 @@ class BlockPress(BasePress):
 
         assert attentions is None, "BlockPress does not support attentions."
 
-        bsz, num_key_value_heads, q_len, head_dim = keys.shape
+        bsz, num_key_value_heads, k_len, head_dim = keys.shape
 
-        block_size = self.block_size if self.block_size < q_len else q_len
-        n_kept = int(q_len * (1 - self.compression_ratio))
+        block_size = self.block_size if self.block_size < k_len else k_len
+        n_kept = int(k_len * (1 - self.compression_ratio))
 
         kept_indices = torch.arange(n_kept, device=keys.device).expand(bsz, num_key_value_heads, -1)
 
         # Reshape hidden states to match the kept_indices
-        states = hidden_states.view(bsz, q_len, num_key_value_heads, -1).transpose(1, 2)
+        states = hidden_states.view(bsz, k_len, num_key_value_heads, -1).transpose(1, 2)
 
-        for i in range(n_kept, q_len, block_size):
-            end = min(i + block_size, q_len)
+        for i in range(n_kept, k_len, block_size):
+            end = min(i + block_size, k_len)
             current_indices = torch.arange(i, end, device=keys.device).expand(bsz, num_key_value_heads, -1)
             current_indices = torch.cat([kept_indices, current_indices], dim=-1)
 

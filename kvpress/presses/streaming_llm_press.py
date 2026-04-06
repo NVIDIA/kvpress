@@ -19,6 +19,7 @@ class StreamingLLMPress(ScorerPress):
     and most recent tokens, while pruning middle tokens.
 
     Based on StreamingLLM (https://arxiv.org/abs/2309.17453).
+    To fully match the implementation described in the paper, use the KeyRerotationPress wrapper (see issue #158).
 
     Parameters
     ----------
@@ -44,9 +45,9 @@ class StreamingLLMPress(ScorerPress):
         kwargs,
     ) -> torch.Tensor:
 
-        q_len = hidden_states.shape[1]
-        assert q_len > self.n_sink, f"Input should contain more tokens than n_sink={self.n_sink}"
-        n_pruned = q_len - int(q_len * (1 - self.compression_ratio))
+        k_len = keys.shape[2]
+        assert k_len > self.n_sink, f"Input should contain more tokens than n_sink={self.n_sink}"
+        n_pruned = k_len - int(k_len * (1 - self.compression_ratio))
         scores = torch.ones_like(keys[..., 0])
         scores[:, :, self.n_sink : self.n_sink + n_pruned] = 0
 

@@ -36,6 +36,9 @@ class KeyRerotationPress(BasePress):
     def __post_init__(self):
         assert isinstance(self.press, ScorerPress)
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+
     @property
     def compression_ratio(self):
         return self.press.compression_ratio
@@ -137,7 +140,7 @@ class KeyRerotationPress(BasePress):
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
 
         # Get indices of KV pairs with the lowest scores
-        q_len = hidden_states.shape[1]
+        q_len = keys.shape[2]
         n_kept = int(q_len * (1 - self.press.compression_ratio))
         indices = scores.topk(n_kept, dim=-1).indices
         indices = torch.sort(indices, dim=2).values

@@ -180,6 +180,20 @@ class KVComposePress(BasePress):
     def _register_cache(self, cache: DynamicCache):
         self.cache = cache
 
+    def _reset_state(self):
+        self.task_aggregators = None
+        self.cache = None
+        self.context_ids = None
+        self.context_len = 0
+        self.prompt_ids = None
+
+        self.scores = None
+        self.composite_scores_per_head = None
+        self.composite_scores_per_layer = None
+        self.important_per_head = None
+        self.important_per_layer = None
+        self.important_mask_per_kv_head = None
+
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
         Fitting self.task_aggregators with the attention scores from the forward pass.
@@ -412,3 +426,4 @@ class KVComposePress(BasePress):
                 forward_hook.remove()
             self.prepare_important_masks()
             self.compress_cache(model)
+            self._reset_state()

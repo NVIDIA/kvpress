@@ -12,9 +12,11 @@ from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 
 from kvpress.presses.base_press import BasePress
+from kvpress.presses.decoding_press import DecodingPress
+from kvpress.presses.dms_press import DMSPress
 from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
-from kvpress.presses.observed_attention_press import ObservedAttentionPress
+from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         press: Optional[BasePress] = None,
         max_new_tokens: int = 50,
         max_context_length: Optional[int] = None,
+        enable_thinking: bool = False,
         cache: Optional[Cache] = None,
         **kwargs,
     ):
@@ -67,6 +70,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             The maximum number of new tokens to generate for each answer.
         max_context_length : int, optional
             The maximum number of tokens in the context. By default will use the maximum length supported by the model.
+        enable_thinking: bool = False,
+            Whether to enable thinking in the chat template (chat template must support this argument)
         cache : Cache, optional
             The cache to use for the forward pass. Defaults to None (DynamicCache).
         **kwargs : dict
@@ -91,6 +96,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             "questions": questions,
             "answer_prefix": answer_prefix,
             "max_context_length": max_context_length,
+            "enable_thinking": enable_thinking,
         }
         forward_kwargs = {"press": press, "max_new_tokens": max_new_tokens, "cache": cache}
         return preprocess_kwargs, forward_kwargs, postprocess_kwargs
@@ -101,6 +107,7 @@ class KVPressTextGenerationPipeline(Pipeline):
         questions: list[str],
         answer_prefix: str,
         max_context_length: int,
+        enable_thinking: bool = False,
     ):
         """
         Apply chat template and tokenize the context and questions.
@@ -119,6 +126,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             Optional prefix for generated answers.
         max_context_length : int
             Maximum tokens allowed in context (truncated if exceeded).
+        enable_thinking : bool
+            Whether to enable thinking in the chat template (chat template must support this argument)
 
         Returns
         -------
@@ -132,12 +141,12 @@ class KVPressTextGenerationPipeline(Pipeline):
             context = bos_token + context
             question_suffix = "\n"  # to separate the question from the answer
         else:
-            separator = "\n" + "#" * len(context)
+            separator = "#" * (len(context) + 10)
             context = self.tokenizer.apply_chat_template(
                 [{"role": "user", "content": context + separator}],
                 add_generation_prompt=True,
                 tokenize=False,
-                enable_thinking=False,
+                enable_thinking=enable_thinking,
             )
             context, question_suffix = context.split(separator)
 
@@ -189,6 +198,11 @@ class KVPressTextGenerationPipeline(Pipeline):
         list[str]
             Generated answers for each input question.
         """
+        if isinstance(press, (DecodingPress, PrefillDecodingPress)) and len(input_tensors["questions_ids"]) > 1:
+            raise ValueError(
+                "DecodingPress is not compatible with multiple questions. Please specify a single question."
+            )
+
         context_ids = input_tensors["context_ids"].to(self.model.device)
         context_length = context_ids.shape[1]
 
@@ -196,32 +210,55 @@ class KVPressTextGenerationPipeline(Pipeline):
         if cache is None:
             cache = DynamicCache()
 
-        with press(self.model) if press is not None else contextlib.nullcontext():
+        # We only perform prefill compression if the press is a prefill press
+        perform_prefill_compression = press is not None and not isinstance(press, DecodingPress)
+        with press(self.model) if perform_prefill_compression else contextlib.nullcontext():
             # We run the model without the lm head for pre-filling.
             self.model.model(
                 input_ids=context_ids,
                 past_key_values=cache,
-                output_attentions=self.output_attentions(press),
             )
 
-        logger.debug(f"Context Length: {context_length}")
-        logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
+            logger.debug(f"Context Length: {context_length}")
+            logger.debug(f"Compressed Context Length: {cache.get_seq_length()}")
 
-        # Greedy decoding for each question
-        answers = []
-        for question_ids in input_tensors["questions_ids"]:
-            if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
-                context_length = cache.get_seq_length()
+        # We only perform decoding compression if the press is a decoding or prefill decoding press
+        perform_decoding_compression = press is not None and isinstance(press, (DecodingPress, PrefillDecodingPress))
+        if isinstance(press, DMSPress):
+            perform_decoding_compression = press.decoding
+        with press(self.model) if perform_decoding_compression else contextlib.nullcontext():
+            # Greedy decoding for each question
+            answers = []
+            for question_ids in input_tensors["questions_ids"]:
+                if isinstance(press, KeyRerotationPress) or (isinstance(press, FinchPress) and press.rerotate_keys):
+                    context_length = cache.get_seq_length()
 
-            answer = self.generate_answer(
-                question_ids=question_ids.to(self.model.device),
-                cache=cache,
-                context_length=context_length,
-                max_new_tokens=max_new_tokens,
-            )
-            answers.append(answer)
+                cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+                answer = self.generate_answer(
+                    question_ids=question_ids.to(self.model.device),
+                    cache=cache,
+                    context_length=context_length,
+                    max_new_tokens=max_new_tokens,
+                )
+                self._remove_answer_from_cache(cache, cache_seq_lengths)
 
+                answers.append(answer)
         return answers
+
+    def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
+
+        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
+            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
+
+        if isinstance(cache, QuantizedCache):
+            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
+                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
+                    :, :, :sequence_length
+                ]
+                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
+                    :, :, :sequence_length
+                ]
 
     def generate_answer(
         self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
@@ -245,7 +282,6 @@ class KVPressTextGenerationPipeline(Pipeline):
         str
             The generated answer.
         """
-        cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
         position_ids = torch.arange(
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
@@ -275,29 +311,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             generated_ids.append(new_id)
             if new_id.item() in should_stop_token_ids:
                 break
-        answer = self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True)
-        # Remove the generated tokens from the cache
-        for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
-            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
-
-        if isinstance(cache, QuantizedCache):
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
-                    :, :, :sequence_length
-                ]
-                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
-                    :, :, :sequence_length
-                ]
-
+        answer = str(self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True))
         return answer
-
-    def output_attentions(self, press: BasePress):
-        if isinstance(press, ObservedAttentionPress):
-            return True
-        if hasattr(press, "press") and isinstance(press.press, ObservedAttentionPress):
-            return True
-        return False
 
     def postprocess(self, model_outputs, single_question):
         if single_question:

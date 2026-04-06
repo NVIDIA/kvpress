@@ -39,6 +39,9 @@ class AdaKVPress(BasePress):
         assert isinstance(self.press, ScorerPress), "AdaKVPress requires a ScorerPress as input"
         assert 0 <= self.alpha_safeguard <= 1, "alpha_safeguard should be in [0, 1]"
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+
     @property
     def compression_ratio(self):
         return self.press.compression_ratio
@@ -55,21 +58,21 @@ class AdaKVPress(BasePress):
 
         # Compute scores
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
-        bsz, num_key_value_heads, q_len = scores.shape
+        bsz, num_key_value_heads, k_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
-        n_kept = int(q_len * (1 - self.compression_ratio))  # ScorerPress definition
+        n_kept = int(k_len * (1 - self.compression_ratio))  # ScorerPress definition
         n_safe = int(n_kept * self.alpha_safeguard)
         top_indices = torch.topk(scores, n_safe, dim=-1).indices
         scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)
 
         # Compute bottom-k across heads
-        n_pruned = num_key_value_heads * (q_len - n_kept)
+        n_pruned = num_key_value_heads * (k_len - n_kept)
         indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten()
 
         # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for more details
         batch_indices = torch.arange(bsz).repeat_interleave(n_pruned)
-        head_indices = indices // q_len
-        seq_indices = indices % q_len
+        head_indices = indices // k_len
+        seq_indices = indices % k_len
         module.masked_key_indices = (batch_indices, head_indices, seq_indices)
         return keys, values

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.kvzip_press import KVzipPress
-from kvpress.presses.observed_attention_press import ObservedAttentionPress
 
 
 @dataclass
@@ -26,7 +25,13 @@ class ComposedPress(BasePress):
     ])
     ```
 
-    ObservedAttentionPress, AdaKVPress, or KVzipPress are currently not supported.
+    AdaKVPress and KVzipPress are currently not supported.
+
+    ⚠️ ComposedPress may fail if a press depends on features beyond keys and values
+    (e.g., hidden states or attention weights). For example, combining KnormPress
+    with ObservedAttentionPress fails because KnormPress prunes keys and values,
+    but ObservedAttentionPress then receives the original attention weights.
+
 
     Parameters
     ----------
@@ -41,12 +46,17 @@ class ComposedPress(BasePress):
     def __post_init__(self):
         self.compression_ratio = None
         assert not any(
-            isinstance(press, (ObservedAttentionPress, AdaKVPress, KVzipPress)) for press in self.presses
-        ), "ComposedPress cannot contains ObservedAttentionPress, AdaKVPress, or KVzipPress"
+            isinstance(press, (AdaKVPress, KVzipPress)) for press in self.presses
+        ), "ComposedPress cannot contains AdaKVPress or KVzipPress"
+
+    def post_init_from_model(self, model):
+        for press in self.presses:
+            press.post_init_from_model(model)
 
     def forward_hook(self, module, input, kwargs, output):
-        self.compression_ratio = 1.0
+        retained_fraction = 1.0
         for press in self.presses:
             output = press.forward_hook(module, input, kwargs, output)
-            self.compression_ratio *= press.compression_ratio  # type: ignore
+            retained_fraction *= 1 - press.compression_ratio  # type: ignore
+        self.compression_ratio = 1 - retained_fraction
         return output
