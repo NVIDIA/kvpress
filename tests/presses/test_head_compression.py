@@ -40,7 +40,7 @@ def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ra
     assert abs(cumulative_compression_ratio - press.compression_ratio) < 1e-2  # tolerate small differences
 
 
-# Only for KVzipPress and unstructured KVComposePress, since they are 
+# Only for KVzipPress and unstructured KVComposePress, since they are
 # the only non-wrapper presses with head compression (apart from Duo)
 @pytest.mark.parametrize(
     "press_cls, kwargs",
@@ -51,7 +51,7 @@ def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ra
     ],
 )
 @pytest.mark.parametrize("compression_ratio", [0.2, 0.4, 0.6, 0.8])
-def test_head_compression(unit_test_model, press_cls, kwargs, compression_ratio):
+def test_head_compression(unit_test_model, press_cls, kwargs, compression_ratio):  # noqa: F811
     press = press_cls(compression_ratio=compression_ratio, **kwargs)
     with press(unit_test_model):
         input_ids = torch.randint(0, 1024, (1, 128)).to(unit_test_model.device)
