@@ -24,6 +24,7 @@ from kvpress.presses.finch_press import FinchPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.keydiff_press import KeyDiffPress
 from kvpress.presses.knorm_press import KnormPress
+from kvpress.presses.kvcompose_press import KVComposePress
 from kvpress.presses.kvzap_press import KVzapPress
 from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.lagkv_press import LagKVPress
@@ -85,4 +86,5 @@ __all__ = [
     "KVzapPress",
     "DMSPress",
     "FastKVzipPress",
+    "KVComposePress",
 ]

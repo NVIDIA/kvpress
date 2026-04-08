@@ -12,11 +12,14 @@ from kvpress.presses.scorer_press import ScorerPress
 
 
 class KVzapConfig(PretrainedConfig):
-    model_type: str = "kvzap"
-    input_dim: int
-    output_dim: int
-    hidden_dim: Optional[int] = None
-    n_modules: int
+    model_type = "kvzap"
+
+    def __init__(self, *, input_dim: int, output_dim: int, n_modules: int, hidden_dim: Optional[int] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+        self.n_modules = n_modules
 
 
 class KVzapModel(PreTrainedModel):
