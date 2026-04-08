@@ -276,7 +276,9 @@ class KVComposePress(BasePress):
         n_kept = int(self.composite_scores_per_head.numel() * (1 - self.compression_ratio))
         kept = self.composite_scores_per_head.reshape(-1).topk(n_kept).indices // self.context_len
         bins = self.num_layers * self.num_kv_heads
-        self.important_per_head = torch.bincount(kept, minlength=bins).reshape(self.num_layers, self.num_kv_heads).cpu().numpy()
+        self.important_per_head = (
+            torch.bincount(kept, minlength=bins).reshape(self.num_layers, self.num_kv_heads).cpu().numpy()
+        )
 
         n_kept = int(self.composite_scores_per_layer.numel() * (1 - self.compression_ratio))
         kept = self.composite_scores_per_layer.reshape(-1).topk(n_kept).indices // self.context_len
