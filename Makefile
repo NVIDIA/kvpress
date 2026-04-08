@@ -1,4 +1,4 @@
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 UV ?= $(shell which uv)
 BUILD_VERSION:=$(APP_VERSION)
 TESTS_FILTER:=
