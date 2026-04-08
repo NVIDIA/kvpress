@@ -43,7 +43,7 @@ reports:
 test: reports
 	$(UV) pip install flash-attn --no-build-isolation --find-links https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/expanded_assets/v0.7.12
 	PYTHONPATH=. \
-	$(UV) run pytest \
+	$(UV) run --no-sync pytest \
 		--cov-report xml:reports/coverage.xml \
 		--cov=kvpress/ \
 		--junitxml=./reports/junit.xml \
