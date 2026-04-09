@@ -273,11 +273,16 @@ class KVComposePress(BasePress):
         """
         self.compute_composite_scores()
 
-        threshold_head = self.composite_scores_per_head.quantile(self.compression_ratio)
-        self.important_per_head = (self.composite_scores_per_head >= threshold_head).sum(dim=-1).cpu().numpy()
+        n_kept = int(self.composite_scores_per_head.numel() * (1 - self.compression_ratio))
+        kept = self.composite_scores_per_head.reshape(-1).topk(n_kept).indices // self.context_len
+        bins = self.num_layers * self.num_kv_heads
+        self.important_per_head = (
+            torch.bincount(kept, minlength=bins).reshape(self.num_layers, self.num_kv_heads).cpu().numpy()
+        )
 
-        threshold_layer = self.composite_scores_per_layer.quantile(self.compression_ratio)
-        self.important_per_layer = (self.composite_scores_per_layer >= threshold_layer).sum(dim=-1).cpu().numpy()
+        n_kept = int(self.composite_scores_per_layer.numel() * (1 - self.compression_ratio))
+        kept = self.composite_scores_per_layer.reshape(-1).topk(n_kept).indices // self.context_len
+        self.important_per_layer = torch.bincount(kept, minlength=self.num_layers).cpu().numpy()
 
     def prepare_important_masks(self):
         """

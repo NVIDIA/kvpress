@@ -23,7 +23,6 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-groups
-          uv pip install torch==2.10
       - run: make test
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
