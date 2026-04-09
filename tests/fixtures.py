@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import gc
+
 import pytest
 import torch
 from transformers import AutoModelForCausalLM, pipeline
@@ -80,7 +82,10 @@ def kv_press_llama3_1_flash_attn_pipeline():
         device=device,
         model_kwargs={"attn_implementation": attn_implementation, "dtype": torch.bfloat16},
     )
-    return pipe
+    yield pipe
+    del pipe
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 @pytest.fixture(scope="class")
@@ -94,7 +99,10 @@ def kv_press_llama3_2_flash_attn_pipeline():
         device=device,
         model_kwargs={"attn_implementation": attn_implementation, "dtype": torch.bfloat16},
     )
-    return pipe
+    yield pipe
+    del pipe
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 @pytest.fixture(scope="class")
@@ -108,4 +116,7 @@ def kv_press_qwen3_flash_attn_pipeline():
         device=device,
         model_kwargs={"attn_implementation": attn_implementation, "dtype": torch.bfloat16},
     )
-    return pipe
+    yield pipe
+    del pipe
+    gc.collect()
+    torch.cuda.empty_cache()
