@@ -7,7 +7,7 @@ import torch
 from transformers import DynamicCache, QuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
-from kvpress import CompactorPress, LeverageScorePress, NonCausalAttnPress, QFilterPress
+from kvpress import QFilterPress
 from tests.default_presses import default_presses
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_qwen3_flash_attn_pipeline  # noqa: F401
 
@@ -58,8 +58,6 @@ class TestRuler:
         if isinstance(press, QFilterPress):
             # QFilterPress doesn't support Qwen3 4B. Will be tested in the next test class.
             return
-        if isinstance(press, (CompactorPress, LeverageScorePress, NonCausalAttnPress)):
-            pytest.skip("Skipped: these presses OOM on L4 GPU with Qwen3-4B")
         else:
             pred_answer = kv_press_qwen3_flash_attn_pipeline(context, question=question, press=press, cache=cache)[
                 "answer"
