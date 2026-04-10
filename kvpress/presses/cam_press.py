@@ -153,8 +153,7 @@ class CAMPress(DecodingPress):
 
         n_to_merge = merge_indices.shape[1]
 
-        base_idx_first = torch.searchsorted(kept_indices, merge_indices[:, 0:1], right=True)
-        target_starts = torch.arange(n_to_merge, device=kept_indices.device).unsqueeze(0) + base_idx_first
+        target_starts = torch.searchsorted(kept_indices, merge_indices, right=True)
 
         # 2. Build target window indices: [bsz, n_to_merge, merge_budget]
         offsets = torch.arange(self.merge_budget, device=kept_indices.device)
