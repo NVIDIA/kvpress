@@ -11,6 +11,8 @@ from kvpress.presses.chunk_press import ChunkPress
 from kvpress.presses.chunkkv_press import ChunkKVPress
 from kvpress.presses.compactor_press import CompactorPress
 from kvpress.presses.composed_press import ComposedPress
+from kvpress.presses.content_adaptive_press import ContentAdaptivePress
+from kvpress.presses.content_adaptive_wrapper import ContentAdaptiveWrapper
 from kvpress.presses.criticalkv_press import CriticalAdaKVPress, CriticalKVPress
 from kvpress.presses.cur_press import CURPress
 from kvpress.presses.decoding_press import DecodingPress
@@ -85,4 +87,6 @@ __all__ = [
     "DMSPress",
     "FastKVzipPress",
     "KVComposePress",
+    "ContentAdaptivePress",
+    "ContentAdaptiveWrapper",
 ]

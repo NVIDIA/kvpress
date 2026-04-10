@@ -5,6 +5,7 @@ import numpy as np
 
 from kvpress import (
     CompactorPress,
+    ContentAdaptivePress,
     CURPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
@@ -27,6 +28,7 @@ from kvpress import (
     ThinKPress,
     TOVAPress,
 )
+from kvpress.presses.content_adaptive_wrapper import ContentAdaptiveWrapper
 from kvpress.presses.fastkvzip_press import FastKVzipGate
 from kvpress.presses.kvzap_press import KVzapConfig, KVzapModel
 
@@ -149,6 +151,19 @@ default_presses = [
             {"compression_ratio": 0.8},
             {"structured": False, "compression_ratio": 0.5},
             {"structured": False, "compression_ratio": 0.8},
+        ],
+    },
+    {"cls": ContentAdaptivePress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
+]
+
+
+# Wrapper presses that wrap a ScorerPress
+default_wrapper_presses = [
+    {
+        "cls": ContentAdaptiveWrapper,
+        "kwargs": [
+            {"press": KnormPress(compression_ratio=0.2)},
+            {"press": KnormPress(compression_ratio=0.8)},
         ],
     },
 ]
