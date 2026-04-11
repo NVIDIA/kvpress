@@ -138,17 +138,19 @@ class CAMPress(DecodingPress):
 
         bsz, num_key_value_heads, seq_len, head_dim = keys.shape
 
-        evict_indices = scores[:, 0, :].topk(n_to_evict, dim=-1, largest=False).indices
+        mean_scores = scores.mean(dim=1)  # [bsz, seq_len] — aggregate across KV heads
+
+        evict_indices = mean_scores.topk(n_to_evict, dim=-1, largest=False).indices
         evict_indices = torch.sort(evict_indices, dim=-1).values
 
-        evict_scores = scores[:, 0, :].gather(-1, evict_indices)
+        evict_scores = mean_scores.gather(-1, evict_indices)
         # Flip so later sequence positions come first; stable sort preserves this order for ties
         k = self.layer_step_counts[layer_idx]
         order = evict_scores.flip(-1).argsort(dim=-1, descending=True, stable=True)[:, :k]
         merge_indices = evict_indices.gather(-1, n_to_evict - 1 - order)
         merge_indices = torch.sort(merge_indices, dim=-1).values
 
-        kept_indices = scores[:, 0, :].topk(self.target_size, dim=-1).indices
+        kept_indices = mean_scores.topk(self.target_size, dim=-1).indices
         kept_indices = torch.sort(kept_indices, dim=-1).values
 
         n_to_merge = merge_indices.shape[1]
