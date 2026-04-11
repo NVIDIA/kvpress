@@ -59,7 +59,8 @@ class CriticalKVPress(ScorerPress):
         bsz, num_key_value_heads, k_len, _ = values.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
         Wo = module.o_proj.weight.transpose(0, 1)
-        Wo = Wo.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
+        head_dim = getattr(module.config, "head_dim", None) or (module.config.hidden_size // module.config.num_attention_heads)
+        Wo = Wo.view(module.config.num_attention_heads, head_dim, module.config.hidden_size)
         V = repeat_kv(values, num_key_value_groups)
 
         # We use head-wise computation instead of direct matmul to reduce the memory usage of WoV.
