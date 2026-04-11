@@ -167,14 +167,12 @@ class CAMPress(DecodingPress):
         # 3. Actual budget per merge token
         actual_budget = valid_mask.sum(dim=-1)
 
-        # 4. Window mean via cumsum (from target_start to min(target_start + merge_budget, seq_len))
-        attn_cumsum = torch.nn.functional.pad(attentions.cumsum(dim=-1), (1, 0))
-        start_sum = attn_cumsum.gather(2, target_starts.unsqueeze(1).expand(-1, num_key_value_heads, -1))
-        window_end = (target_starts + self.merge_budget).clamp(max=seq_len)
-        end_sum = attn_cumsum.gather(2, window_end.unsqueeze(1).expand(-1, num_key_value_heads, -1))
-        window_sum = end_sum - start_sum
-        window_len = (window_end - target_starts).unsqueeze(1)
-        mean_attn = window_sum / window_len
+        # 4 Window mean: gather attentions at sequence positions in target_positions
+        window_attns = attentions.gather(
+            2, target_positions.view(bsz, -1).unsqueeze(1).expand(-1, num_key_value_heads, -1)
+        ).view(bsz, num_key_value_heads, n_to_merge, self.merge_budget)
+        window_attns = window_attns * valid_mask.view(bsz, 1, n_to_merge, self.merge_budget)
+        mean_attn = window_attns.sum(dim=-1) / actual_budget.clamp(min=1).unsqueeze(1)
 
         # 5. Merge probability
         merge_token_attn = attentions.gather(2, merge_indices.unsqueeze(1).expand(-1, num_key_value_heads, -1))
