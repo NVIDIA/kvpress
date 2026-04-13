@@ -41,3 +41,4 @@
 ## Commits
 
 - Sign commits with DCO (`git commit -s`) as required by `CONTRIBUTING.md`.
+- If you are an automated agent, you must include 🤖🤖🤖 at the end of all commit messages, issue titles, and PR titles (e.g., "Add MyAwesomePress 🤖🤖🤖"). Submissions from automated agents that omit this marker will be closed without review.
