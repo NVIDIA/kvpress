@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test script to verify that DecodingPress actually compresses during decoding.
+Test script to verify that DecodingPress and CAMPress compress during decoding.
 """
 import logging
 
@@ -11,6 +11,7 @@ import torch
 from transformers import DynamicCache, pipeline
 
 from kvpress import (
+    CAMPress,
     CompactorPress,
     DecodingPress,
     KnormPress,
@@ -26,19 +27,35 @@ from tests.default_presses import default_presses
 logger = logging.getLogger(__name__)
 
 
+def make_decoding_press(target_size: int, compression_interval: int, base_press: ScorerPress):
+    return DecodingPress(
+        base_press=base_press,
+        compression_interval=compression_interval,
+        target_size=target_size,
+    )
+
+
+def make_cam_press(target_size: int, compression_interval: int, base_press: ScorerPress):
+    return CAMPress(
+        base_press=base_press,
+        compression_interval=compression_interval,
+        target_size=target_size,
+    )
+
+
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
 @pytest.mark.parametrize("token_buffer_size", [32, 64, 128])
-def test_decoding_compression(token_buffer_size):
-    """Test that DecodingPress compresses the cache during decoding."""
+def test_decoding_compression(press_factory, token_buffer_size):
+    """Test that decoding presses compress the cache during decoding."""
 
     # Initialize pipeline with a small model
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create a DecodingPress with KnormPress
-    press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.5),  # Remove 50% of tokens
-        compression_interval=4,  # Compress every 4 tokens
-        target_size=token_buffer_size,
-    )
+
+    press = press_factory(
+        target_size=token_buffer_size, compression_interval=4, base_press=KnormPress(compression_ratio=0.5)
+    )  # Remove 50% of tokens
 
     # Create cache
     cache = DynamicCache()
@@ -61,7 +78,8 @@ def test_decoding_compression(token_buffer_size):
         )
 
 
-def test_prefill_decoding_press_calls_both_phases():
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+def test_prefill_decoding_press_calls_both_phases(press_factory):
     """Test that PrefillDecodingPress calls both prefilling and decoding presses."""
 
     # Initialize pipeline
@@ -70,7 +88,7 @@ def test_prefill_decoding_press_calls_both_phases():
     # Create PrefillDecodingPress with both presses
     combined_press = PrefillDecodingPress(
         prefilling_press=KnormPress(compression_ratio=0.6),  # Compress to 60% during prefill
-        decoding_press=DecodingPress(base_press=KnormPress(), compression_interval=3, target_size=48),
+        decoding_press=press_factory(target_size=48, compression_interval=3, base_press=KnormPress()),
     )
 
     # Test context and question
@@ -95,14 +113,14 @@ def test_prefill_decoding_press_calls_both_phases():
         )
 
 
-def test_decoding_press_without_prefill():
-    """Test that DecodingPress works correctly when used standalone (no prefill compression)."""
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+def test_decoding_press_without_prefill(press_factory):
+    """Test that decoding presses work correctly when used standalone (no prefill compression)."""
 
     # Initialize pipeline
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
-    # Create DecodingPress only
-    decoding_press = DecodingPress(base_press=KnormPress(compression_ratio=0.4), compression_interval=5, target_size=64)
+    press = press_factory(target_size=64, compression_interval=5, base_press=KnormPress(compression_ratio=0.4))
 
     # Test context and question
     context = "The quick brown fox jumps over the lazy dog. " * 8
@@ -110,7 +128,7 @@ def test_decoding_press_without_prefill():
 
     # Run pipeline
     cache = DynamicCache()
-    pipe(context, question=question, press=decoding_press, cache=cache, max_new_tokens=25)
+    pipe(context, question=question, press=press, cache=cache, max_new_tokens=25)
 
     # Check that cache was compressed during decoding
     for layer_idx, cache_layer in enumerate(cache.layers):
@@ -125,7 +143,8 @@ def test_decoding_press_without_prefill():
         )
 
 
-def test_prefill_decoding_press_decoding_only():
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+def test_prefill_decoding_press_decoding_only(press_factory):
     """Test PrefillDecodingPress with only decoding press (no prefill compression)."""
 
     # Initialize pipeline
@@ -134,8 +153,8 @@ def test_prefill_decoding_press_decoding_only():
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
         prefilling_press=None,
-        decoding_press=DecodingPress(
-            base_press=KnormPress(compression_ratio=0.6), compression_interval=4, target_size=56
+        decoding_press=press_factory(
+            target_size=56, compression_interval=4, base_press=KnormPress(compression_ratio=0.6)
         ),
     )
 
@@ -160,7 +179,8 @@ def test_prefill_decoding_press_decoding_only():
         )
 
 
-def test_decoding_press_equivalence():
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+def test_decoding_press_equivalence(press_factory):
     """Test that DecodingPress standalone yields same result as PrefillDecodingPress with decoding only."""
 
     # Set random seed for reproducibility
@@ -170,13 +190,13 @@ def test_decoding_press_equivalence():
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
 
     # Create standalone decoding press
-    decoding_press = DecodingPress(base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52)
+    decoding_press = press_factory(target_size=52, compression_interval=3, base_press=KnormPress(compression_ratio=0.5))
 
     # Create PrefillDecodingPress with only decoding press
     combined_press = PrefillDecodingPress(
         prefilling_press=None,
-        decoding_press=DecodingPress(
-            base_press=KnormPress(compression_ratio=0.5), compression_interval=3, target_size=52
+        decoding_press=press_factory(
+            target_size=52, compression_interval=3, base_press=KnormPress(compression_ratio=0.5)
         ),
     )
 
@@ -217,8 +237,9 @@ E       RuntimeError: shape '[1, 2, 2, 6]' is invalid for input of size 12
 """
 
 
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
 @pytest.mark.parametrize("press_config", default_presses)
-def test_all_presses_work_with_decoding_press(press_config):
+def test_all_presses_work_with_decoding_press(press_factory, press_config):
     """Test that all default presses work as base presses for DecodingPress."""
 
     # Initialize pipeline
@@ -246,7 +267,7 @@ def test_all_presses_work_with_decoding_press(press_config):
         return
 
     # Create DecodingPress with this base press
-    decoding_press = DecodingPress(base_press=base_press, compression_interval=3, target_size=48)
+    decoding_press = press_factory(target_size=48, compression_interval=3, base_press=base_press)
 
     # Test context and question
     context = "The quick brown fox jumps over the lazy dog. " * 8
@@ -271,7 +292,8 @@ def test_all_presses_work_with_decoding_press(press_config):
         ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"  # noqa: E501
 
 
-def test_compression_actually_reduces_memory():
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+def test_compression_actually_reduces_memory(press_factory):
     """Test that compression actually reduces memory usage compared to no compression."""
 
     pipe = pipeline("kv-press-text-generation", model="MaxJeblick/llama2-0b-unit-test", device_map="auto")
@@ -283,12 +305,7 @@ def test_compression_actually_reduces_memory():
     cache_uncompressed = DynamicCache()
     result_uncompressed = pipe(context, question=question, cache=cache_uncompressed, max_new_tokens=25)
 
-    # Run with compression
-    press = DecodingPress(
-        base_press=KnormPress(compression_ratio=0.3),  # Aggressive compression
-        compression_interval=3,
-        target_size=40,
-    )
+    press = press_factory(target_size=40, compression_interval=3, base_press=KnormPress(compression_ratio=0.3))
     cache_compressed = DynamicCache()
     result_compressed = pipe(context, question=question, press=press, cache=cache_compressed, max_new_tokens=25)
 

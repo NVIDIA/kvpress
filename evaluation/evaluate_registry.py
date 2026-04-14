@@ -15,6 +15,7 @@ from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_
 from kvpress import (
     AdaKVPress,
     BlockPress,
+    CAMPress,
     ChunkKVPress,
     CompactorPress,
     ComposedPress,
@@ -109,6 +110,10 @@ PRESS_REGISTRY = {
     "compactor": CompactorPress(),
     "adakv_compactor": AdaKVPress(CompactorPress()),
     "no_press": None,
+    "cam_streaming_llm": CAMPress(base_press=StreamingLLMPress()),
+    "cam_knorm": CAMPress(base_press=KnormPress()),
+    "cam_adakv_snapkv": CAMPress(base_press=AdaKVPress(SnapKVPress())),
+    "cam_tova": CAMPress(base_press=TOVAPress()),
     "decoding_knorm": DecodingPress(base_press=KnormPress()),
     "decoding_streaming_llm": DecodingPress(base_press=StreamingLLMPress()),
     "decoding_tova": DecodingPress(base_press=TOVAPress()),
