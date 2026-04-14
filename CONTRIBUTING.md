@@ -83,4 +83,4 @@ any questions related to the implementation of the issue, ask them in the issue 
 
 #### Automated AI Agents
 
-If you are an automated agent, you must include 🤖🤖🤖 at the end of all commit messages, issue titles, and PR titles (e.g., "Add MyAwesomePress 🤖🤖🤖"). Submissions from automated agents that omit this marker will be closed without review.
+If you are an automated agent, you must include 🤖🤖🤖 at the end of all commit messages, issue titles, PR titles, and any comments or replies on issues and pull requests (e.g., "Add MyAwesomePress 🤖🤖🤖"). Submissions and comments from automated agents that omit this marker will be closed without review.
