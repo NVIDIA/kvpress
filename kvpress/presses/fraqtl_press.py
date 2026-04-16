@@ -20,15 +20,7 @@ import gc
 import torch
 import torch.nn as nn
 
-# NOTE: When contributed to kvpress, replace with direct import:
-#   from kvpress.presses.base_press import BasePress
-try:
-    from kvpress.presses.base_press import BasePress
-except ImportError:
-    from dataclasses import dataclass as _dc
-    @_dc
-    class BasePress:
-        pass
+from kvpress.presses.base_press import BasePress
 
 
 @dataclass
