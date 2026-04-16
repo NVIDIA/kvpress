@@ -21,6 +21,7 @@ from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.expected_attention_with_stats import ExpectedAttentionStatsPress
 from kvpress.presses.fastkvzip_press import FastKVzipPress
 from kvpress.presses.finch_press import FinchPress
+from kvpress.presses.fraqtl_press import FraqtlPress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.keydiff_press import KeyDiffPress
 from kvpress.presses.knorm_press import KnormPress
@@ -86,5 +87,6 @@ __all__ = [
     "KVzapPress",
     "DMSPress",
     "FastKVzipPress",
+    "FraqtlPress",
     "KVComposePress",
 ]
