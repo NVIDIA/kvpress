@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import logging
 import math
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from transformers import QuantizedCache
+from transformers import PreTrainedModel, QuantizedCache
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
 from kvpress.presses.adakv_press import AdaKVPress
@@ -315,6 +316,13 @@ class CAMPress(DecodingPress):
         """Reset per-sequence state."""
         super().reset()
         self._running_attn_sum = {}
+
+    @contextmanager
+    def __call__(self, model: PreTrainedModel):
+        # Reset per-sequence buffers so state does not leak across samples.
+        self.reset()
+        with super().__call__(model):
+            yield
 
     @staticmethod
     def _compute_current_token_attention(
