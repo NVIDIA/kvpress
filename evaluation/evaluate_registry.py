@@ -34,6 +34,7 @@ from kvpress import (
     KVzapPress,
     KVzipPress,
     LagKVPress,
+    MergingPress,
     ObservedAttentionPress,
     PyramidKVPress,
     QFilterPress,
@@ -121,4 +122,9 @@ PRESS_REGISTRY = {
     "decoding_adakv_expected_attention_e2": DecodingPress(base_press=AdaKVPress(ExpectedAttentionPress(epsilon=1e-2))),
     "decoding_adakv_snapkv": DecodingPress(base_press=AdaKVPress(SnapKVPress())),
     "decoding_keydiff": DecodingPress(base_press=KeyDiffPress()),
+    # MergingPress: merge-on-evict during prefill (values-only merge preserves RoPE keys)
+    "merging_knorm": MergingPress(KnormPress()),
+    "merging_snapkv": MergingPress(SnapKVPress()),
+    "merging_adakv_snapkv": MergingPress(AdaKVPress(SnapKVPress())),
+    "merging_dms_kvzap_mlp": MergingPress(DMSPress(press=KVzapPress(model_type="mlp"))),
 }
