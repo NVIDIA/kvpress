@@ -3,13 +3,17 @@
 
 
 import logging
+from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Generator
 
 import torch
 from torch import nn
+from transformers import Gemma3ForConditionalGeneration, PreTrainedModel, QuantizedCache
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +175,12 @@ class MergingPress(BasePress):
       budget, returns truncated tensors with merged survivors.
     * ``MergingPress(AdaKVPress(ScorerPress))``: delegates to AdaKV's adaptive
       per-head budget allocation, then merges evicted tokens into survivors in-place.
+    * ``MergingPress(DMSPress(ScorerPress))``: **post-hook composition** — lets
+      DMSPress register its own hooks via its ``__call__`` context manager, then
+      adds merge post-hooks that fire after each layer.  The inner press runs
+      exactly as standalone; MergingPress reads ``masked_key_indices`` and merges.
+      Works with any hook-based press (DMSPress, KVzipPress, FastKVzipPress,
+      KVComposePress).
 
     Parameters
     ----------
@@ -279,3 +289,99 @@ class MergingPress(BasePress):
         # Extract kept positions (topk order to match ScorerPress.compress behavior)
         idx4 = keep_idx.unsqueeze(-1).expand(-1, -1, -1, head_dim)
         return new_keys.gather(2, idx4), new_values.gather(2, idx4)
+
+    def _uses_hook_composition(self) -> bool:
+        """True if inner press uses forward_hook for eviction (not compress).
+
+        These presses (e.g. DMSPress, KVzipPress, FastKVzipPress, KVComposePress)
+        set ``module.masked_key_indices`` in their ``forward_hook``.  MergingPress
+        adds merge-on-evict as a post-processor after the inner hook, without
+        modifying the inner press's execution or state.
+        """
+        return (type(self.press).compress is BasePress.compress
+                and type(self.press).forward_hook is not BasePress.forward_hook)
+
+    def _merge_post_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+        """Post-hook that merges evicted tokens into survivors.
+
+        Reads ``module.masked_key_indices`` (set by any mask-based press) and
+        applies merge-on-evict to fold evicted values into their most
+        cosine-similar survivors.  Purely additive — does not modify the inner
+        press's execution or state.
+        """
+        mask_indices = getattr(module, "masked_key_indices", None)
+        if mask_indices is None or len(mask_indices[0]) == 0:
+            return output
+
+        cache = kwargs["past_key_values"]
+        keys, values = extract_keys_and_values(cache, module.layer_idx)
+        bsz, num_kv_heads, k_len, _ = keys.shape
+
+        evict_mask = torch.zeros(bsz, num_kv_heads, k_len, device=keys.device, dtype=torch.bool)
+        evict_mask[tuple(mask_indices)] = True
+
+        new_keys, new_values = _merge_on_evict(keys, values, evict_mask, **self._merge_kwargs())
+
+        # Write merged values back to cache
+        cache_layer = cache.layers[module.layer_idx]
+        if isinstance(cache, QuantizedCache):
+            cache_layer._quantized_keys = cache_layer._quantize(new_keys, axis=cache_layer.axis_key)
+            cache_layer._quantized_values = cache_layer._quantize(new_values, axis=cache_layer.axis_value)
+            cache_layer.keys = torch.zeros(0, dtype=new_keys.dtype, device=new_keys.device)
+            cache_layer.values = torch.zeros(0, dtype=new_keys.dtype, device=new_keys.device)
+            cache_layer.cumulative_length = new_keys.shape[2]
+        else:
+            cache_layer.keys = new_keys
+            cache_layer.values = new_values
+
+        return output
+
+    @contextmanager
+    def __call__(self, model: PreTrainedModel) -> Generator:
+        """Context manager supporting both standard and hook-based inner presses.
+
+        For standard presses (ScorerPress, AdaKV): delegates to
+        :meth:`BasePress.__call__`.
+
+        For hook-based presses (DMSPress, KVzipPress, etc.): lets the inner press
+        register its own hooks via its own ``__call__``, then adds merge
+        post-hooks on top.  The inner press's contract is fully preserved.
+        """
+        if not self._uses_hook_composition():
+            with super().__call__(model):
+                yield
+            return
+
+        # Hook-based press: let inner press register its hooks via its own __call__
+        with self.press(model):
+            merge_hooks = []
+            try:
+                language_model = (
+                    model.model.language_model if hasattr(model.model, "language_model") else model.model
+                )
+                for layer in language_model.layers:
+                    if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
+                        continue
+                    merge_hooks.append(
+                        layer.self_attn.register_forward_hook(self._merge_post_hook, with_kwargs=True)
+                    )
+                yield
+            finally:
+                for hook in merge_hooks:
+                    hook.remove()
+
+    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+        """Forward hook supporting both standard and hook-based inner presses.
+
+        For standard presses: delegates to :meth:`BasePress.forward_hook`.
+
+        For hook-based presses (fallback for nested composition, e.g. inside
+        :class:`PrefillDecodingPress`): delegates to the inner press's
+        ``forward_hook`` first, then applies merge post-processing.
+        """
+        if not self._uses_hook_composition():
+            return super().forward_hook(module, input, kwargs, output)
+
+        # Delegate to inner press hook (runs unchanged), then merge
+        output = self.press.forward_hook(module, input, kwargs, output)
+        return self._merge_post_hook(module, input, kwargs, output)

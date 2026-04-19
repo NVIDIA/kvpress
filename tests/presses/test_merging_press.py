@@ -4,7 +4,7 @@
 import torch
 from transformers import DynamicCache
 
-from kvpress import AdaKVPress, KnormPress, SnapKVPress
+from kvpress import AdaKVPress, DMSPress, KnormPress, RandomPress, SnapKVPress
 from kvpress.presses.merging_press import MergingPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
@@ -133,3 +133,45 @@ def test_adakv_composition(unit_test_model):  # noqa: F811
         for i in range(len(cache_plain.layers))
     )
     assert any_diff, "MergingPress(AdaKV) should differ from plain AdaKV"
+
+
+def test_dms_hook_composition(unit_test_model):  # noqa: F811
+    """MergingPress(DMSPress) uses post-hook composition and changes values."""
+    torch.manual_seed(42)
+    input_ids = torch.randint(0, 1024, (1, 128), device=unit_test_model.device)
+
+    plain = DMSPress(press=RandomPress(), threshold=0.5, sliding_window_size=0)
+    with plain(unit_test_model):
+        cache_plain = DynamicCache()
+        unit_test_model(input_ids.clone(), past_key_values=cache_plain)
+
+    wrapper = MergingPress(
+        press=DMSPress(press=RandomPress(), threshold=0.5, sliding_window_size=0),
+        similarity_threshold=0.0,
+    )
+    assert wrapper._uses_hook_composition()
+    with wrapper(unit_test_model):
+        cache_merge = DynamicCache()
+        unit_test_model(input_ids.clone(), past_key_values=cache_merge)
+
+    any_diff = any(
+        not torch.equal(cache_plain.layers[i].values, cache_merge.layers[i].values)
+        for i in range(len(cache_plain.layers))
+    )
+    assert any_diff, "MergingPress(DMSPress) should differ from plain DMSPress"
+
+
+def test_forward_hook_fallback(unit_test_model):  # noqa: F811
+    """forward_hook delegation works for nested composition (PrefillDecodingPress path)."""
+    torch.manual_seed(42)
+    input_ids = torch.randint(0, 1024, (1, 128), device=unit_test_model.device)
+    dms = DMSPress(press=RandomPress(), threshold=0.5, sliding_window_size=0)
+    wrapper = MergingPress(press=dms, similarity_threshold=0.0)
+
+    # Simulate PrefillDecodingPress: uses BasePress.__call__ which calls forward_hook directly
+    from kvpress.presses.base_press import BasePress
+
+    with BasePress.__call__(wrapper, unit_test_model):
+        cache = DynamicCache()
+        unit_test_model(input_ids, past_key_values=cache)
+    assert cache.get_seq_length() > 0
