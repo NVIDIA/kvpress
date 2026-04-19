@@ -160,10 +160,17 @@ class MergingPress(BasePress):
     """
     Press-agnostic merge-on-evict wrapper for KV cache compression.
 
-    Wraps a :class:`ScorerPress` and replaces hard eviction with merge-on-evict:
+    Wraps **any** :class:`BasePress` and replaces hard eviction with merge-on-evict:
     each evicted token is folded into its most similar surviving neighbor rather than
     being discarded.  Values are blended via a similarity-weighted average; keys can
     optionally be merged depending on the ``merge_keys`` flag.
+
+    **Composition modes:**
+
+    * ``MergingPress(ScorerPress)``: calls ``.score()``, applies uniform per-head
+      budget, returns truncated tensors with merged survivors.
+    * ``MergingPress(AdaKVPress(ScorerPress))``: delegates to AdaKV's adaptive
+      per-head budget allocation, then merges evicted tokens into survivors in-place.
 
     Parameters
     ----------
@@ -233,10 +240,24 @@ class MergingPress(BasePress):
         if self.press.compression_ratio == 0:
             return keys, values
 
-        if not isinstance(self.press, ScorerPress):
-            return self.press.compress(module, hidden_states, keys, values, attentions, kwargs)
+        bsz, num_kv_heads, k_len, head_dim = keys.shape
 
-        return self._compress_scorer(module, hidden_states, keys, values, attentions, kwargs)
+        # --- ScorerPress path: uniform per-head merge, returns truncated tensors ---
+        if isinstance(self.press, ScorerPress):
+            return self._compress_scorer(module, hidden_states, keys, values, attentions, kwargs)
+
+        # --- Mask-based press path (AdaKV, CriticalAdaKV, etc.) ---
+        keys, values = self.press.compress(module, hidden_states, keys, values, attentions, kwargs)
+
+        mask_indices = getattr(module, "masked_key_indices", None)
+        if mask_indices is None:
+            return keys, values
+
+        evict_mask = torch.zeros(bsz, num_kv_heads, k_len, device=keys.device, dtype=torch.bool)
+        evict_mask[tuple(mask_indices)] = True
+
+        new_keys, new_values = _merge_on_evict(keys, values, evict_mask, **self._merge_kwargs())
+        return new_keys, new_values
 
     def _compress_scorer(self, module, hidden_states, keys, values, attentions, kwargs):
         bsz, num_kv_heads, k_len, head_dim = keys.shape
