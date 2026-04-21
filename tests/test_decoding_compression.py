@@ -21,8 +21,11 @@ from kvpress import (
     PrefillDecodingPress,
     PyramidKVPress,
     ScorerPress,
+    StreamingLLMPress,
+    TOVAPress,
 )
 from tests.default_presses import default_presses
+from tests.fixtures import unit_test_model  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +293,50 @@ def test_all_presses_work_with_decoding_press(press_factory, press_config):
         assert (
             target_size <= layer_seq_len <= max_expected_size
         ), f"{press_cls.__name__}: Layer {layer_idx} cache size {layer_seq_len} not in expected range [{target_size}-{max_expected_size}]"  # noqa: E501
+
+
+# Regression coverage for https://github.com/NVIDIA/kvpress/pull/221:
+# reusing the same decoding press across sequences of different lengths
+# inside a single `with press(model):` block must not crash on stale per-layer state.
+DECODING_PRESS_REUSE_FACTORIES = [
+    pytest.param(lambda: CAMPress(base_press=KnormPress(), compression_interval=3, target_size=32), id="cam_knorm"),
+    pytest.param(
+        lambda: CAMPress(base_press=StreamingLLMPress(), compression_interval=3, target_size=32),
+        id="cam_streaming_llm",
+    ),
+    pytest.param(lambda: CAMPress(base_press=TOVAPress(), compression_interval=3, target_size=32), id="cam_tova"),
+    pytest.param(
+        lambda: DecodingPress(base_press=KnormPress(), compression_interval=3, target_size=32),
+        id="decoding_knorm",
+    ),
+    pytest.param(
+        lambda: DecodingPress(base_press=StreamingLLMPress(), compression_interval=3, target_size=32),
+        id="decoding_streaming_llm",
+    ),
+    pytest.param(
+        lambda: DecodingPress(base_press=TOVAPress(), compression_interval=3, target_size=32),
+        id="decoding_tova",
+    ),
+]
+
+
+@pytest.mark.parametrize("press_factory", DECODING_PRESS_REUSE_FACTORIES)
+def test_decoding_press_reuse_across_sequences(press_factory, unit_test_model):  # noqa: F811
+    """Reuse a single decoding press for two sequences of very different lengths
+    inside one `with press(model):` scope. The second (shorter) generate must
+    not crash on per-layer state left over from the first (longer) sequence.
+    """
+    press = press_factory()
+
+    device = unit_test_model.device
+    long_ids = torch.arange(1, 81, dtype=torch.long, device=device).unsqueeze(0)
+    short_ids = torch.arange(1, 9, dtype=torch.long, device=device).unsqueeze(0)
+
+    with torch.no_grad(), press(unit_test_model):
+        unit_test_model.generate(long_ids, max_new_tokens=6, do_sample=False)
+        # Previously this crashed for CAMPress with a shape mismatch when
+        # accumulating `_running_attn_sum` against a shorter fresh cache.
+        unit_test_model.generate(short_ids, max_new_tokens=6, do_sample=False)
 
 
 @pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
