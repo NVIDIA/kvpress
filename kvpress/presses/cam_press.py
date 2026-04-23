@@ -239,6 +239,12 @@ class CAMPress(DecodingPress):
 
         # Only operate during decoding
         if kwargs["cache_position"][-1] <= q_len:
+            # Entering prefill for a (potentially new) sequence — drop any per-layer
+            # state left over from a previous sequence so that subsequent decoding
+            # steps don't try to `+=` against a stale-shaped running attention sum.
+            self._running_attn_sum.pop(layer_idx, None)
+            self.hidden_states_buffer[layer_idx] = []
+            self.layer_step_counts[layer_idx] = 0
             return output
 
         # All hidden_states_buffer code is borrowed from DecodingPress
