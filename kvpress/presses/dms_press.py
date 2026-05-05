@@ -17,7 +17,10 @@ class DMSPress(BasePress):
     """
     Based on Dynamic Memory Sparsification (DMS, https://arxiv.org/abs/2506.05345) inference.
     Wraps a ScorerPress and evicts keys/values with scores below a given threshold.
-    This press implements a dense-prefill version of DMS, not the sparse-prefill version.
+    This press implements a dense-prefill version of DMS, not the sparse-prefill version,
+    and does not include the trained evictors from the paper.
+    For a faithful implementation, please refer to https://huggingface.co/nvidia/Qwen3-8B-DMS-8x or
+    https://github.com/NVIDIA/Model-Optimizer/tree/main/experimental/dms
 
     Unlike most presses that use a fixed compression_ratio, DMSPress uses a score threshold
     to determine which KV pairs to evict. This allows for adaptive compression where the actual
