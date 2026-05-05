@@ -17,6 +17,7 @@ from kvpress import (
     KVzipPress,
     LagKVPress,
     LeverageScorePress,
+    MergingPress,
     NonCausalAttnPress,
     PyramidKVPress,
     QFilterPress,
@@ -149,6 +150,13 @@ default_presses = [
             {"compression_ratio": 0.8},
             {"structured": False, "compression_ratio": 0.5},
             {"structured": False, "compression_ratio": 0.8},
+        ],
+    },
+    {
+        "cls": MergingPress,
+        "kwargs": [
+            {"press": KnormPress(compression_ratio=0.2)},
+            {"press": KnormPress(compression_ratio=0.8)},
         ],
     },
 ]
