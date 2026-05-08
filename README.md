@@ -127,6 +127,7 @@ Some presses rely on a different logic:
 - `FinchPress` ([source](kvpress/presses/finch_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): similar to SnapKV with a dynamic window size and key value re-rotation
 - `KVzipPress` ([source](kvpress/presses/kvzip_press.py), [paper](https://arxiv.org/abs/2505.23416)): identify redundant KV pairs through context reconstruction. Achieve near-lossless compression at the cost of multiple forward passes.
 - `KVComposePress` ([source](kvpress/presses/kvcompose_press.py), [paper](https://arxiv.org/abs/2509.05165)): attention-guided eviction, aligning per-head selections into composite tokens to preserve cache structure.
+- `TurboQuantPress` ([source](kvpress/presses/turboquant_press.py), [paper](https://arxiv.org/abs/2504.19874)): applies TurboQuant's random-rotation Lloyd-Max quantizer and QJL residual correction to KV tensors. In the current `BasePress` cache interface it stores dequantized tensors rather than a bit-packed cache.
 
 > [!NOTE]  
 > `KVComposePress` performs an extra pass over the full context, temporarily creating a KV cache of ~2x the context length and creating memory overhead during prefill.

@@ -42,6 +42,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    TurboQuantPress,
 )
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
@@ -107,6 +108,7 @@ PRESS_REGISTRY = {
     "streaming_llm": StreamingLLMPress(),
     "think": ThinKPress(),
     "tova": TOVAPress(),
+    "turboquant": TurboQuantPress(),
     "compactor": CompactorPress(),
     "adakv_compactor": AdaKVPress(CompactorPress()),
     "no_press": None,
