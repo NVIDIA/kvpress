@@ -79,7 +79,7 @@ class FinchPress(BasePress):
         scores = scores.mean(dim=2)
 
         # Add back the observation window. Use max score to make sure the window is not pruned.
-        scores = F.pad(scores, (0, self.window_size), value=scores.max().item())
+        scores = F.pad(scores, (0, self.window_size), value=scores.max().item() + 1)
         return scores
 
     def compress(self, module, hidden_states, keys, values, attentions, kwargs):
