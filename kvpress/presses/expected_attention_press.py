@@ -160,6 +160,6 @@ class ExpectedAttentionPress(ScorerPress):
             scores = (scores + self.epsilon) * values.norm(dim=-1)
 
         # Add back the sink tokens. Use max score to make sure they are not pruned.
-        scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item())
+        scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item() + 1)
 
         return scores
