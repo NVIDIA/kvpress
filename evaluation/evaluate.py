@@ -46,6 +46,7 @@ class EvaluationConfig:
     press_name: str = "knorm"
     compression_ratio: float = 1.0
     key_channel_compression_ratio: Optional[float] = None
+    head_compression_ratio: Optional[float] = None
     threshold: Optional[float] = None
 
     # Dataset and generation parameters
@@ -161,8 +162,15 @@ class EvaluationConfig:
         """
         Saves the evaluation configuration to a YAML file.
         """
+        config_dict = asdict(self)
+        if self.threshold is not None or self.head_compression_ratio is not None:
+            config_dict.pop("compression_ratio", None)
+        if self.threshold is None:
+            config_dict.pop("threshold", None)
+        if self.head_compression_ratio is None:
+            config_dict.pop("head_compression_ratio", None)
         with open(str(config_filename), "w") as f:
-            yaml.dump(asdict(self), f, default_flow_style=False, indent=2, sort_keys=False)
+            yaml.dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
 
 
 def _load_yaml_config(path: str | Path) -> dict:
@@ -254,8 +262,11 @@ class EvaluationRunner:
 
         # Apply compression ratios based on press type
         if isinstance(press, DuoAttentionPress):
-            press.head_compression_ratio = compression_ratio
-            logger.info(f"Set DuoAttentionPress head_compression_ratio to {compression_ratio}")
+            assert (
+                self.config.head_compression_ratio is not None
+            ), "head_compression_ratio must be set for DuoAttentionPress"
+            press.head_compression_ratio = self.config.head_compression_ratio
+            logger.info(f"Set DuoAttentionPress head_compression_ratio to {press.head_compression_ratio}")
         elif isinstance(press, DMSPress):
             assert self.config.threshold is not None, "threshold must be set for DMSPress"
             press.threshold = self.config.threshold
