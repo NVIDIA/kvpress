@@ -133,6 +133,8 @@ class EvaluationConfig:
 
         if self.threshold is not None:
             components[-1] = f"{self.threshold:.2f}"
+        elif self.head_compression_ratio is not None:
+            components[-1] = f"{self.head_compression_ratio:.2f}"
         if self.fraction < 1.0:
             components.append(f"fraction{self.fraction:.3f}")
         if self.max_context_length is not None:
