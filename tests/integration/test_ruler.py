@@ -1,13 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+
 import datasets
 import pytest
 import torch
 from transformers import DynamicCache, QuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
-from kvpress import QFilterPress
+from kvpress import KVComposePress, QFilterPress
 from tests.default_presses import default_presses
 from tests.fixtures import kv_press_llama3_2_flash_attn_pipeline, kv_press_qwen3_flash_attn_pipeline  # noqa: F401
 
@@ -58,6 +60,8 @@ class TestRuler:
         if isinstance(press, QFilterPress):
             # QFilterPress doesn't support Qwen3 4B. Will be tested in the next test class.
             return
+        elif isinstance(press, KVComposePress) and os.getenv("GITHUB_ACTIONS") == "true":
+            pytest.skip("KVComposePress RULER test exceeds GitHub Actions GPU memory")
         else:
             pred_answer = kv_press_qwen3_flash_attn_pipeline(context, question=question, press=press, cache=cache)[
                 "answer"
