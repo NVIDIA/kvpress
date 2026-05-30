@@ -29,6 +29,7 @@ from kvpress.presses.kvzap_press import KVzapPress
 from kvpress.presses.kvzip_press import KVzipPress
 from kvpress.presses.lagkv_press import LagKVPress
 from kvpress.presses.leverage_press import LeverageScorePress
+from kvpress.presses.merging_press import MergingPress
 from kvpress.presses.non_causal_attention_press import NonCausalAttnPress
 from kvpress.presses.observed_attention_press import ObservedAttentionPress
 from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
@@ -87,4 +88,5 @@ __all__ = [
     "DMSPress",
     "FastKVzipPress",
     "KVComposePress",
+    "MergingPress",
 ]
