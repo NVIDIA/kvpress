@@ -32,8 +32,8 @@ def test_merge_differs_from_hard_eviction(unit_test_model):  # noqa: F811
     assert any_diff, "Merging produced identical values to hard eviction"
 
 
-def test_default_preserves_keys(unit_test_model):  # noqa: F811
-    """Default merge_keys=False should not modify keys (preserves RoPE)."""
+def test_keys_unchanged(unit_test_model):  # noqa: F811
+    """Keys must not be modified (RoPE-safe by design)."""
     torch.manual_seed(42)
     input_ids = torch.randint(0, 1024, (1, 64), device=unit_test_model.device)
 
@@ -49,7 +49,7 @@ def test_default_preserves_keys(unit_test_model):  # noqa: F811
 
     for i in range(len(cache_hard.layers)):
         assert torch.equal(cache_hard.layers[i].keys, cache_merge.layers[i].keys), (
-            f"Layer {i}: merge_keys=False should not modify keys"
+            f"Layer {i}: keys must not be modified"
         )
 
 
@@ -132,7 +132,7 @@ def test_merge_method_signature():
 
     assert new_keys.shape == keys.shape
     assert new_values.shape == values.shape
-    # merge_keys=False by default: keys returned unchanged
+    # Keys are returned unchanged (RoPE-safe by design)
     assert torch.equal(new_keys, keys)
     # Kept positions absorb evicted information: values must change there
     assert not torch.equal(new_values[:, :, : seq_len // 2], values[:, :, : seq_len // 2])
