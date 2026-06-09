@@ -28,12 +28,32 @@ class CapPress(ScorerPress):
 
     Note:
         1. For numerical stability, the keys and the historical-query anchor
-        are L2-normalized before the alignment is computed.
+           are L2-normalized before the alignment is computed (paper uses
+           unnormalized dot products).
         2. A per-head max shift is applied before exponentiation to avoid
            numerical overflow.
         3. For RoPE-based models, historical query states are first rotated by
            an averaged future RoPE matrix before computing the query anchor.
+           This is not described in the paper but is necessary to align the
+           query and key representations in the RoPE-rotated space.
         4. The output-direction proxy is the raw value vector, u_i = v_i.
+
+    Parameters
+    ----------
+    compression_ratio : float, default=0.0
+        Fraction of key-value pairs to remove during compression.
+    tau : float, default=5.0
+        Temperature parameter controlling the sharpness of the query-key
+        alignment weights. Larger values produce more peaked distributions
+        over tokens.
+    n_future_positions : int, default=512
+        Number of future positions used to compute the averaged RoPE rotation
+        matrix for the query anchor.
+    n_sink : int, default=4
+        Number of initial tokens to exclude from compression (sink tokens).
+    epsilon : float, default=1e-6
+        Small constant for numerical stability in matrix inversion and
+        weight computation.
     """
 
     compression_ratio: float = 0.0
@@ -232,21 +252,12 @@ class CapPress(ScorerPress):
         keys_no_sink = keys[:, :, self.n_sink :]
         values_no_sink = values[:, :, self.n_sink :]
 
-        batch_size, num_kv_heads, tprime, head_dim = keys_no_sink.shape
-        num_attention_heads = module.config.num_attention_heads
-
-        if num_attention_heads % num_kv_heads != 0:
-            raise ValueError(
-                "num_attention_heads must be divisible by num_kv_heads. "
-                f"Got num_attention_heads={num_attention_heads} and "
-                f"num_kv_heads={num_kv_heads}."
-            )
-
-        num_groups = num_attention_heads // num_kv_heads
+        bsz, num_key_value_heads, q_len, d = keys_no_sink.shape
+        num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
         # Repeat KV heads to attention-head space for query-aligned scoring.
-        keys_rep = repeat_kv(keys_no_sink, num_groups)
-        values_rep = repeat_kv(values_no_sink, num_groups)
+        keys_rep = repeat_kv(keys_no_sink, num_key_value_groups)
+        values_rep = repeat_kv(values_no_sink, num_key_value_groups)
 
         # Query relevance.
         query_anchor = self._query_anchor(module, hidden_states)
@@ -260,17 +271,16 @@ class CapPress(ScorerPress):
         scaled_vectors = capacity_vectors * sqrt_weights
 
         identity = torch.eye(
-            head_dim,
+            d,
             device=scaled_vectors.device,
             dtype=scaled_vectors.dtype,
-        ).view(1, 1, head_dim, head_dim)
+        ).view(1, 1, d, d)
 
         capacity_matrix = identity + torch.einsum(
             "bhtd,bhte->bhde",
             scaled_vectors,
             scaled_vectors,
         )
-        capacity_matrix = capacity_matrix + self.epsilon * identity
 
         capacity_matrix = capacity_matrix.to(dtype=torch.float32)
 
@@ -278,15 +288,15 @@ class CapPress(ScorerPress):
         solution = torch.linalg.solve(capacity_matrix, capacity_vectors_t)
 
         leverage = (capacity_vectors_t * solution).sum(dim=2)
-        scores_h = weights * leverage
+        scores = weights * leverage
 
         # Average repeated attention-head scores back into KV-head space.
-        scores_h = scores_h.view(batch_size, num_kv_heads, num_groups, tprime)
-        scores_h = scores_h.mean(dim=2)
+        scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len)
+        scores = scores.mean(dim=2)
 
-        # Assign the maximum score to sink tokens to preserve them under
+        # If you want to fully reproduce the results from the paper, 
+        # you can remove the +1 and use only scores.max().item() as the score for sink.
         # standard top-k retention.
-        max_score = scores_h.max().item()
-        scores = F.pad(scores_h, (self.n_sink, 0), value=max_score)
+        scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item() + 1)
 
         return scores
