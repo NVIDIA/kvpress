@@ -294,7 +294,7 @@ class CapPress(ScorerPress):
         scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, q_len)
         scores = scores.mean(dim=2)
 
-        # If you want to fully reproduce the results from the paper, 
+        # If you want to fully reproduce the results from the paper,
         # you can remove the +1 and use only scores.max().item() as the score for sink.
         # standard top-k retention.
         scores = F.pad(scores, (self.n_sink, 0), value=scores.max().item() + 1)
