@@ -4,6 +4,7 @@
 import numpy as np
 
 from kvpress import (
+    CapPress,
     CompactorPress,
     CURPress,
     DuoAttentionPress,
@@ -151,4 +152,5 @@ default_presses = [
             {"structured": False, "compression_ratio": 0.8},
         ],
     },
+    {"cls": CapPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
 ]
