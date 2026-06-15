@@ -371,18 +371,26 @@ class EvaluationRunner:
             model_kwargs["quantization_config"] = FineGrainedFP8Config()
             logger.info("FP8 quantization enabled.")
 
-        if isinstance(self.press, ObservedAttentionPress):
+        from kvpress import ZigZagKVPress
+
+        if isinstance(self.press, (ObservedAttentionPress, ZigZagKVPress)):
             model_kwargs["attn_implementation"] = "eager"
-            logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
+            logger.info(f"{type(self.press).__name__} detected, setting attn_implementation to 'eager'.")
         else:
             try:
-                import flash_attn  # noqa: F401
+                import flash_attn_3  # noqa: F401
 
-                model_kwargs["attn_implementation"] = "flash_attention_2"
-                logger.info("Flash Attention 2 detected, setting attn_implementation to 'flash_attention_2'.")
+                model_kwargs["attn_implementation"] = "flash_attention_3"
+                logger.info("Flash Attention 3 detected, setting attn_implementation to 'flash_attention_3'.")
             except ImportError:
-                logger.info("Flash Attention 2 not available, using default attn_implementation.")
-                pass
+                try:
+                    import flash_attn  # noqa: F401
+
+                    model_kwargs["attn_implementation"] = "flash_attention_2"
+                    logger.info("Flash Attention 2 detected, setting attn_implementation to 'flash_attention_2'.")
+                except ImportError:
+                    logger.info("Flash Attention not available, using default attn_implementation.")
+                    pass
 
         logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
         pipeline_kwargs = {

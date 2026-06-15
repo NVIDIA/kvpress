@@ -43,6 +43,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    ZigZagKVPress,
 )
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
@@ -110,6 +111,7 @@ PRESS_REGISTRY = {
     "tova": TOVAPress(),
     "compactor": CompactorPress(),
     "adakv_compactor": AdaKVPress(CompactorPress()),
+    "zigzag_observed": ZigZagKVPress(press=ObservedAttentionPress()),
     "no_press": None,
     "cam_streaming_llm": CAMPress(base_press=StreamingLLMPress()),
     "cam_knorm": CAMPress(base_press=KnormPress()),
