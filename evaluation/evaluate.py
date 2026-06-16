@@ -371,9 +371,7 @@ class EvaluationRunner:
             model_kwargs["quantization_config"] = FineGrainedFP8Config()
             logger.info("FP8 quantization enabled.")
 
-        from kvpress import ZigZagKVPress
-
-        if isinstance(self.press, (ObservedAttentionPress, ZigZagKVPress)):
+        if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info(f"{type(self.press).__name__} detected, setting attn_implementation to 'eager'.")
         else:

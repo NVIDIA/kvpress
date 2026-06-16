@@ -111,7 +111,7 @@ PRESS_REGISTRY = {
     "tova": TOVAPress(),
     "compactor": CompactorPress(),
     "adakv_compactor": AdaKVPress(CompactorPress()),
-    "zigzag_observed": ZigZagKVPress(press=ObservedAttentionPress()),
+    "zigzag_snapkv": ZigZagKVPress(press=SnapKVPress()),
     "no_press": None,
     "cam_streaming_llm": CAMPress(base_press=StreamingLLMPress()),
     "cam_knorm": CAMPress(base_press=KnormPress()),

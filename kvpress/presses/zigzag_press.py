@@ -13,6 +13,7 @@ from transformers import PreTrainedModel, QuantizedCache
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
@@ -21,85 +22,125 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ZigZagKVPress(BasePress):
     """
-    Dynamic per-layer KV cache compression based on attention entropy.
+    Dynamic per-layer KV cache compression based on attention concentration.
 
-    Wrapper press that dynamically allocates per-layer KV cache budgets based on
-    layer uncertainty (measured via LMBA — Layer Minimum Budget to maintain Attention).
-    Layers with diffuse attention (high entropy) get larger budgets; layers with
-    concentrated attention (low entropy) get smaller budgets.
+    Wrapper press that allocates per-layer KV cache budgets based on each layer's
+    uncertainty, measured via LMBA (Layer Minimum Budget to maintain Attention).
+    Layers with diffuse attention (high LMBA) receive larger budgets; layers with
+    concentrated attention (low LMBA) receive smaller budgets. The total budget is
+    conserved so the average compression ratio matches ``compression_ratio``.
 
     Based on ZigZagKV (https://arxiv.org/abs/2412.09036, COLING 2025).
 
-    The algorithm works in two phases within a single forward pass:
-    1. **Collect phase**: Forward hooks record attention weights and compute LMBA per layer.
-    2. **Compress phase**: After the forward pass completes, per-layer budgets are computed
-       using the uncertainty-based formula and the inner press compresses each layer.
+    Unlike a naive implementation, this press is flash-attention compatible: it does
+    not require ``attn_implementation="eager"``. Importance scores (and LMBA) are
+    derived from the inner press's score function, which for SnapKV-style presses
+    recomputes a small observation-window attention internally. Compression is
+    applied with a single lightweight deferral: per-layer LMBA scalars and score
+    tensors are collected during the forward pass, the global budget allocation is
+    computed once all layers are seen, and each layer is then physically resized
+    (genuine per-layer cache sizes, no padding).
 
     Parameters
     ----------
-    press : ScorerPress
-        The underlying scoring method used for token selection within each layer.
+    press : ScorerPress, default=SnapKVPress()
+        The underlying scoring method used to rank tokens within each layer.
+        An attention-based press such as SnapKVPress is recommended so that LMBA
+        reflects the attention distribution.
     compression_ratio : float, default=0.0
-        Average fraction of tokens to remove across all layers.
-    window_size : int, default=64
-        Number of recent tokens whose attention weights are used to compute LMBA.
+        Target average fraction of tokens to remove across all layers.
     attention_threshold : float, default=0.9
-        Fraction of cumulative attention mass used to determine LMBA.
-    b_bound_ratio : float, default=0.1
-        Minimum budget per layer as a fraction of the average budget size.
-        Prevents any layer from being overly compressed.
+        Fraction of cumulative score mass used to determine LMBA per layer.
+    b_bound_ratio : float, default=0.2
+        Minimum per-layer budget as a fraction of the average budget. Prevents any
+        single layer from being starved of tokens.
     """
 
-    press: ScorerPress = field(default_factory=lambda: ScorerPress())
+    press: ScorerPress = field(default_factory=SnapKVPress)
     compression_ratio: float = 0.0
-    window_size: int = 64
     attention_threshold: float = 0.9
-    b_bound_ratio: float = 0.1
+    b_bound_ratio: float = 0.2
 
-    _lmba_values: list = field(default_factory=list, init=False, repr=False)
-    _layer_data: list = field(default_factory=list, init=False, repr=False)
+    _collected: list = field(default_factory=list, init=False, repr=False)
     _cache_ref: Optional[object] = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
+        assert isinstance(self.press, ScorerPress), "ZigZagKVPress requires a ScorerPress as the inner press"
         assert 0 <= self.compression_ratio < 1, "compression_ratio must be between 0 and 1"
         assert 0 < self.attention_threshold <= 1, "attention_threshold must be between 0 and 1"
         assert 0 <= self.b_bound_ratio < 1, "b_bound_ratio must be between 0 and 1"
-        assert isinstance(self.press, ScorerPress), "ZigZagKVPress requires a ScorerPress as the inner press"
 
-    def _compute_lmba(self, attentions: torch.Tensor, k_len: int) -> float:
+    def post_init_from_model(self, model: PreTrainedModel):
+        self.press.post_init_from_model(model)
+
+    def _compute_lmba(self, scores: torch.Tensor) -> float:
         """
-        Compute LMBA (Layer Minimum Budget to maintain Attention) for a single layer.
+        Compute LMBA (Layer Minimum Budget to maintain Attention) for one layer.
 
-        For each attention head, finds the minimum number of tokens needed to
-        capture `attention_threshold` of the total attention mass, using the
-        last `window_size` query positions. Returns the average across all heads and batches.
+        LMBA is the average number of tokens needed to accumulate
+        ``attention_threshold`` of the total score mass, measured per head and
+        averaged across heads and batch. Concentrated attention (mass in few
+        tokens) gives a low LMBA; diffuse attention gives a high LMBA.
+
+        Parameters
+        ----------
+        scores : torch.Tensor
+            Importance scores of shape (batch, num_kv_heads, k_len).
         """
-        bsz, num_heads, q_len, _ = attentions.shape
-
-        window = min(self.window_size, q_len)
-        attn = attentions[:, :, -window:, :]
-
-        # Average attention over the window queries: (bsz, num_heads, k_len)
-        avg_attn = attn.mean(dim=2)
-
-        # Sort descending and compute cumulative sum to find MBA per head
-        sorted_attn, _ = avg_attn.sort(dim=-1, descending=True)
-        cumsum = sorted_attn.cumsum(dim=-1)
-
-        # MBA = first position where cumulative attention >= threshold
-        threshold = self.attention_threshold * avg_attn.sum(dim=-1, keepdim=True)
+        k_len = scores.shape[-1]
+        # Use only non-negative mass for a well-defined cumulative distribution.
+        mass = scores.float().clamp(min=0.0)
+        sorted_mass, _ = mass.sort(dim=-1, descending=True)
+        cumsum = sorted_mass.cumsum(dim=-1)
+        total = sorted_mass.sum(dim=-1, keepdim=True)
+        threshold = self.attention_threshold * total
+        # Number of tokens to reach the threshold (at least 1).
         mba = (cumsum < threshold).sum(dim=-1) + 1
         mba = mba.clamp(max=k_len)
-
         return mba.float().mean().item()
+
+    def _compute_budgets(self, lmba_values: list[float], seq_len: int) -> list[int]:
+        """
+        Convert per-layer LMBA values into integer per-layer token budgets.
+
+        Uses the ZigZagKV allocation rule (Equation 6 from the paper):
+            uncertainty_l = LMBA_l / sum_k(LMBA_k)
+            budget_l = B_bound + (B_avg - B_bound) * L * uncertainty_l
+
+        The total budget sums to L * B_avg, so the average compression ratio is
+        preserved.
+        """
+        num_layers = len(lmba_values)
+        total_lmba = sum(lmba_values)
+
+        b_avg = seq_len * (1 - self.compression_ratio)
+        b_bound = b_avg * self.b_bound_ratio
+
+        budgets = []
+        for lmba in lmba_values:
+            if total_lmba == 0:
+                budget = b_avg
+            else:
+                uncertainty = lmba / total_lmba
+                budget = b_bound + (b_avg - b_bound) * num_layers * uncertainty
+            budget_int = int(round(budget))
+            budget_int = max(1, min(budget_int, seq_len))
+            budgets.append(budget_int)
+
+        return budgets
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """
-        Collection hook: compute LMBA and cache layer data for deferred compression.
+        Collection hook: compute and store per-layer scores + LMBA during prefill.
+
+        No compression happens here. Only lightweight state (a score tensor of
+        shape (batch, num_kv_heads, k_len) and a scalar LMBA) is retained, which
+        keeps memory usage close to a standard (uncompressed) prefill.
         """
         hidden_states = kwargs["hidden_states"]
         q_len = hidden_states.shape[1]
 
+        # Only collect during prefill, not during decoding.
         if kwargs["cache_position"][-1] > q_len:
             return output
 
@@ -107,113 +148,52 @@ class ZigZagKVPress(BasePress):
         if self._cache_ref is None:
             self._cache_ref = cache
 
-        attentions = output[1]
-        if attentions is None:
-            raise ValueError(
-                "ZigZagKVPress requires attention weights. "
-                'Use attn_implementation="eager" when loading the model.'
-            )
-
         keys, values = extract_keys_and_values(cache, module.layer_idx)
-        k_len = keys.shape[2]
+        scores = self.press.score(module, hidden_states, keys, values, output[1], kwargs)
+        lmba = self._compute_lmba(scores)
 
-        lmba = self._compute_lmba(attentions, k_len)
-        self._lmba_values.append(lmba)
-
-        self._layer_data.append({
-            "layer_idx": module.layer_idx,
-            "module": module,
-            "hidden_states": hidden_states,
-            "keys": keys,
-            "values": values,
-            "attentions": attentions,
-            "kwargs": kwargs,
-        })
+        self._collected.append(
+            {
+                "layer_idx": module.layer_idx,
+                "module": module,
+                "scores": scores,
+                "lmba": lmba,
+            }
+        )
 
         return output
 
-    def _compute_compression_ratios(self, seq_len: int) -> list[float]:
-        """
-        Convert LMBA values to per-layer compression ratios.
-
-        Uses the ZigZagKV budget allocation formula (Equation 6 from the paper):
-            uncertainty_l = LMBA_l / sum(LMBA)
-            budget_l = B_bound + (B_avg - B_bound) * L * uncertainty_l
-            compression_ratio_l = 1 - budget_l / seq_len
-        """
-        num_layers = len(self._lmba_values)
-        total_lmba = sum(self._lmba_values)
-
-        if total_lmba == 0:
-            return [self.compression_ratio] * num_layers
-
-        b_avg = seq_len * (1 - self.compression_ratio)
-        b_bound = b_avg * self.b_bound_ratio
-
-        ratios = []
-        for lmba in self._lmba_values:
-            uncertainty = lmba / total_lmba
-            budget = b_bound + (b_avg - b_bound) * num_layers * uncertainty
-            budget = max(1.0, min(budget, float(seq_len)))
-            ratio = 1.0 - budget / seq_len
-            ratio = max(0.0, min(ratio, 1.0 - 1.0 / seq_len))
-            ratios.append(ratio)
-
-        return ratios
-
     def _apply_compression(self):
         """
-        Phase 2: compress all layers using dynamically computed per-layer ratios.
-
-        All layers are padded to the same final length (the maximum across layers)
-        to ensure compatibility with HuggingFace's attention mask mechanism, which
-        expects uniform cache sizes across layers.
+        Deferred compression: compute global budgets, then resize each layer.
         """
-        if not self._layer_data:
+        if not self._collected or self.compression_ratio == 0:
             return
 
         cache = self._cache_ref
-        seq_len = self._layer_data[0]["keys"].shape[2]
-        compression_ratios = self._compute_compression_ratios(seq_len)
+        seq_len = self._collected[0]["scores"].shape[-1]
+        lmba_values = [c["lmba"] for c in self._collected]
+        budgets = self._compute_budgets(lmba_values, seq_len)
 
         logger.debug(
-            f"ZigZagKV per-layer compression ratios: "
-            f"min={min(compression_ratios):.3f}, max={max(compression_ratios):.3f}, "
-            f"mean={sum(compression_ratios) / len(compression_ratios):.3f}"
+            f"ZigZagKV per-layer budgets (seq_len={seq_len}): "
+            f"min={min(budgets)}, max={max(budgets)}, mean={sum(budgets) / len(budgets):.1f}"
         )
 
-        compressed_layers = []
-        for data, ratio in zip(self._layer_data, compression_ratios):
+        for data, n_kept in zip(self._collected, budgets):
             module = data["module"]
+            layer_idx = data["layer_idx"]
+            scores = data["scores"]
 
-            original_ratio = self.press.compression_ratio
-            self.press.compression_ratio = ratio
+            keys, values = extract_keys_and_values(cache, layer_idx)
 
-            keys, values = self.press.compress(
-                module,
-                data["hidden_states"],
-                data["keys"],
-                data["values"],
-                data["attentions"],
-                data["kwargs"],
-            )
+            if n_kept >= keys.shape[2]:
+                continue
 
-            self.press.compression_ratio = original_ratio
-            compressed_layers.append((data["layer_idx"], keys, values))
-
-        max_len = max(k.shape[2] for _, k, _ in compressed_layers)
-
-        for layer_idx, keys, values in compressed_layers:
-            pad_len = max_len - keys.shape[2]
-            if pad_len > 0:
-                keys = torch.cat([
-                    keys,
-                    torch.zeros(*keys.shape[:2], pad_len, keys.shape[3], dtype=keys.dtype, device=keys.device),
-                ], dim=2)
-                values = torch.cat([
-                    values,
-                    torch.zeros(*values.shape[:2], pad_len, values.shape[3], dtype=values.dtype, device=values.device),
-                ], dim=2)
+            indices = scores.topk(n_kept, dim=-1).indices
+            indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
+            keys = keys.gather(2, indices).contiguous()
+            values = values.gather(2, indices).contiguous()
 
             cache_layer = cache.layers[layer_idx]
             if isinstance(cache, QuantizedCache):
@@ -229,16 +209,11 @@ class ZigZagKVPress(BasePress):
     @contextmanager
     def __call__(self, model: PreTrainedModel) -> Generator:
         """
-        Context manager that applies ZigZagKV compression.
+        Context manager that applies ZigZagKV compression during prefill.
 
-        Registers hooks to collect attention patterns during prefill, then
-        compresses all layers with dynamically computed per-layer budgets
-        when the context manager exits.
-
-        Parameters
-        ----------
-        model : PreTrainedModel
-            The transformer model to apply compression to.
+        Registers hooks that collect per-layer scores and LMBA during the forward
+        pass, then compresses every layer with dynamically computed per-layer
+        budgets when the context exits.
 
         Examples
         --------
@@ -252,11 +227,14 @@ class ZigZagKVPress(BasePress):
         if not isinstance(model, SUPPORTED_MODELS):
             logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
 
-        self._lmba_values = []
-        self._layer_data = []
+        self._collected = []
         self._cache_ref = None
-        self.press.post_init_from_model(model)
         self.post_init_from_model(model)
+
+        # Nothing to do without compression; still run a normal forward pass.
+        if self.compression_ratio == 0:
+            yield
+            return
 
         hooks = []
         try:
@@ -273,6 +251,5 @@ class ZigZagKVPress(BasePress):
 
             self._apply_compression()
 
-            self._lmba_values = []
-            self._layer_data = []
+            self._collected = []
             self._cache_ref = None
