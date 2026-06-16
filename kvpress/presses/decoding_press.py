@@ -12,7 +12,7 @@ from transformers import PreTrainedModel
 from transformers.cache_utils import QuantizedCache
 
 from kvpress.presses.adakv_press import AdaKVPress
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import extract_keys_and_values
 
@@ -125,7 +125,7 @@ class DecodingPress(BasePress):
         layer_idx = module.layer_idx
 
         # Only operate during decoding phase (after prefilling)
-        if kwargs["cache_position"][-1] <= q_len:
+        if is_prefilling(kwargs["cache_position"], q_len):
             # We're still in prefilling phase, don't do anything
             return output
         # print(f"Adding hidden states to buffer: {hidden_states.shape}")

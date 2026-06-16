@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import extract_keys_and_values
 
@@ -71,7 +71,7 @@ class DMSPress(BasePress):
         cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
         cache_len = kwargs["cache_position"][-1] + 1
-        prefilling = cache_len == q_len
+        prefilling = is_prefilling(kwargs["cache_position"], q_len)
 
         # Extract layer index as int for type safety
         layer_idx: int = module.layer_idx  # type: ignore[assignment]
