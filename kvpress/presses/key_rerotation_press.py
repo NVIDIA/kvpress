@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 
@@ -70,8 +70,10 @@ class KeyRerotationPress(BasePress):
             Cosine and sine embeddings, each of shape
             ``(bsz, num_key_value_heads, n_kept, d)``, matching ``dtype``/``device`` of ``x``.
         """
+        device = x.device
+        selected_positions = selected_positions.to(device=device)
+        inv_freq = inv_freq.to(device=device)
         bsz, num_key_value_heads, n_kept = selected_positions.shape
-        device = selected_positions.device
         device_type = x.device.type
         dtype = x.dtype
         # Original positional indices
@@ -119,6 +121,7 @@ class KeyRerotationPress(BasePress):
             The rerotated keys tensor of shape
             ``(bsz, num_heads, n_kept, d)``.
         """
+        indices = indices.to(device=keys.device)
         new_cos, new_sin = KeyRerotationPress._rerotate_cos_sin(keys, module.rotary_emb.inv_freq, indices)
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
         keys = keys.gather(2, indices).contiguous()
