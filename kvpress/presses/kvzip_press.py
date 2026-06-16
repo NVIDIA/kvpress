@@ -126,8 +126,10 @@ class KVzipPress(BasePress):
 
         hooks = []
         try:
-            yield
-            model.model.forward = original_forward  # Restore original
+            try:
+                yield
+            finally:
+                model.model.forward = original_forward
 
             # After yield: KVzip scoring and compression phase
             if self.compression_ratio > 0 and self._context_ids is not None:
