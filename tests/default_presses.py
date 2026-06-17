@@ -18,6 +18,7 @@ from kvpress import (
     KVzipPress,
     LagKVPress,
     LeverageScorePress,
+    LUKVPress,
     NonCausalAttnPress,
     PyramidKVPress,
     QFilterPress,
@@ -153,4 +154,5 @@ default_presses = [
         ],
     },
     {"cls": CapPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
+    {"cls": LUKVPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
 ]
