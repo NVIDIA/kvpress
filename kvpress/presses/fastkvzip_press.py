@@ -15,7 +15,7 @@ from torch import nn
 from transformers import AutoConfig, Gemma3ForConditionalGeneration, PreTrainedModel
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 
-from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
+from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress, is_prefilling
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ class FastKVzipPress(BasePress):
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
-        if kwargs["cache_position"][-1] > q_len:
+        if not is_prefilling(kwargs["cache_position"], q_len):
             return output
 
         self._score_fast(module, hidden_states)

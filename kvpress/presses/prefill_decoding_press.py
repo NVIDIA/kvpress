@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
 
-from kvpress.presses.base_press import BasePress
+from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class PrefillDecodingPress(BasePress):
         q_len = hidden_states.shape[1]
 
         # Determine if we're in prefilling or decoding phase
-        if kwargs["cache_position"][-1] <= q_len and self.prefilling_press is not None:
+        if is_prefilling(kwargs["cache_position"], q_len) and self.prefilling_press is not None:
             return self.prefilling_press.compress(module, hidden_states, keys, values, attentions, kwargs)
         elif self.decoding_press is not None:
             return self.decoding_press.compress(module, hidden_states, keys, values, attentions, kwargs)
@@ -72,7 +72,7 @@ class PrefillDecodingPress(BasePress):
         q_len = hidden_states.shape[1]
 
         # Determine if we're in prefilling or decoding phase
-        if kwargs["cache_position"][-1] <= q_len and self.prefilling_press is not None:
+        if is_prefilling(kwargs["cache_position"], q_len) and self.prefilling_press is not None:
             return self.prefilling_press.forward_hook(module, input, kwargs, output)
         elif self.decoding_press is not None:
             return self.decoding_press.forward_hook(module, input, kwargs, output)
