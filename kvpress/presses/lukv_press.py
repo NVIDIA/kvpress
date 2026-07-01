@@ -55,6 +55,15 @@ class LUKVPress(BasePress):
     The default curve is for ``ExpectedAttentionPress(epsilon=2e-2), sink=4, window=1``
     on Llama-3.1-8B.
 
+    New budget curves can be generated with the official LU-KV repository:
+    https://github.com/baidu-baige/LU-KV. In that repository, run
+    ``cd evaluation && bash curve_data/generate_curve.sh`` after setting
+    ``MODEL_TYPE``, ``MODEL_PATH``, ``DATASET_PATH``, ``METHOD_CONFIGS``, and
+    ``LAYERWISE_FLAG`` in ``evaluation/curve_data/generate_curve.sh``. The script
+    first extracts per-context scorer statistics with ``step1_<model>.py`` and
+    then computes the averaged layer/head budget curve with
+    ``step2_compute_curve.py``.
+
     Parameters
     ----------
     press : ScorerPress, default=ExpectedAttentionPress(epsilon=2e-2)
@@ -140,7 +149,7 @@ class LUKVPress(BasePress):
 
         target_idx = int(round(self.compression_ratio * 100)) - 1
         target_idx = max(0, min(98, target_idx))
-        layer_idx = module.layer_idx
+        layer_idx = int(getattr(module, "layer_idx"))
         try:
             local_prune_ratios = torch.as_tensor(
                 self._budget_curves[target_idx, layer_idx],
