@@ -23,6 +23,11 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-groups
+          # Needed for CI/CD testing: flash-attn prebuilt wheels are tied to exact torch/CUDA builds.
+          uv pip install "torch==2.11.0+cu130" --torch-backend cu130
       - run: make test
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          # Keep in sync with the torch/CUDA pin above.
+          FLASH_ATTN_PACKAGE: "flash-attn==2.8.3+cu130torch2.11"
+          FLASH_ATTN_INSTALL_ARGS: "--only-binary flash-attn"
