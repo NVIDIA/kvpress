@@ -2,6 +2,8 @@ SHELL := /bin/bash -o pipefail
 UV ?= $(shell which uv)
 BUILD_VERSION:=$(APP_VERSION)
 TESTS_FILTER:=
+FLASH_ATTN_PACKAGE ?= flash-attn
+FLASH_ATTN_INSTALL_ARGS ?= --no-build-isolation
 
 PYTEST_LOG=--log-cli-level=debug --log-format="%(asctime)s %(levelname)s [%(name)s:%(filename)s:%(lineno)d] %(message)s" --log-date-format="%Y-%m-%d %H:%M:%S"
 
@@ -41,7 +43,7 @@ reports:
 
 .PHONY: test
 test: reports
-	$(UV) pip install flash-attn --no-build-isolation --find-links https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/expanded_assets/v0.9.4
+	$(UV) pip install $(FLASH_ATTN_INSTALL_ARGS) $(FLASH_ATTN_PACKAGE) --find-links https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/expanded_assets/v0.9.4
 	PYTHONPATH=. \
 	$(UV) run --no-sync pytest \
 		--cov-report xml:reports/coverage.xml \

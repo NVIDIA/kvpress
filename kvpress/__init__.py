@@ -13,6 +13,7 @@ from kvpress.presses.chunk_press import ChunkPress
 from kvpress.presses.chunkkv_press import ChunkKVPress
 from kvpress.presses.compactor_press import CompactorPress
 from kvpress.presses.composed_press import ComposedPress
+from kvpress.presses.compression_ratio_decoding_press import CompressionRatioDecodingPress
 from kvpress.presses.criticalkv_press import CriticalAdaKVPress, CriticalKVPress
 from kvpress.presses.cur_press import CURPress
 from kvpress.presses.decoding_press import DecodingPress
@@ -81,6 +82,7 @@ __all__ = [
     "ExpectedAttentionStatsPress",
     "CAMPress",
     "DecodingPress",
+    "CompressionRatioDecodingPress",
     "PrefillDecodingPress",
     "CompactorPress",
     "LeverageScorePress",

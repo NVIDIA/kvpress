@@ -13,6 +13,7 @@ from transformers import DynamicCache, pipeline
 from kvpress import (
     CAMPress,
     CompactorPress,
+    CompressionRatioDecodingPress,
     DecodingPress,
     KnormPress,
     KVzapPress,
@@ -230,6 +231,44 @@ def test_decoding_press_equivalence(press_factory):
         f"Standalone decoding: '{result1['answer']}'\n"
         f"Combined press: '{result2['answer']}'"
     )
+
+
+def test_sequence_ratio_decoding_press_uses_total_tokens_seen():
+    press = CompressionRatioDecodingPress(base_press=KnormPress(), target_compression_ratio=0.5)
+
+    target_size = press._resolve_target_size({"position_ids": torch.tensor([[107]])})
+
+    assert target_size == 54
+    assert press._find_target_compression_ratio(58, target_size) == pytest.approx(1 - (54 / 58))
+
+
+def test_sequence_ratio_decoding_press_prefers_logical_positions_over_compressed_cache_position():
+    press = CompressionRatioDecodingPress(base_press=KnormPress(), target_compression_ratio=0.5)
+
+    target_size = press._resolve_target_size(
+        {
+            "position_ids": torch.tensor([[107]]),
+            "cache_position": torch.tensor([57]),
+        }
+    )
+
+    assert target_size == 54
+
+
+def test_sequence_ratio_decoding_press_requires_logical_position_ids():
+    press = CompressionRatioDecodingPress(base_press=KnormPress(), target_compression_ratio=0.5)
+
+    with pytest.raises(NotImplementedError, match="requires logical position_ids"):
+        press._resolve_target_size({"cache_position": torch.tensor([57])})
+
+
+def test_sequence_ratio_decoding_press_noops_if_cache_is_already_below_target():
+    press = CompressionRatioDecodingPress(base_press=KnormPress(), target_compression_ratio=0.5)
+
+    target_size = press._resolve_target_size({"position_ids": torch.tensor([[107]])})
+
+    assert target_size == 54
+    assert press._find_target_compression_ratio(50, target_size) == 0.0
 
 
 """
