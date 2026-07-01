@@ -23,9 +23,7 @@ LLAMA_3_1_8B_EA_CURVE_URL = (
 
 BUDGET_CURVE_URLS = {
     # ExpectedAttentionPress(epsilon=2e-2), sink=4, window=1
-    ("meta-llama/Llama-3.1-8B", "ExpectedAttentionPress"): LLAMA_3_1_8B_EA_CURVE_URL,
     ("meta-llama/Llama-3.1-8B-Instruct", "ExpectedAttentionPress"): LLAMA_3_1_8B_EA_CURVE_URL,
-    ("meta-llama/Meta-Llama-3.1-8B-Instruct", "ExpectedAttentionPress"): LLAMA_3_1_8B_EA_CURVE_URL,
 }
 
 cache = LRUCache(maxsize=128)
