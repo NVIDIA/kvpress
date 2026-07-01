@@ -18,6 +18,7 @@ from kvpress import (
     KVzipPress,
     LagKVPress,
     LeverageScorePress,
+    LUKVPress,
     NonCausalAttnPress,
     PyramidKVPress,
     QFilterPress,
@@ -66,6 +67,18 @@ class TestFastKVzipPress(FastKVzipPress):
             for idx in range(model.config.num_hidden_layers):
                 module = FastKVzipGate(idx, input_dim, nhead, ngroup, dtype).to(model.device)
                 self.gates.append(module)
+
+
+class TestLUKVPress(LUKVPress):
+    """Test version of LUKVPress that creates a mock budget curve instead of downloading one."""
+
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+        if self._budget_curves is None:
+            n_layers = model.config.num_hidden_layers
+            n_heads = model.config.num_key_value_heads
+            prune_ratios = np.arange(1, 100, dtype=np.float32).reshape(99, 1, 1) / 100
+            self._budget_curves = np.broadcast_to(prune_ratios, (99, n_layers, n_heads)).copy()
 
 
 # contains all presses to be tested
@@ -153,4 +166,5 @@ default_presses = [
         ],
     },
     {"cls": CapPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
+    {"cls": TestLUKVPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
 ]
