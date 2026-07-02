@@ -13,6 +13,7 @@ from transformers import QuantizedCache
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
 from kvpress.presses.adakv_press import AdaKVPress
+from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import extract_keys_and_values, get_prerope_query_states
@@ -238,7 +239,7 @@ class CAMPress(DecodingPress):
         layer_idx = int(module.layer_idx)
 
         # Only operate during decoding
-        if kwargs["cache_position"][-1] <= q_len:
+        if is_prefilling(kwargs["cache_position"], q_len):
             # Entering prefill for a (potentially new) sequence — drop any per-layer
             # state left over from a previous sequence so that subsequent decoding
             # steps don't try to `+=` against a stale-shaped running attention sum.
