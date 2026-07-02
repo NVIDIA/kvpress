@@ -60,9 +60,9 @@ Decoding Compression
 By default, KVPress applies compression during the prefilling phase. As a new (experimental) feature, we now support decoding compression via the `DecodingPress` wrapper. `DecodingPress` compresses the KV cache periodically during token generation, optionally maintaining a buffer of recent hidden states. `DecodingPress` supports the following parameters:
 
 - `base_press`: Any ScorerPress (e.g., `KNormPress`, `CriticalKVPress`)
-- `compression_interval`: Steps between compressions (default: 10)
-- `target_size`: Target cache size of the cache after compression (default: 1024)
-- `hidden_states_buffer_size`: Number of hidden states to buffer before compression (default: 128). Some presses don't need buffered hidden states and can set this to 0.
+- `compression_interval`: Steps between compressions (default: 512)
+- `target_size`: Target cache size after compression (default: 2048)
+- `hidden_states_buffer_size`: Number of hidden states to buffer before compression (default: 256). Some presses don't need buffered hidden states and can set this to 0.
 
 Unlike a compression ratio, decoding press uses a `target_size` to compress the cache. This means that the cache is compressed every `compression_interval` steps, and the compression ratio is automatically computed such that the size of the cache after compression equals `target_size`.
 
@@ -79,11 +79,11 @@ model = "meta-llama/Llama-3.1-8B-Instruct"
 model_kwargs = {"attn_implementation": "flash_attention_2"}
 pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
-# Create a decoding press that compresses every 10 steps to 512 tokens
+# Create a decoding press that compresses every 10 steps to a target cache size of 512 tokens
 decoding_press = DecodingPress(
     base_press=KnormPress(),
-    compression_steps=10,
-    token_buffer_size=512
+    compression_interval=10,
+    target_size=512
 )
 
 # Use with pipeline
@@ -303,11 +303,11 @@ model = "meta-llama/Llama-3.1-8B-Instruct"
 model_kwargs = {"attn_implementation": "flash_attention_2"}
 pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kwargs=model_kwargs)
 
-# Create a decoding press that compresses every 10 steps to 512 tokens
+# Create a decoding press that compresses every 10 steps to a target cache size of 512 tokens
 decoding_press = DecodingPress(
     base_press=KnormPress(),
-    compression_steps=10,
-    token_buffer_size=512
+    compression_interval=10,
+    target_size=512
 )
 
 # Use with pipeline
@@ -333,8 +333,8 @@ pipe = pipeline("kv-press-text-generation", model=model, device=device, model_kw
 prefill_press = CriticalKVPress(KnormPress())
 decoding_press = DecodingPress(
     base_press=KnormPress(compression_ratio=0.2),
-    compression_steps=5,
-    token_buffer_size=256
+    compression_interval=5,
+    target_size=256
 )
 
 # Combine them
