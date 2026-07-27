@@ -34,6 +34,12 @@ SUPPORTED_MODELS = (
 )
 
 
+def is_prefilling(cache_position: torch.Tensor, q_len: int) -> bool:
+    """Return whether the current forward pass is the initial prefill."""
+    prefilling = cache_position[-1] + 1 == q_len
+    return bool(prefilling.item() if isinstance(prefilling, torch.Tensor) else prefilling)
+
+
 @dataclass
 class BasePress:
     """
@@ -136,7 +142,7 @@ class BasePress:
         q_len = hidden_states.shape[1]
 
         # Don't compress after pre-filling
-        if kwargs["cache_position"][-1] > q_len:
+        if not is_prefilling(kwargs["cache_position"], q_len):
             return output
 
         keys, values = extract_keys_and_values(cache, module.layer_idx)
