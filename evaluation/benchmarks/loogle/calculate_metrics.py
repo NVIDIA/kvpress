@@ -9,6 +9,8 @@ from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate.meteor_score import single_meteor_score
 from rouge import Rouge
 
+print("WARNING: LooGLE evaluation uses eval(). Only run this script with trusted inputs.")
+
 
 # Code below is adapted from https://github.com/bigai-nlco/LooGLE/blob/main/Evaluation/automatic_metrics.py
 def get_bleu_score(reference, hypothesis):
