@@ -90,6 +90,8 @@ class KVzipPress(BasePress):
         if isinstance(model, Gemma3PreTrainedModel):
             raise ValueError("KVzipPress is not supported for Gemma3ForCausalLM")
 
+        self.post_init_from_model(model)
+
         # Store model reference for later use
         tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
 
