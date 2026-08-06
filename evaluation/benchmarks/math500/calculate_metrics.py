@@ -3,12 +3,11 @@
 
 import pandas as pd
 
+from ..utils import extract_boxed as _extract_boxed
+
 
 def extract_boxed(pred_answer):
-    try:
-        return str(pred_answer.split("boxed{")[1].split("}")[0])
-    except IndexError:
-        return None
+    return _extract_boxed(pred_answer)
 
 
 def score_aime(pred_answer, true_answer):
