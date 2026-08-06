@@ -25,7 +25,8 @@ class RestoreKVPress(KVzipPress):
     (budget-matched). LoRA is active only for this one-time pass. Only the restore
     embeddings and LoRA (~0.4%) are trained, by self-distillation from the
     full-cache teacher. Adapters are published as PEFT LoRA adapters at
-    `higokri/RestoreKV-<model>[_plus]` and loaded automatically from the model name.
+    `higokri/RestoreKV-<model>[_plus]` for Llama-3.1-8B-Instruct and Qwen3-8B, and
+    loaded automatically from the model name.
     """
 
     restore_embeddings: torch.Tensor | None = field(init=False, default=None, repr=False)
@@ -66,19 +67,16 @@ class RestoreKVPress(KVzipPress):
     def append_restore_tokens(self, model: PreTrainedModel):
         """Single LoRA-adapted restore pass over the full cache (before eviction);
         appends the n restore tokens' K/V in place. Scoring hooks are skipped."""
-        if self._cache is None or self.restore_embeddings is None:
-            raise RuntimeError("Restore append requires a populated context cache")
-        before = self._cache.get_seq_length()
-        restore_embeds = self.restore_embeddings.unsqueeze(0)
-        cache_position = torch.arange(before, before + self.num_restore_tokens, device=restore_embeds.device)
-
+        cache_position = torch.arange(
+            self.context_length, self.context_length + self.num_restore_tokens, device=self.restore_embeddings.device
+        )
         self.encoding_restore_tokens = True
         model.set_adapter(self.adapter_name)
         model.enable_adapters()
         try:
             with torch.inference_mode():
                 model.model(
-                    inputs_embeds=restore_embeds,
+                    inputs_embeds=self.restore_embeddings.unsqueeze(0),
                     past_key_values=self._cache,
                     position_ids=cache_position.unsqueeze(0),
                     cache_position=cache_position,
@@ -87,12 +85,6 @@ class RestoreKVPress(KVzipPress):
         finally:
             model.disable_adapters()
             self.encoding_restore_tokens = False
-
-        after = self._cache.get_seq_length()
-        if after - before != self.num_restore_tokens:
-            raise RuntimeError(
-                "Restore append length mismatch: " f"expected {self.num_restore_tokens}, observed {after - before}"
-            )
 
     def compress_post(self, model: PreTrainedModel):
         # KVzip has finished scoring the context; append the restore tokens to the
