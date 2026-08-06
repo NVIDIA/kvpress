@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
+import torch
 
 from kvpress import (
     CapPress,
@@ -23,6 +24,7 @@ from kvpress import (
     PyramidKVPress,
     QFilterPress,
     RandomPress,
+    RestoreKVPress,
     SimLayerKVPress,
     SnapKVPress,
     StreamingLLMPress,
@@ -81,6 +83,22 @@ class TestLUKVPress(LUKVPress):
             self._budget_curves = np.broadcast_to(prune_ratios, (99, n_layers, n_heads)).copy()
 
 
+class TestRestoreKVPress(RestoreKVPress):
+    """Test version that installs a random PEFT adapter instead of downloading one from the Hub."""
+
+    def post_init_from_model(self, model):
+        if self.restore_embeddings is not None:
+            return
+        from peft import LoraConfig
+
+        target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+        if self.adapter_name not in getattr(model, "peft_config", {}):
+            config = LoraConfig(r=8, lora_alpha=16, target_modules=target_modules, task_type="CAUSAL_LM")
+            model.add_adapter(config, adapter_name=self.adapter_name)
+        model.disable_adapters()
+        self.restore_embeddings = torch.zeros(8, model.config.hidden_size, device=model.device, dtype=model.dtype)
+
+
 # contains all presses to be tested
 # kwargs should be ordered easy to hard compression
 default_presses = [
@@ -126,6 +144,7 @@ default_presses = [
         "cls": KVzipPress,
         "kwargs": [{"compression_ratio": 0.5, "layerwise": False}, {"compression_ratio": 0.8, "layerwise": True}],
     },
+    {"cls": TestRestoreKVPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": TestFastKVzipPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": CURPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": TestKVzapPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},

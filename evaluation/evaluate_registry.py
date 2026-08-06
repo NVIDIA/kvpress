@@ -40,6 +40,7 @@ from kvpress import (
     PyramidKVPress,
     QFilterPress,
     RandomPress,
+    RestoreKVPress,
     SnapKVPress,
     StreamingLLMPress,
     ThinKPress,
@@ -105,6 +106,8 @@ PRESS_REGISTRY = {
     "pyramidkv": PyramidKVPress(),
     "qfilter": QFilterPress(),
     "random": RandomPress(),
+    "RestoreKV": RestoreKVPress(),
+    "RestoreKV_plus": RestoreKVPress(kvzip_plus_normalization=True),  # RestoreKV+ (KVzip+ scoring)
     "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
     "snapkv": SnapKVPress(),
     "streaming_llm": StreamingLLMPress(),

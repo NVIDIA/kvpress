@@ -17,6 +17,7 @@ dependencies = [
     "datasets>=2.21.0",
     "pandas>=2.2.2,<3",
     "accelerate>=1.0.0,<2",
+    "peft>=0.20.0",
     "requests>=2.32.3,<3",
     "cachetools>=5.5.2,<6",
     "fire>=0.6.0,<0.7",

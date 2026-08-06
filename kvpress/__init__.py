@@ -40,6 +40,7 @@ from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.pyramidkv_press import PyramidKVPress
 from kvpress.presses.qfilter_press import QFilterPress
 from kvpress.presses.random_press import RandomPress
+from kvpress.presses.restorekv_press import RestoreKVPress
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.presses.simlayerkv_press import SimLayerKVPress
 from kvpress.presses.snapkv_press import SnapKVPress
@@ -62,6 +63,7 @@ __all__ = [
     "KnormPress",
     "ObservedAttentionPress",
     "RandomPress",
+    "RestoreKVPress",
     "SimLayerKVPress",
     "SnapKVPress",
     "StreamingLLMPress",
