@@ -298,6 +298,8 @@ class EvaluationRunner:
             press.compression_interval = self.config.compression_interval or press.compression_interval
             press.target_size = self.config.target_size or press.target_size
             press.hidden_states_buffer_size = self.config.hidden_states_buffer_size or press.hidden_states_buffer_size
+            if hasattr(press, "target_compression_ratio"):
+                press.target_compression_ratio = compression_ratio
             logger.info(
                 f"Set DecodingPress compression_interval to {self.config.compression_interval}, target_size to {self.config.target_size}, hidden_states_buffer_size to {self.config.hidden_states_buffer_size}"
             )

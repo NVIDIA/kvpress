@@ -20,6 +20,7 @@ from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.dms_press import DMSPress
 from kvpress.presses.duo_attention_press import DuoAttentionPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
+from kvpress.presses.filtering_press import FilteringPress
 from kvpress.presses.expected_attention_with_stats import ExpectedAttentionStatsPress
 from kvpress.presses.fastkvzip_press import FastKVzipPress
 from kvpress.presses.finch_press import FinchPress
@@ -47,6 +48,7 @@ from kvpress.presses.snapkv_press import SnapKVPress
 from kvpress.presses.streaming_llm_press import StreamingLLMPress
 from kvpress.presses.think_press import ThinKPress
 from kvpress.presses.tova_press import TOVAPress
+from kvpress.presses.uniform_filtering_press import UniformFilteringPress
 
 # Patch the attention functions to support head-wise compression
 patch_attention_functions()
@@ -93,8 +95,10 @@ __all__ = [
     "KVzapPress",
     "DMSPress",
     "FastKVzipPress",
+    "FilteringPress",
     "KVComposePress",
     "MergingPress",
     "CapPress",
     "LUKVPress",
+    "UniformFilteringPress",
 ]

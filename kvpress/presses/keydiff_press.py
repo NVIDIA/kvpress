@@ -42,5 +42,13 @@ class KeyDiffPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
-        anchor = F.normalize(keys, p=2, dim=-1).mean(dim=2, keepdim=True)
+        normalized = F.normalize(keys, p=2, dim=-1)
+        valid_mask = kwargs.get("valid_mask")
+
+        if valid_mask is None:
+            anchor = normalized.mean(dim=2, keepdim=True)
+        else:
+            mask = valid_mask.unsqueeze(-1)
+            anchor = (normalized * mask).sum(dim=2, keepdim=True) / mask.sum(dim=2, keepdim=True).clamp(min=1)
+
         return -F.cosine_similarity(keys, anchor, dim=-1)

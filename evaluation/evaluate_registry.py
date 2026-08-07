@@ -19,6 +19,7 @@ from kvpress import (
     ChunkKVPress,
     CompactorPress,
     ComposedPress,
+    CompressionRatioDecodingPress,
     CriticalAdaKVPress,
     CriticalKVPress,
     CURPress,
@@ -27,6 +28,7 @@ from kvpress import (
     DuoAttentionPress,
     ExpectedAttentionPress,
     FastKVzipPress,
+    FilteringPress,
     FinchPress,
     KeyDiffPress,
     KnormPress,
@@ -45,6 +47,7 @@ from kvpress import (
     StreamingLLMPress,
     ThinKPress,
     TOVAPress,
+    UniformFilteringPress,
 )
 
 # These dictionaries define the available datasets, scorers, and KVPress methods for evaluation.
@@ -132,4 +135,8 @@ PRESS_REGISTRY = {
     "merging_snapkv": MergingPress(SnapKVPress()),
     "merging_expected_attention": MergingPress(ExpectedAttentionPress(epsilon=1e-2)),
     "merging_kvzap_mlp": MergingPress(KVzapPress(model_type="mlp")),
+    "compression_ratio_decoding_keydiff": CompressionRatioDecodingPress(base_press=KeyDiffPress()),
+    "uniform_filtering_keydiff": UniformFilteringPress(base_press=KeyDiffPress()),
+    "filtering_zerofill_keydiff": FilteringPress(base_press=KeyDiffPress()),
+    "filtering_stale_keydiff": FilteringPress(base_press=KeyDiffPress(), fill_padding=False),
 }
