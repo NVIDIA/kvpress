@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Generator
 
+import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from torch import nn
@@ -123,8 +124,19 @@ def get_gate_weight(model_name: str):
     gate_id = get_gate_id(model_name)
     file_path = hf_hub_download(repo_id="Jang-Hyun/Fast-KVzip", filename=gate_id, repo_type="model")
 
-    # Load the PyTorch tensor/dictionary
-    weights = torch.load(file_path, weights_only=False)["module"]
+    with torch.serialization.safe_globals(
+        [
+            (
+                np._core.multiarray._reconstruct,  # type: ignore[attr-defined]
+                "numpy.core.multiarray._reconstruct",
+            ),
+            np.ndarray,
+            np.dtype,
+            np.dtypes.Float64DType,
+            np.dtypes.Float32DType,
+        ]
+    ):
+        weights = torch.load(file_path, weights_only=True)["module"]
     return weights, gate_id
 
 
