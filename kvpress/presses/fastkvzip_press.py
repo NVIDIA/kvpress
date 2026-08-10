@@ -126,7 +126,10 @@ def get_gate_weight(model_name: str):
 
     with torch.serialization.safe_globals(
         [
-            (np._core.multiarray._reconstruct, "numpy.core.multiarray._reconstruct"),
+            (
+                np._core.multiarray._reconstruct,  # type: ignore[attr-defined]
+                "numpy.core.multiarray._reconstruct",
+            ),
             np.ndarray,
             np.dtype,
             np.dtypes.Float64DType,
