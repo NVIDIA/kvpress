@@ -15,6 +15,7 @@ from kvpress import (
     CriticalAdaKVPress,
     CriticalKVPress,
     DMSPress,
+    EntropyGatedChunkKVPress,
     FastKVzipPress,
     KeyRerotationPress,
     KnormPress,
@@ -61,6 +62,18 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
             assert cache.get_seq_length() == 128
 
 
+def test_entropy_gated_chunkkv_press(unit_test_model):  # noqa: F811
+    press = SnapKVPress(compression_ratio=0.5)
+    for chunk_length in [2, 4, 8, 128]:
+        for rescue_size in [1, 4]:
+            composed_press = EntropyGatedChunkKVPress(press=press, chunk_length=chunk_length, rescue_size=rescue_size)
+            with composed_press(unit_test_model):
+                input_ids = torch.randint(0, 1024, (1, 256), device=unit_test_model.device)
+                cache = DynamicCache()
+                unit_test_model(input_ids, past_key_values=cache).past_key_values
+                assert cache.get_seq_length() == 128
+
+
 @pytest.mark.parametrize("press_dict", default_presses)
 @pytest.mark.parametrize(
     "wrapper_press",
@@ -74,6 +87,7 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
         CriticalAdaKVPress,
         DMSPress,
         MergingPress,
+        EntropyGatedChunkKVPress,
     ],
 )
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
@@ -92,7 +106,14 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
                 return
             elif issubclass(
                 wrapper_press,
-                (KeyRerotationPress, AdaKVPress, CriticalKVPress, CriticalAdaKVPress, MergingPress),
+                (
+                    KeyRerotationPress,
+                    AdaKVPress,
+                    CriticalKVPress,
+                    CriticalAdaKVPress,
+                    MergingPress,
+                    EntropyGatedChunkKVPress,
+                ),
             ):
                 press = wrapper_press(press=press)
             elif issubclass(wrapper_press, ChunkPress):

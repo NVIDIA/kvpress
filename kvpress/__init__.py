@@ -19,6 +19,7 @@ from kvpress.presses.cur_press import CURPress
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.dms_press import DMSPress
 from kvpress.presses.duo_attention_press import DuoAttentionPress
+from kvpress.presses.entropy_gated_chunkkv_press import EntropyGatedChunkKVPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.expected_attention_with_stats import ExpectedAttentionStatsPress
 from kvpress.presses.fastkvzip_press import FastKVzipPress
@@ -97,4 +98,5 @@ __all__ = [
     "MergingPress",
     "CapPress",
     "LUKVPress",
+    "EntropyGatedChunkKVPress",
 ]
