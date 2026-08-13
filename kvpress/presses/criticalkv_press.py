@@ -146,7 +146,7 @@ class CriticalAdaKVPress(BasePress):
         bsz, num_key_value_heads, k_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
-        n_kept = int(k_len * (1 - self.compression_ratio))  # ScorerPress definition
+        n_kept = max(1, int(k_len * (1 - self.compression_ratio)))  # ScorerPress definition
         n_safe = int(n_kept * self.alpha_safeguard)
         top_indices = torch.topk(scores, n_safe, dim=-1).indices
         scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)

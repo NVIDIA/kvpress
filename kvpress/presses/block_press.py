@@ -63,7 +63,7 @@ class BlockPress(BasePress):
         bsz, num_key_value_heads, k_len, head_dim = keys.shape
 
         block_size = self.block_size if self.block_size < k_len else k_len
-        n_kept = int(k_len * (1 - self.compression_ratio))
+        n_kept = max(1, int(k_len * (1 - self.compression_ratio)))
 
         kept_indices = torch.arange(n_kept, device=keys.device).expand(bsz, num_key_value_heads, -1)
 

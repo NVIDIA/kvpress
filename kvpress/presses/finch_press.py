@@ -97,7 +97,7 @@ class FinchPress(BasePress):
         # Compute indices to keep (optionally by chunks)
         k_len = keys.shape[2]  # Use actual sequence length from keys instead of hidden_states
         if self.chunk_length is None:
-            n_kept = int(k_len * (1 - self.compression_ratio))
+            n_kept = max(1, int(k_len * (1 - self.compression_ratio)))
             indices = scores.topk(n_kept, dim=-1).indices
         else:
             assert self.chunk_length > self.window_size / (1 - self.compression_ratio)

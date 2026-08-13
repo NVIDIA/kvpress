@@ -91,7 +91,7 @@ class ScorerPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         k_len = keys.shape[2]
-        n_kept = int(k_len * (1 - self.compression_ratio))
+        n_kept = max(1, int(k_len * (1 - self.compression_ratio)))
         indices = scores.topk(n_kept, dim=-1).indices
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
 

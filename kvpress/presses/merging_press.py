@@ -83,7 +83,7 @@ class MergingPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         k_len = keys.shape[2]
-        n_kept = int(k_len * (1 - self.press.compression_ratio))
+        n_kept = max(1, int(k_len * (1 - self.press.compression_ratio)))
         indices = scores.topk(n_kept, dim=-1).indices
 
         # Merge evicted tokens into the survivors before pruning

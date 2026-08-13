@@ -143,7 +143,7 @@ class KeyRerotationPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         q_len = keys.shape[2]
-        n_kept = int(q_len * (1 - self.press.compression_ratio))
+        n_kept = max(1, int(q_len * (1 - self.press.compression_ratio)))
         indices = scores.topk(n_kept, dim=-1).indices
         indices = torch.sort(indices, dim=2).values
         keys = self.rerotate_keys(module, indices, keys)
