@@ -140,7 +140,7 @@ Finally we provide wrapper presses that can be combined with other presses:
 - `ComposedPress` ([source](kvpress/presses/composed_press.py)): compose multiple presses together by chaining their forward hooks
 - `KeyRerotationPress` ([source](kvpress/presses/key_rerotation_press.py)): rerotate pruned keys to have continuous RoPE embeddings
 - `ChunkKVPress` ([source](kvpress/presses/chunkkv_press.py), [paper](https://arxiv.org/abs/2502.00299)): compress by selecting important chunks, preserving semantic coherence
-- `EntropyGatedChunkKVPress` ([source](kvpress/presses/entropy_gated_chunkkv_press.py)): similar to `ChunkKVPress` but reduces the chunk length for chunks with high scores but low entropy
+- `EntropyGatedChunkKVPress` ([source](kvpress/presses/entropy_gated_chunkkv_press.py)): similar to `ChunkKVPress`, but reduces the length of chunks with high scores but low entropy, freeing budget for more chunks.
 - `ChunkPress` ([source](kvpress/presses/chunk_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): compress the KV cache on each sequence chunk separately. This can yield to more uniform compression across long sequences
 - `CriticalKVPress` and `CriticalAdaKVPress` ([source](kvpress/presses/criticalkv_press.py), [paper](https://arxiv.org/abs/2502.03805)): refine the scores using the L1 norm of Wo @ values, coupled with a two-stage selection.
 - `BlockPress` ([source](kvpress/presses/block_press.py), [paper](https://arxiv.org/abs/2504.15364)): segment input sequence into non-overlapping blocks and compress iteratively (⚠️ not a true chunked-prefill implementation)
