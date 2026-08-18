@@ -54,9 +54,8 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.chunk_length > 1, "EntropyGatedChunkKVPress requires chunk_length > 1"
-        assert self.chunk_length > self.low_entropy_chunk_length, (
-            "EntropyGatedChunkKVPress requires chunk_length > low_entropy_chunk_length"
+        assert self.chunk_length > self.low_entropy_chunk_length >= 1, (
+            "EntropyGatedChunkKVPress requires chunk_length > low_entropy_chunk_length >= 1"
         )
 
     def compress(
@@ -81,7 +80,7 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
         budget = max(1, int(kv_len * (1 - self.press.compression_ratio)))
 
-        # 1. Per-chunk semantic score S and normalized entropy H_tilde.
+        # 1. Per-chunk score and entropy.
         n_chunks = math.ceil(kv_len / chunk_len)
         bounds = [(i * chunk_len, min(i * chunk_len + chunk_len, kv_len)) for i in range(n_chunks)]
         n_complete = kv_len // chunk_len
@@ -89,9 +88,7 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
         chunk_token_scores = scores[: n_complete * chunk_len].view(n_complete, chunk_len)
         chunk_scores = chunk_token_scores.mean(dim=1)
-        if (chunk_token_scores < 0).any():
-            chunk_min = chunk_token_scores.amin(dim=1, keepdim=True)
-            chunk_token_scores = chunk_token_scores - chunk_min.clamp(max=0.0)
+        chunk_token_scores = chunk_token_scores - chunk_token_scores.amin(dim=1, keepdim=True).clamp(max=0.0)
         p = chunk_token_scores / (chunk_token_scores.sum(dim=1, keepdim=True) + EPSILON)
         h = -(p * (p + EPSILON).log()).sum(dim=1)
         chunk_entropy = (h / math.log(chunk_len)).clamp(0.0, 1.0)
@@ -113,6 +110,7 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
         score_threshold = chunk_scores.median()
         entropy_threshold = chunk_entropy.median()
+
         # 2. Greedy pass over chunks in decreasing semantic score.
         high_score_chunks = (chunk_scores >= score_threshold).tolist()
         low_entropy_chunks = (chunk_entropy < entropy_threshold).tolist()
