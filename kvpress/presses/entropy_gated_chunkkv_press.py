@@ -8,12 +8,13 @@ from typing import Optional
 import torch
 from torch import nn
 
-from kvpress.presses.base_press import BasePress
-from kvpress.presses.scorer_press import ScorerPress
+from kvpress.presses.chunkkv_press import ChunkKVPress
+
+EPSILON = 1e-8
 
 
 @dataclass
-class EntropyGatedChunkKVPress(BasePress):
+class EntropyGatedChunkKVPress(ChunkKVPress):
     """
     EntropyGatedChunkKV: chunk selection gated by within-chunk score entropy.
 
@@ -52,24 +53,9 @@ class EntropyGatedChunkKVPress(BasePress):
     is computed.
     """
 
-    press: ScorerPress
     chunk_length: int = 10
     rescue_size: int = 4
     entropy_threshold: Optional[float] = None
-
-    def __post_init__(self):
-        assert isinstance(self.press, ScorerPress), "EntropyGatedChunkKVPress requires a ScorerPress as input"
-
-    def post_init_from_model(self, model):
-        self.press.post_init_from_model(model)
-
-    @property
-    def compression_ratio(self):
-        return self.press.compression_ratio
-
-    @compression_ratio.setter
-    def compression_ratio(self, value):
-        self.press.compression_ratio = value
 
     def compress(
         self,
@@ -84,7 +70,6 @@ class EntropyGatedChunkKVPress(BasePress):
             return keys, values
         assert attentions is None, "EntropyGatedChunkKVPress does not support attentions."
 
-        eps = 1e-8
         kv_len = keys.shape[2]
         c = self.chunk_length
 
@@ -102,30 +87,22 @@ class EntropyGatedChunkKVPress(BasePress):
         n_complete = kv_len // c
         remaining_tokens = kv_len % c
 
-        # Per-chunk statistics are computed vectorized rather than in a Python loop, which
-        # would launch O(n_chunks) tiny kernels per forward pass. Complete chunks all hold
-        # exactly c tokens, so reshaping to (n_complete, c) makes each row one chunk and the
-        # row-wise reductions give its mean and normalized Shannon entropy.
         X = tok[: n_complete * c].view(n_complete, c)
         s_scores = X.mean(dim=1)
         if c > 1:
-            p = X / (X.sum(dim=1, keepdim=True) + eps)
-            h = -(p * (p + eps).log()).sum(dim=1)
+            p = X / (X.sum(dim=1, keepdim=True) + EPSILON)
+            h = -(p * (p + EPSILON).log()).sum(dim=1)
             ht = (h / math.log(c)).clamp(0.0, 1.0)
         else:
-            # Entropy is undefined for a single token, so such a chunk is treated as spiky,
-            # as for a length-1 trailing chunk below. Normalizing by log(1) = 0 would divide
-            # by zero here, which is why this case is handled separately.
             ht = torch.zeros(n_complete, device=tok.device)
 
         # The trailing partial chunk does not fit the reshape and is handled separately.
-        # Entropy is undefined for a single token, so such a chunk is treated as spiky.
         if remaining_tokens > 0:
             ts = tok[n_complete * c :]
             s_tail = ts.mean().unsqueeze(0)
             if remaining_tokens >= 2:
-                pr = ts / (ts.sum() + eps)
-                hr = -(pr * (pr + eps).log()).sum()
+                pr = ts / (ts.sum() + EPSILON)
+                hr = -(pr * (pr + EPSILON).log()).sum()
                 ht_tail = (hr / math.log(remaining_tokens)).clamp(0.0, 1.0).unsqueeze(0)
             else:
                 ht_tail = torch.zeros(1, device=tok.device)
@@ -139,10 +116,6 @@ class EntropyGatedChunkKVPress(BasePress):
             tau = torch.tensor(float(self.entropy_threshold), device=tok.device)
 
         # 2. Greedy pass over chunks in decreasing semantic score.
-        # The loop is inherently sequential because the budget is consumed in order. Both
-        # gating masks are therefore computed vectorized and moved to CPU lists once: reading
-        # a GPU scalar per iteration would force a synchronize and serialize the loop. The
-        # topk calls stay on the GPU tensor so their tie-breaking is unchanged.
         important_all = (s_scores >= med).tolist()
         spiky_all = (ht < tau).tolist()
         keep = torch.zeros(kv_len, dtype=torch.bool, device=tok.device)

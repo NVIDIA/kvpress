@@ -88,7 +88,7 @@ PRESS_REGISTRY = {
     "cur": CURPress(),
     "duo_attention": DuoAttentionPress(),
     "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
-    "entropy_gated_chunkkv": EntropyGatedChunkKVPress(press=SnapKVPress(), chunk_length=10, rescue_size=4),
+    "entropy_gated_chunkkv": EntropyGatedChunkKVPress(press=SnapKVPress()),
     "expected_attention": AdaKVPress(ExpectedAttentionPress(epsilon=1e-2)),
     "fastkvzip": FastKVzipPress(),
     "finch": FinchPress(),
