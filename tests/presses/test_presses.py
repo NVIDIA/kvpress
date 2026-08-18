@@ -15,6 +15,7 @@ from kvpress import (
     CriticalAdaKVPress,
     CriticalKVPress,
     DMSPress,
+    EntropyGatedChunkKVPress,
     FastKVzipPress,
     KeyRerotationPress,
     KnormPress,
@@ -74,6 +75,7 @@ def test_chunkkv_press(unit_test_model):  # noqa: F811
         CriticalAdaKVPress,
         DMSPress,
         MergingPress,
+        EntropyGatedChunkKVPress,
     ],
 )
 def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
@@ -92,7 +94,14 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
                 return
             elif issubclass(
                 wrapper_press,
-                (KeyRerotationPress, AdaKVPress, CriticalKVPress, CriticalAdaKVPress, MergingPress),
+                (
+                    KeyRerotationPress,
+                    AdaKVPress,
+                    CriticalKVPress,
+                    CriticalAdaKVPress,
+                    MergingPress,
+                    EntropyGatedChunkKVPress,
+                ),
             ):
                 press = wrapper_press(press=press)
             elif issubclass(wrapper_press, ChunkPress):
