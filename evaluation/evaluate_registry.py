@@ -19,6 +19,7 @@ from kvpress import (
     ChunkKVPress,
     CompactorPress,
     ComposedPress,
+    CompressionRatioDecodingPress,
     CriticalAdaKVPress,
     CriticalKVPress,
     CURPress,
@@ -28,6 +29,7 @@ from kvpress import (
     EntropyGatedChunkKVPress,
     ExpectedAttentionPress,
     FastKVzipPress,
+    FilteringPress,
     FinchPress,
     KeyDiffPress,
     KnormPress,
@@ -134,4 +136,6 @@ PRESS_REGISTRY = {
     "merging_snapkv": MergingPress(SnapKVPress()),
     "merging_expected_attention": MergingPress(ExpectedAttentionPress(epsilon=1e-2)),
     "merging_kvzap_mlp": MergingPress(KVzapPress(model_type="mlp")),
+    "compression_ratio_decoding_keydiff": CompressionRatioDecodingPress(base_press=KeyDiffPress()),
+    "filtering_keydiff": FilteringPress(base_press=KeyDiffPress()),
 }
