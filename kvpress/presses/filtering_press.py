@@ -60,11 +60,16 @@ class FilteringPress(DecodingPress):
         kwargs,
     ):
         bsz, n_heads, k_len, _ = keys.shape
-        total_tokens_seen = int(kwargs["position_ids"].max().item()) + 1
-        n_kept = max(1, int(total_tokens_seen * (1 - self.target_compression_ratio)))
-        n_kept = min(n_kept, k_len)
+        position_ids = kwargs["position_ids"]
+        if position_ids.dim() == 1:
+            position_ids = position_ids.unsqueeze(0)
+        if position_ids.shape[0] == 1:
+            position_ids = position_ids.expand(bsz, -1)
+        total_tokens_seen = position_ids.max(dim=-1).values + 1
+        n_kept = (total_tokens_seen.float() * (1 - self.target_compression_ratio)).round().long()
+        n_kept = n_kept.clamp(min=1, max=k_len)
 
-        if n_kept >= k_len:
+        if (n_kept >= k_len).all():
             return keys, values
 
         # Build per-head valid mask from accumulated masked_key_indices
@@ -87,7 +92,9 @@ class FilteringPress(DecodingPress):
                 )
                 scores[b, h, valid_pos] = head_scores[0, 0]
 
-        threshold = scores.topk(n_kept, dim=-1, sorted=True).values[:, :, -1]
+        sorted_scores, _ = scores.sort(dim=-1, descending=True)
+        idx = (n_kept - 1).view(-1, 1, 1).expand(-1, n_heads, 1)
+        threshold = sorted_scores.gather(-1, idx).squeeze(-1)
         rejected = scores[:, :, -1] < threshold
 
         if rejected.all():
