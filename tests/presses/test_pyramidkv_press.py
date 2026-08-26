@@ -47,3 +47,20 @@ def test_mean_layer_budget(layer_budget_func, num_hidden_layers, compression_rat
 
     mean_n_kept = total_n_kept / num_hidden_layers
     assert mean_n_kept == pytest.approx(q_len * (1 - compression_ratio), rel=1e-3)
+
+
+def test_get_layer_budget_fallback_floors_to_one():
+    # A short context with a high compression ratio fails the pyramid-shape guard and falls
+    # back to the SnapKV formula, which must never floor to 0 (that would empty the cache).
+    press = PyramidKVPress()
+    press.compression_ratio = 0.96
+    module = MockModule(MockConfig(32), layer_idx=0)
+    assert press.get_layer_budget(module, q_len=10) >= 1
+
+
+def test_get_layer_budget_single_layer_no_division_by_zero():
+    press = PyramidKVPress()
+    press.compression_ratio = 0.5
+    module = MockModule(MockConfig(num_hidden_layers=1), layer_idx=0)
+    n_kept = press.get_layer_budget(module, q_len=4096)
+    assert n_kept >= 1
