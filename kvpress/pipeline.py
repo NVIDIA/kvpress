@@ -295,7 +295,7 @@ class KVPressTextGenerationPipeline(Pipeline):
             input_ids=question_ids.to(self.model.device),
             past_key_values=cache,
             position_ids=position_ids,
-            num_logits_to_keep=1,
+            logits_to_keep=1,
         )
 
         position_ids = position_ids[:, -1:] + 1

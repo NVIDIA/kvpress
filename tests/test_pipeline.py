@@ -9,7 +9,7 @@ import torch
 from transformers import AutoTokenizer, DynamicCache, QuantizedCache
 from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
 
-from kvpress import ExpectedAttentionPress
+from kvpress import ExpectedAttentionPress, KVzipPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from tests.fixtures import danube_500m_model  # noqa: F401
 from tests.fixtures import kv_press_danube_pipeline  # noqa: F401
@@ -174,3 +174,35 @@ def generate_answer(model):
         context, questions=questions, press=press
     )["answers"]
     return answers
+
+
+@pytest.mark.parametrize("press_cls", [ExpectedAttentionPress, KVzipPress])
+def test_pipeline_only_computes_the_logits_it_needs(kv_press_unit_test_pipeline, press_cls):  # noqa: F811
+    """
+    Both the question forward pass in ``_generate_answer`` and the context reconstruction forward
+    passes in ``KVzipPress`` must only materialize the logits of the last position. Requesting this
+    under the transformers name that was renamed to ``logits_to_keep`` is swallowed by ``**kwargs``
+    without any error, and the full ``(1, seq_len, vocab_size)`` logits tensor is computed instead.
+    """
+    model = kv_press_unit_test_pipeline.model
+    original_forward = model.forward
+    logits_lengths = []
+
+    def recording_forward(*args, **kwargs):
+        outputs = original_forward(*args, **kwargs)
+        logits_lengths.append(outputs.logits.shape[1])
+        return outputs
+
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["When was this article written?"]
+
+    model.forward = recording_forward
+    try:
+        kv_press_unit_test_pipeline(
+            context, questions=questions, press=press_cls(compression_ratio=0.4), max_new_tokens=2
+        )
+    finally:
+        model.forward = original_forward
+
+    assert logits_lengths, "no forward pass through the lm_head was recorded"
+    assert all(length == 1 for length in logits_lengths), logits_lengths
