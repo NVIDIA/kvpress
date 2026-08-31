@@ -13,6 +13,7 @@ from kvpress.presses.scorer_press import ScorerPress
 
 class KVzapConfig(PretrainedConfig):
     model_type = "kvzap"
+    has_no_defaults_at_init = True
 
     def __init__(self, *, input_dim: int, output_dim: int, n_modules: int, hidden_dim: Optional[int] = None, **kwargs):
         super().__init__(**kwargs)
