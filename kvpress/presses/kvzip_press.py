@@ -194,7 +194,7 @@ class KVzipPress(BasePress):
             model(
                 input_ids=repeat_ids.to(model.device),
                 past_key_values=self._cache,
-                num_logits_to_keep=1,
+                logits_to_keep=1,
             )
             self.start_idx = self.end_idx
 
