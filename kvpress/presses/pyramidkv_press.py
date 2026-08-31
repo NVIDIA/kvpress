@@ -77,10 +77,12 @@ class PyramidKVPress(SnapKVPress):
             min_num = (max_capacity_prompt - self.window_size) * 2 - max_num
 
         if not (q_len >= max_num >= min_num >= self.window_size):
-            # Fall back to SnapKV
-            return round(q_len * (1 - self.compression_ratio))
+            # Fall back to SnapKV, floored to 1 so a short context never empties the cache
+            return max(1, round(q_len * (1 - self.compression_ratio)))
 
-        steps = (max_num - min_num) / (module.config.num_hidden_layers - 1)
+        # layer_idx is always 0 when num_hidden_layers == 1, so steps is unused there
+        num_hidden_layers = module.config.num_hidden_layers
+        steps = (max_num - min_num) / (num_hidden_layers - 1) if num_hidden_layers > 1 else 0.0
         return round(max_num - module.layer_idx * steps)
 
     def compress(
