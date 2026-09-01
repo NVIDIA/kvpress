@@ -1,18 +1,13 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import pandas as pd
 
-
-def extract_boxed(pred_answer):
-    try:
-        return str(pred_answer.split("boxed{")[-1].split("}")[0])
-    except IndexError:
-        return None
+from ..utils import extract_boxed
 
 
 def score_aime(pred_answer, true_answer):
-    return extract_boxed(pred_answer) == str(true_answer)
+    return extract_boxed(pred_answer, last=True) == str(true_answer)
 
 
 def calculate_metrics(df: pd.DataFrame) -> dict:
