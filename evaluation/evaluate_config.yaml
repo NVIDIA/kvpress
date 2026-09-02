@@ -4,6 +4,7 @@
 output_dir: "./results"
 
 model: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+trust_remote_code: false                         # Explicitly opt in only for trusted model repositories
 dataset: "ruler"                                  # see DATASET_REGISTRY in evaluate_registry.py
 data_dir: "4096"                                  # Subdirectory of the dataset (if applicable) else leave "null"
 
