@@ -386,7 +386,7 @@ class EvaluationRunner:
                 pass
 
         logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
-        pipeline_kwargs = {
+        pipeline_kwargs: Dict[str, Any] = {
             "model": model_name,
             "model_kwargs": model_kwargs,
         }
