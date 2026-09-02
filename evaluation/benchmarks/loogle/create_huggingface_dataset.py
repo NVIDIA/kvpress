@@ -4,7 +4,6 @@
 
 import json
 
-import pandas as pd
 from datasets import Dataset, load_dataset
 
 # Templates based on https://github.com/bigai-nlco/LooGLE/blob/main/config/task2prompt.json
@@ -34,18 +33,15 @@ max_new_tokens = {"shortdep_qa": 300, "longdep_qa": 500, "longdep_summarization"
 
 for task in ["shortdep_qa", "longdep_qa", "shortdep_cloze", "longdep_summarization"]:
 
-    df = load_dataset("bigainlco/LooGLE", task, split="test", trust_remote_code=True).to_pandas()
+    source_task = "summarization" if task == "longdep_summarization" else task
+    df = load_dataset("bigainlco/LooGLE", source_task, split="test").to_pandas()
 
-    if task == "longdep_summarization":
-        df["question"] = ""
-        df = df.rename(columns={"output": "answer", "input": "context"})
-    else:
-        df["qa_pairs"] = df["qa_pairs"].apply(lambda x: eval(x) if x != "none" else [{"Q": "", "A": "", "S": [""]}])
-        df = df.explode("qa_pairs")
-        df = pd.concat([df.drop(["qa_pairs"], axis=1), df["qa_pairs"].apply(pd.Series)], axis=1)
-        df = df.rename(columns={"A": "answer", "Q": "question", "input": "context"})
-        if task == "shortdep_cloze":
-            df["answer"] = df["answer"].apply(json.dumps, ensure_ascii=False)
+    if task == "shortdep_cloze":
+        df["answer"] = df["answer"].apply(
+            lambda values: json.dumps(
+                {f"<mask-{i}>": value for i, value in enumerate(values)}, ensure_ascii=False
+            )
+        )
 
     df["context"] = df["context"].apply(lambda x: context_prompt[task].format(input=x))
     df["question"] = df["question"].apply(lambda x: question_prompt[task].format(Q=x))

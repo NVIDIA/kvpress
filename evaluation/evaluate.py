@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import json
@@ -67,6 +67,7 @@ class EvaluationConfig:
 
     # Model-specific parameters
     model_kwargs: Optional[Dict[str, Any]] = None
+    trust_remote_code: bool = False
 
     # Press information (will be set after press setup)
     press_init_command: Optional[str] = None
@@ -385,11 +386,15 @@ class EvaluationRunner:
                 pass
 
         logger.info(f"Loading model pipeline for: {model_name} on device: {device} with model_kwargs: {model_kwargs}")
-        pipeline_kwargs = {
+        pipeline_kwargs: Dict[str, Any] = {
             "model": model_name,
             "model_kwargs": model_kwargs,
-            "trust_remote_code": True,
         }
+        if self.config.trust_remote_code:
+            logger.warning(
+                "trust_remote_code=True: the model repository can execute arbitrary Python code during loading."
+            )
+            pipeline_kwargs["trust_remote_code"] = True
         if device == "auto":
             pipeline_kwargs["device_map"] = "auto"
         else:
