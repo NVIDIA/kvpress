@@ -4,7 +4,6 @@
 
 import json
 
-import pandas as pd
 from datasets import Dataset, load_dataset
 
 # Templates based on https://github.com/bigai-nlco/LooGLE/blob/main/config/task2prompt.json
