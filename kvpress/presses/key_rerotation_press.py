@@ -10,6 +10,7 @@ from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.utils import compute_n_kept
 
 
 @dataclass
@@ -143,7 +144,7 @@ class KeyRerotationPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         q_len = keys.shape[2]
-        n_kept = max(1, int(q_len * (1 - self.press.compression_ratio)))
+        n_kept = compute_n_kept(q_len, self.press.compression_ratio)
         indices = scores.topk(n_kept, dim=-1).indices
         indices = torch.sort(indices, dim=2).values
         keys = self.rerotate_keys(module, indices, keys)
