@@ -9,6 +9,7 @@ from torch import nn
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.utils import compute_n_kept
 
 # Epsilon for numerical stability — safe for float16 (min ~6e-8) and bfloat16
 _EPS = 1e-6
@@ -83,7 +84,7 @@ class MergingPress(BasePress):
 
         # Get indices of KV pairs with the lowest scores
         k_len = keys.shape[2]
-        n_kept = int(k_len * (1 - self.press.compression_ratio))
+        n_kept = compute_n_kept(k_len, self.press.compression_ratio)
         indices = scores.topk(n_kept, dim=-1).indices
 
         # Merge evicted tokens into the survivors before pruning

@@ -8,6 +8,7 @@ import torch
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.utils import compute_n_kept
 
 
 @dataclass
@@ -61,8 +62,10 @@ class AdaKVPress(BasePress):
         bsz, num_key_value_heads, k_len = scores.shape
 
         # Make sure to keep at least alpha * (1 - compression_ratio) KV pairs per head
-        n_kept = int(k_len * (1 - self.compression_ratio))  # ScorerPress definition
+        n_kept = compute_n_kept(k_len, self.compression_ratio)
         n_safe = int(n_kept * self.alpha_safeguard)
+        if self.alpha_safeguard > 0:
+            n_safe = max(1, n_safe) if n_kept > 0 else 0
         top_indices = torch.topk(scores, n_safe, dim=-1).indices
         scores.scatter_(-1, top_indices, torch.finfo(scores.dtype).max)
 

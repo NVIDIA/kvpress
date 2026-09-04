@@ -11,6 +11,7 @@ from torch.nn import functional as F
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.key_rerotation_press import KeyRerotationPress
 from kvpress.presses.snapkv_press import SnapKVPress
+from kvpress.utils import compute_n_kept
 
 
 @dataclass
@@ -97,14 +98,14 @@ class FinchPress(BasePress):
         # Compute indices to keep (optionally by chunks)
         k_len = keys.shape[2]  # Use actual sequence length from keys instead of hidden_states
         if self.chunk_length is None:
-            n_kept = int(k_len * (1 - self.compression_ratio))
+            n_kept = compute_n_kept(k_len, self.compression_ratio)
             indices = scores.topk(n_kept, dim=-1).indices
         else:
             assert self.chunk_length > self.window_size / (1 - self.compression_ratio)
             indices = []
             for i in range(0, k_len, self.chunk_length):
                 chunk_scores = scores[:, :, i : i + self.chunk_length]
-                n_kept = max(1, int(chunk_scores.shape[2] * (1 - self.compression_ratio)))
+                n_kept = compute_n_kept(chunk_scores.shape[2], self.compression_ratio)
                 chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices
                 indices.append(chunk_indices)
             indices = torch.cat(indices, dim=-1)
