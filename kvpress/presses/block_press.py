@@ -8,6 +8,7 @@ from torch import nn
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
+from kvpress.utils import compute_n_kept
 
 
 @dataclass
@@ -63,7 +64,7 @@ class BlockPress(BasePress):
         bsz, num_key_value_heads, k_len, head_dim = keys.shape
 
         block_size = self.block_size if self.block_size < k_len else k_len
-        n_kept = int(k_len * (1 - self.compression_ratio))
+        n_kept = compute_n_kept(k_len, self.compression_ratio)
 
         kept_indices = torch.arange(n_kept, device=keys.device).expand(bsz, num_key_value_heads, -1)
 
