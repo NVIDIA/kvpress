@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass, field
@@ -173,27 +173,38 @@ def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
 
             for layer_idx, h in enumerate(hidden_states):
                 module = model.model.layers[layer_idx]
-                d = module.self_attn.head_dim
+                attention = module.self_attn
+                d = attention.head_dim
                 h = module.input_layernorm(h)
 
                 # Mean query
-                q = module.self_attn.q_proj(h)
+                q = attention.q_proj(h)
                 q = q.view(1, q.shape[1], -1, d)
-                if isinstance(module, (Gemma3Attention, Qwen3Attention)):
-                    q = module.q_norm(q)
+                if isinstance(attention, (Gemma3Attention, Qwen3Attention)):
+                    q = attention.q_norm(q)
                 q = q.mean(dim=1, keepdim=True)
                 q = q.repeat(1, q_len, 1, 1).transpose(1, 2)
 
                 # Mean key
-                k = module.self_attn.k_proj(h)
+                k = attention.k_proj(h)
                 k = k.view(1, k.shape[1], -1, d)
-                if isinstance(module, (Gemma3Attention, Qwen3Attention)):
-                    k = module.k_norm(k)
+                if isinstance(attention, (Gemma3Attention, Qwen3Attention)):
+                    k = attention.k_norm(k)
                 k = k.mean(dim=1, keepdim=True)
                 k = k.repeat(1, q_len, 1, 1).transpose(1, 2)
 
                 # Apply RoPE
-                cos, sin = model.model.rotary_emb(h, position_ids.to(h.device))
+                rotary_emb = model.model.rotary_emb
+                rotary_kwargs = {}
+                if isinstance(attention, Gemma3Attention):
+                    # Older Transformers use separate local/global RoPE modules;
+                    # newer versions select the configured layer type in one module.
+                    if hasattr(model.model, "rotary_emb_local"):
+                        if attention.is_sliding:
+                            rotary_emb = model.model.rotary_emb_local
+                    else:
+                        rotary_kwargs["layer_type"] = model.config.layer_types[layer_idx]
+                cos, sin = rotary_emb(h, position_ids.to(h.device), **rotary_kwargs)
                 q, k = apply_rotary_pos_emb(q, k, cos, sin)
                 k = k.repeat_interleave(num_key_value_groups, dim=1)
 
