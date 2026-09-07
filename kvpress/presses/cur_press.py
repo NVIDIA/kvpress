@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import math
@@ -35,7 +35,7 @@ class CURPress(ScorerPress):
 
         if self.use_random_leverage:
             r = 20
-            G = torch.randn(keys.shape[-1], r, device=keys.device) / math.sqrt(r)
+            G = torch.randn(keys.shape[-1], r, device=keys.device, dtype=keys.dtype) / math.sqrt(r)
             keys = keys @ G
             values = values @ G
 

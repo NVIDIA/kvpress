@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 
@@ -41,6 +41,6 @@ class RandomPress(ScorerPress):
     ) -> torch.Tensor:
         generator = None
         if self.seed is not None:
-            generator = torch.Generator()
+            generator = torch.Generator(device=keys.device)
             generator.manual_seed(self.seed)
         return torch.rand(*keys.shape[:-1], generator=generator, device=keys.device, dtype=keys.dtype)
