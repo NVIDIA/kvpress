@@ -35,7 +35,10 @@ def search_hyperplane(X, max_iter: int = 1000):
     for _ in range(max_iter):
         mask = torch.bmm(X, Y.unsqueeze(-1)) <= 0
         if not mask.any():
-            return -1e5 * Y / Y.norm(dim=-1, keepdim=True) ** 2
+            k = -1e5 * Y / Y.norm(dim=-1, keepdim=True) ** 2
+            finfo = torch.finfo(k.dtype)
+            scale = (0.9 * finfo.max / k.abs().amax(dim=-1, keepdim=True)).clamp(max=1.0)
+            return k * scale
         Y += (X * mask).sum(1) / mask.sum(1).clamp(min=1)
     raise ValueError("Could not find fake keys such that for every query q, exp(<q, k>) = 0")
 
