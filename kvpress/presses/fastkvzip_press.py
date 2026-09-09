@@ -253,7 +253,9 @@ class FastKVzipPress(BasePress):
 
         ctx_len = scores.size(-1)
         if ctx_len < 32000:
-            window_size = int(ctx_len * self.window_ratio)
+            # max(1, ...) so a short context never yields window_size == 0: the slice
+            # [:, :, -0:] would protect the entire context instead of a local window.
+            window_size = max(1, int(ctx_len * self.window_ratio))
         else:
             window_size = self.window_size
         scores[:, :, -window_size:] = 1.0

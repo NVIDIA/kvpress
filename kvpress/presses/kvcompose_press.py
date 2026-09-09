@@ -21,6 +21,7 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
 from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 from kvpress.presses.base_press import BasePress
+from kvpress.utils import compute_n_kept
 
 logger = logging.getLogger(__name__)
 
@@ -273,16 +274,22 @@ class KVComposePress(BasePress):
         """
         self.compute_composite_scores()
 
-        n_kept = int(self.composite_scores_per_head.numel() * (1 - self.compression_ratio))
+        n_kept = compute_n_kept(self.composite_scores_per_head.numel(), self.compression_ratio)
         kept = self.composite_scores_per_head.reshape(-1).topk(n_kept).indices // self.context_len
         bins = self.num_layers * self.num_kv_heads
         self.important_per_head = (
             torch.bincount(kept, minlength=bins).reshape(self.num_layers, self.num_kv_heads).cpu().numpy()
         )
 
-        n_kept = int(self.composite_scores_per_layer.numel() * (1 - self.compression_ratio))
+        n_kept = compute_n_kept(self.composite_scores_per_layer.numel(), self.compression_ratio)
         kept = self.composite_scores_per_layer.reshape(-1).topk(n_kept).indices // self.context_len
-        self.important_per_layer = torch.bincount(kept, minlength=self.num_layers).cpu().numpy()
+        # While compression_ratio < 1 the caller only compresses partially, so no layer
+        # cache may end up empty: floor every per-layer count, respecting keep_token_lower_bound
+        # when it is stricter than 1.
+        per_layer_floor = max(1, self.keep_token_lower_bound)
+        self.important_per_layer = (
+            torch.bincount(kept, minlength=self.num_layers).clamp(min=per_layer_floor).cpu().numpy()
+        )
 
     def prepare_important_masks(self):
         """
