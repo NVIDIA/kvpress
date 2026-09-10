@@ -81,6 +81,10 @@ class CriticalKVPress(ScorerPress):
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
         k_len = keys.shape[2]
         selection_budget = int((1 - self.compression_ratio) * k_len * self.first_stage_ratio)
+        if self.first_stage_ratio > 0:
+            # Floor to 1 so short contexts never silently skip stage-1 selection; a zero
+            # budget stays zero when the entire cache is evicted by design (ratio >= 1.0).
+            selection_budget = max(1, selection_budget) if self.compression_ratio < 1.0 else 0
         top_k_index = torch.topk(scores, selection_budget, sorted=True, dim=-1).indices
 
         # Stage 2
