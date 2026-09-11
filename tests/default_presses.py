@@ -10,6 +10,7 @@ from kvpress import (
     CURPress,
     DropKVPress,
     DuoAttentionPress,
+    EchoPress,
     ExpectedAttentionPress,
     ExpectedAttentionStatsPress,
     FastKVzipPress,
@@ -158,6 +159,22 @@ default_presses = [
         "kwargs": [
             {"compression_ratio": 0.5, "chunk_size": 64, "layerwise": False},
             {"compression_ratio": 0.8, "chunk_size": 64, "layerwise": True},
+        ],
+    },
+    {
+        "cls": EchoPress,
+        "kwargs": [
+            {"compression_ratio": 0.5, "chunk_size": 64},
+            {"compression_ratio": 0.8, "layerwise": True, "guard_tokens": 2},
+            {"compression_ratio": 0.5, "chunk_size": 64, "score_calibration": False},
+            {"compression_ratio": 0.5, "chunk_size": 64, "calibration_scope": "head"},
+            {
+                "compression_ratio": 0.5,
+                "chunk_size": 64,
+                "calibration_scope": "head",
+                "calibration_direction": "virtual_to_exact",
+            },
+            {"compression_ratio": 0.5, "chunk_size": 64, "scoring_backend": "torch"},
         ],
     },
     {"cls": TestRestoreKVPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},

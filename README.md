@@ -130,6 +130,7 @@ Some presses rely on a different logic:
 - `KVzipPress` ([source](kvpress/presses/kvzip_press.py), [paper](https://arxiv.org/abs/2505.23416)): identify redundant KV pairs through context reconstruction. Achieve near-lossless compression at the cost of multiple forward passes.
 - `KVgradPress` ([source](kvpress/presses/kvgrad_press.py), [paper](https://openreview.net/forum?id=cg1wTCJjjk)): similar to `KVzipPress`, but scores KV pairs by an input × gradient attribution of their effect on the last hidden states, at the cost of one backward pass per chunk.
 - `RestoreKVPress` ([source](kvpress/presses/restorekv_press.py), [paper](https://arxiv.org/abs/2608.01247)): extends the KV cache with 8 learned restore tokens encoded by a LoRA module before budget-matched KVzip pruning.
+- `EchoPress` ([source](kvpress/presses/echo_press.py), [paper](https://arxiv.org/abs/2610.00412)): approximate KVzip scores by re-rotating prefill queries and keys to the positions of a virtual repetition.
 - `KVComposePress` ([source](kvpress/presses/kvcompose_press.py), [paper](https://arxiv.org/abs/2509.05165)): attention-guided eviction, aligning per-head selections into composite tokens to preserve cache structure.
 
 > [!NOTE]  
