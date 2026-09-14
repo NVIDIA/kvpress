@@ -40,14 +40,14 @@ def read_only_cache(cache: Cache) -> Generator[Cache, None, None]:
     keys and values, so that forward passes can read the prefilled cache without modifying it.
     """
     original_layers = list(cache.layers)
-    read_only_layers: list = []
+    read_only_layers = list(original_layers)
     for layer_idx in range(len(original_layers)):
         keys, values = extract_keys_and_values(cache, layer_idx)
         layer = ReadOnlyDynamicLayer()
         layer.is_initialized = True
         layer.dtype, layer.device = keys.dtype, keys.device
         layer.keys, layer.values = keys.detach(), values.detach()
-        read_only_layers.append(layer)
+        read_only_layers[layer_idx] = layer
 
     cache.layers = read_only_layers
     try:
@@ -202,13 +202,13 @@ class KVgradPress(KVzipPress):
             with torch.no_grad():
                 sink = min(self.n_sink, self.start_idx)
                 ctx_len = self.end_idx - self.start_idx
-                layer_idx = int(module.layer_idx)
-                cache_layer = cache.layers[layer_idx]
+                cache_layer = cache.layers[int(module.layer_idx)]
                 assert isinstance(cache_layer, ReadOnlyDynamicLayer)
                 keys = cache_layer.last_keys
+                assert keys is not None
                 attn_weights = self._replay_attention_weights(module, kwargs["hidden_states"], keys, kwargs)
                 # Only the KV pairs of the chunk being reconstructed are scored
-                captures["attn_weights"][layer_idx] = attn_weights[..., sink : sink + ctx_len].clone()
+                captures["attn_weights"][int(module.layer_idx)] = attn_weights[..., sink : sink + ctx_len].clone()
 
         def make_residual_hook(layer_idx: int) -> Callable:
             def residual_hook(module: nn.Module, args: tuple):
