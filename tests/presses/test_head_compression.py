@@ -4,7 +4,16 @@ import pytest
 import torch
 from transformers import DynamicCache
 
-from kvpress import AdaKVPress, CriticalAdaKVPress, DMSPress, KnormPress, KVComposePress, KVzipPress, RandomPress
+from kvpress import (
+    AdaKVPress,
+    CriticalAdaKVPress,
+    DMSPress,
+    KnormPress,
+    KVComposePress,
+    KVgradPress,
+    KVzipPress,
+    RandomPress,
+)
 from tests.fixtures import kv_press_unit_test_pipeline, unit_test_model  # noqa: F401
 
 
@@ -40,13 +49,15 @@ def test_wrapper_head_compression(unit_test_model, wrapper_press, compression_ra
     assert abs(cumulative_compression_ratio - press.compression_ratio) < 1e-2  # tolerate small differences
 
 
-# Only for KVzipPress and unstructured KVComposePress, since they are
+# Only for KVzipPress, KVgradPress and unstructured KVComposePress, since they are
 # the only non-wrapper presses with head compression (apart from Duo)
 @pytest.mark.parametrize(
     "press_cls, kwargs",
     [
         (KVzipPress, {"layerwise": True}),
         (KVzipPress, {"layerwise": False}),
+        (KVgradPress, {"chunk_size": 64, "layerwise": True}),
+        (KVgradPress, {"chunk_size": 64, "layerwise": False}),
         (KVComposePress, {"structured": False}),
     ],
 )
