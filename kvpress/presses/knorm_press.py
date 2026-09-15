@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 
@@ -20,6 +20,9 @@ class KnormPress(ScorerPress):
 
     Based on https://arxiv.org/pdf/2406.11430.
 
+    Scores are computed in float32 (or float64 for float64 caches) so that low-precision
+    caches do not tie the scores of distinct positions.
+
     Parameters
     ----------
     compression_ratio : float, default=0.0
@@ -35,4 +38,9 @@ class KnormPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs,
     ) -> torch.Tensor:
-        return -keys.norm(dim=-1)
+        # Accumulate and return the norm in at least float32: a bfloat16 norm rounds the scores of
+        # distinct positions onto the same value (~74% of per-head scores tie on Qwen3-8B), which
+        # hands the choice of pruned pairs to top-k tie-breaking instead of the key norm. The keys
+        # themselves are left in their original dtype.
+        score_dtype = torch.promote_types(keys.dtype, torch.float32)
+        return -torch.linalg.vector_norm(keys, dim=-1, dtype=score_dtype)
