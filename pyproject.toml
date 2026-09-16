@@ -36,6 +36,10 @@ eval = [
 flash-attn = [
     "flash-attn"
 ]
+serve = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+]
 
 [dependency-groups]
 dev = [
@@ -54,8 +58,14 @@ dev = [
     "matplotlib>=3.9.0,<4",
     "sentencepiece>=0.2.0,<0.3",
     "protobuf>=5.27.2,<6",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "httpx>=0.27.0",
 ]
 
+
+[project.scripts]
+kvpress-serve = "kvpress.serve:main"
 
 [build-system]
 requires = ["hatchling"]

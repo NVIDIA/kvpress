@@ -54,6 +54,30 @@ answer = pipe(context, question=question, press=press)["answer"]
 
 In the snippet above, the compression is only applied on the context tokens so that you can evaluate the compression for different questions. Check the [Wikipedia notebook demo](notebooks/wikipedia_demo.ipynb) for a more detailed example (also available on Colab [here](https://colab.research.google.com/drive/1JNvaTKuuAHrl49dYB9-mdEH_y52Ib-NP)).
 
+### OpenAI-compatible server
+
+If you already evaluate against a vLLM OpenAI endpoint (`http://localhost:8000/v1`), you can serve the same API from KVPress and keep the evaluation client unchanged:
+
+```bash
+uv sync --extra serve
+python -m kvpress.serve \
+  --model Qwen/Qwen3-4B-Instruct-2507 \
+  --press knorm \
+  --compression-ratio 0.5 \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+Then point evaluation at this process the same way you would at `vllm serve`:
+
+```bash
+# agentic-longcontext RLM / baselines
+python evaluation/rlm/run_benchmark.py --base-url http://localhost:8000/v1 --root-model Qwen/Qwen3-4B-Instruct-2507 ...
+python baselines/run_benchmark.py --endpoint http://localhost:8000/v1 --model Qwen/Qwen3-4B-Instruct-2507 ...
+```
+
+`--press` uses the same names as `evaluation/evaluate_registry.py` (`knorm`, `snapkv`, `kvzip`, `no_press`, `decoding_knorm`, ...). The server implements `GET /v1/models` and `POST /v1/chat/completions`, including `extra_body.chat_template_kwargs.enable_thinking` from the OpenAI client. Requests are serialized on one GPU lock (no continuous batching). Streaming is not supported.
+
 <details><summary>
 Decoding Compression
 </summary>
