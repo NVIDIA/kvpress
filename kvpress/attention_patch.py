@@ -1,10 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import math
-
 import torch
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+
+# Casting the fake key to the cache dtype perturbs it by at most one unit roundoff in norm, i.e. 2**-8 ≈ 0.4%
+# for bfloat16, the coarsest supported dtype. A query whose cosine with the hyperplane normal exceeds that keeps
+# a negative logit after the cast. Requiring 1% leaves headroom for further rounding, e.g. TF32 matmuls.
+MIN_COSINE = 0.01
+
+# exp(-1000) is exactly zero in every floating point dtype up to float64 (whose exp underflows below -745), with
+# ample headroom for rounding of the logit itself (e.g. in a bfloat16 matmul) or a negative maximum logit.
+TARGET_LOGIT = -1000.0
+
+# When a float16 cache cannot hold the key needed for TARGET_LOGIT, any logit below log(2**-150) ≈ -104 is still
+# exactly zero after exp in float32, the softmax precision used by attention implementations for float16 models.
+UNDERFLOW_LOGIT = -104.0
 
 
 def search_hyperplane(X, max_iter: int = 1000, attention_scaling: float = 1.0):
@@ -12,9 +23,10 @@ def search_hyperplane(X, max_iter: int = 1000, attention_scaling: float = 1.0):
     Given a tensor X of shape (bsz, seq_len, head_dim), return fake keys K (bsz, head_dim)
     such that exp(attention_scaling * <X[:, i], K>) underflows to zero for every i.
 
-    Starting from the mean query direction, repeatedly add queries that are on the wrong side
-    of the hyperplane. Once every query has a positive dot product with that direction, negate
-    and scale it to produce a fake key with a sufficiently negative attention logit.
+    Starting from the mean query direction Y, repeatedly add the queries whose cosine with Y is
+    below MIN_COSINE (a perceptron with margin). Once every query is safely on the positive side
+    of the hyperplane, negate and scale Y so that every scaled attention logit is at most TARGET_LOGIT,
+    or as negative as the cache dtype allows while still underflowing (see UNDERFLOW_LOGIT).
 
     Parameters
     ----------
@@ -35,23 +47,41 @@ def search_hyperplane(X, max_iter: int = 1000, attention_scaling: float = 1.0):
     Raises
     ------
     ValueError
-        If no valid hyperplane is found or the required fake key is not representable.
+        If no valid hyperplane is found or the required fake key is not representable in X.dtype.
     """
     if attention_scaling <= 0:
         raise ValueError("attention_scaling must be positive")
 
     output_dtype = X.dtype
-    # Float16 can overflow during the search, before the fake key can be rescaled.
-    if X.dtype == torch.float16:
+    # Search in float32: float16 overflows as Y grows, and neither float16 nor bfloat16 can resolve MIN_COSINE.
+    if output_dtype in (torch.float16, torch.bfloat16):
         X = X.float()
 
+    query_norms = X.norm(dim=-1)  # (bsz, seq_len)
     Y = X.mean(1)  # this initialization is enough for most cases
     for _ in range(max_iter):
-        mask = torch.bmm(X, Y.unsqueeze(-1)) <= 0
-        if not mask.any():
-            return _build_finite_fake_keys(X, Y, output_dtype, attention_scaling)
-        Y += (X * mask).sum(1) / mask.sum(1).clamp(min=1)
+        margins = torch.bmm(X, Y.unsqueeze(-1)).squeeze(-1)  # (bsz, seq_len)
+        violating = margins <= MIN_COSINE * query_norms * Y.norm(dim=-1, keepdim=True)
+        if not violating.any():
+            return _build_fake_keys(X, Y, output_dtype, attention_scaling)
+        Y += (X * violating.unsqueeze(-1)).sum(1) / violating.sum(1, keepdim=True).clamp(min=1)
     raise ValueError("Could not find a hyperplane that nullifies every query")
+
+
+def _build_fake_keys(X, Y, output_dtype, attention_scaling):
+    """
+    Negate and scale the separating direction Y so that attention_scaling * <X[:, i], K> <= TARGET_LOGIT for
+    every query, while keeping K representable in output_dtype (float16 overflows above 65,504).
+    X and Y must be float32 or float64: only the final result is cast.
+    """
+    # Scale Y so that its largest component is 1: the fake key's largest component is then `magnitude`.
+    Y = Y / Y.abs().amax(dim=-1, keepdim=True)
+    min_margin = torch.bmm(X, Y.unsqueeze(-1)).amin(dim=1)  # (bsz, 1), positive since the search converged
+    magnitude = -TARGET_LOGIT / (attention_scaling * min_margin)
+    magnitude = magnitude.clamp(max=torch.finfo(output_dtype).max)
+    if (-attention_scaling * min_margin * magnitude > UNDERFLOW_LOGIT).any():
+        raise ValueError(f"The fake keys required to mask attention are not representable in {output_dtype}")
+    return (-magnitude * Y).to(output_dtype)
 
 
 def attention_patch(func):
@@ -125,76 +155,3 @@ def patch_attention_functions():
     """
     for name, func in ALL_ATTENTION_FUNCTIONS.items():
         ALL_ATTENTION_FUNCTIONS[name] = attention_patch(func)
-
-
-def _compute_safe_margins(X, Y, output_dtype):
-    """
-    Return a conservative lower bound for every positive query-hyperplane margin.
-
-    A margin is ``q·Y``: it measures how strongly a query lies on the positive side of
-    the separating hyperplane. Floating-point rounding can make the measured margin
-    slightly larger than the effective margin used by attention. If that overestimate
-    were used directly, the fake key could be scaled too weakly.
-
-    This function bounds the rounding from four operations:
-    1. measuring ``q·Y`` here;
-    2. casting the fake key to the cache dtype;
-    3. computing ``q·k`` in attention;
-    4. multiplying ``q·k`` by the attention scale.
-
-    For an n-term dot product, ``gamma_n = n*u/(1-n*u)`` bounds its relative error,
-    where ``u = finfo.eps/2``. Multiplying this combined relative bound by
-    ``sum(abs(q_i * Y_i))`` gives an absolute error bound even when terms cancel.
-    Subtracting it from the measured margin gives the safe lower bound.
-    """
-    unit_roundoff = torch.finfo(X.dtype).eps / 2
-    dot_product_error = X.shape[-1] * unit_roundoff / (1 - X.shape[-1] * unit_roundoff)
-    key_cast_error = torch.finfo(output_dtype).eps / 2
-
-    # There are two dot products (steps 1 and 3), one key cast, and one scalar multiply.
-    combined_relative_error = (1 + dot_product_error) ** 2 * (1 + key_cast_error) * (1 + unit_roundoff) - 1
-
-    margins = torch.bmm(X, Y.unsqueeze(-1)).squeeze(-1)
-    sum_absolute_products = (X * Y.unsqueeze(1)).abs().sum(dim=-1)
-    rounding_error_bound = combined_relative_error * sum_absolute_products
-    return margins - rounding_error_bound
-
-
-def _build_finite_fake_keys(X, Y, output_dtype, attention_scaling):
-    """
-    Turn a separating direction Y into finite fake keys.
-
-    In a nutshell:
-    1. Normalize Y without changing its direction.
-    2. Find the query with the smallest positive dot product with Y.
-    3. Negate and uniformly scale Y so even that worst-case query gets zero attention weight.
-    4. Cast the result back to the cache dtype.
-
-    Steps 1-3 run in float32 for fp16/bfloat16 inputs. Float16 can only represent magnitudes up
-    to 65,504, but the fake keys may be larger. They must therefore be rescaled in float32 before
-    being cast back; otherwise they become infinite and can produce NaN attention logits.
-
-    The zero-attention threshold is derived from the smallest positive representable value,
-    ``finfo.tiny * finfo.eps``. The margins include the standard dot-product rounding bound
-    ``gamma_n = n * u / (1 - n * u)``, where ``u = finfo.eps / 2``.
-    """
-    # Compute the fake key in float32 for low-precision caches, then cast only the final result.
-    scaling_dtype = torch.float32 if output_dtype in (torch.float16, torch.bfloat16) else output_dtype
-    X = X.to(scaling_dtype)
-    Y = Y.to(scaling_dtype)
-
-    # Uniform normalization preserves the separating direction.
-    Y = Y / Y.abs().amax(dim=-1, keepdim=True)
-
-    safe_margins = _compute_safe_margins(X, Y, output_dtype)
-    if (safe_margins <= 0).any():
-        raise ValueError("The hyperplane is not separable with sufficient numerical precision")
-
-    # Use one scale per batch row, based on its worst-case query. This preserves Y's direction while
-    # making exp(attention_scaling * q·k) round to zero for every query in that row.
-    softmax_finfo = torch.finfo(scaling_dtype)
-    underflow_boundary = -math.log(softmax_finfo.tiny) - math.log(softmax_finfo.eps) + math.log(2)
-    magnitude = underflow_boundary / (attention_scaling * safe_margins.amin(dim=-1, keepdim=True))
-    if (magnitude > torch.finfo(output_dtype).max).any():
-        raise ValueError("The fake keys required to mask attention are not representable")
-    return (-magnitude * Y).to(output_dtype)
