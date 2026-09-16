@@ -9,14 +9,14 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
+from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.adapters import get_adapter_from_module
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import apply_rope, get_prerope_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -330,9 +330,7 @@ class CAMPress(DecodingPress):
         query_states = query_states[:, :, -1:, :]
 
         cos, sin = kwargs["position_embeddings"]
-        cos = cos[:, -1:, :].unsqueeze(1)
-        sin = sin[:, -1:, :].unsqueeze(1)
-        query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+        query_states = apply_rope(module, query_states, cos[:, -1:, :], sin[:, -1:, :])
 
         keys_repeated = repeat_kv(keys, num_key_value_groups)
         scores = torch.matmul(query_states, keys_repeated.transpose(-2, -1)) / math.sqrt(head_dim)

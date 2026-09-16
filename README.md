@@ -231,6 +231,10 @@ If you use KVPress in your research, please cite our paper:
 </summary>
 
 Some presses depend on the model architecture (_e.g._ `ExpectedAttentionPress` or `SnapKVPress`) hence they might not work with all models. We tested support for `LlamaForCausalLM`, `MistralForCausalLM`, `Phi3ForCausalLM`, `Qwen2ForCausalLM`, `Qwen3ForCausalLM`, and `Gemma3ForCausalLM` but many other models might be supported out of the box because their implementation is often similar in transformers.
+
+Architecture-specific details (which layers hold a KV cache, how to read and write it, and how queries and keys are projected) live in `kvpress/adapters/`. Models without a registered adapter fall back to `LlamaLikeAdapter`. To support a new architecture, register a `ModelAdapter` subclass with `@register_adapter("<config.model_type>")`.
+
+Qwen3.5 (`Qwen3_5ForCausalLM`) is supported through `Qwen3_5Adapter`. It is a hybrid stack, so only its periodic `full_attention` layers hold a KV cache and can be compressed; the `linear_attention` (Gated DeltaNet) layers keep a fixed-size recurrent state instead. Two consequences are worth knowing: a compression ratio applies to that smaller set of layers rather than to every layer, and a prefilled cache cannot be reused across several questions, because the recurrent state absorbs the generated answer and cannot be rewound the way a KV cache can be truncated.
 </details>
 
 <details><summary> 

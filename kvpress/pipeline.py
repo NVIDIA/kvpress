@@ -279,13 +279,26 @@ class KVPressTextGenerationPipeline(Pipeline):
             context_length, context_length + question_ids.shape[1], device=self.model.device
         ).unsqueeze(0)
 
+        adapter = get_adapter(self.model)
+        question_ids = question_ids.to(self.model.device)
+
         # if the user doesn't provide a question, skip forward pass
-        outputs = self.model(
-            input_ids=question_ids.to(self.model.device),
-            past_key_values=cache,
-            position_ids=position_ids,
-            logits_to_keep=1,
-        )
+        if adapter.supports_multi_token_continuation():
+            outputs = self.model(
+                input_ids=question_ids,
+                past_key_values=cache,
+                position_ids=position_ids,
+                logits_to_keep=1,
+            )
+        else:
+            # Recurrent architectures only extend their state one token at a time.
+            for i in range(question_ids.shape[1]):
+                outputs = self.model(
+                    input_ids=question_ids[:, i : i + 1],
+                    past_key_values=cache,
+                    position_ids=position_ids[:, i : i + 1],
+                    logits_to_keep=1,
+                )
 
         position_ids = position_ids[:, -1:] + 1
         generated_ids = [outputs.logits[0, -1].argmax()]

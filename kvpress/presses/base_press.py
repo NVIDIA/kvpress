@@ -5,32 +5,15 @@
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Generator
+from typing import Callable, Generator, Optional
 
 import torch
 from torch import nn
-from transformers import (
-    Gemma3ForConditionalGeneration,
-    LlamaForCausalLM,
-    MistralForCausalLM,
-    Phi3ForCausalLM,
-    PreTrainedModel,
-    Qwen2ForCausalLM,
-    Qwen3ForCausalLM,
-)
+from transformers import Gemma3ForConditionalGeneration, PreTrainedModel
 
-from kvpress.adapters import get_adapter, get_adapter_from_module
+from kvpress.adapters import get_adapter, get_adapter_from_module, has_adapter
 
 logger = logging.getLogger(__name__)
-
-SUPPORTED_MODELS = (
-    LlamaForCausalLM,
-    MistralForCausalLM,
-    Phi3ForCausalLM,
-    Qwen2ForCausalLM,
-    Qwen3ForCausalLM,
-    Gemma3ForConditionalGeneration,
-)
 
 
 def is_prefilling(cache_position: torch.Tensor, q_len: int) -> bool:
@@ -56,6 +39,29 @@ class BasePress:
         Optional method to initialize press parameters from the model
         """
         pass
+
+    def warn_unsupported_model(self, model: PreTrainedModel) -> None:
+        """Warn when no adapter is registered for this architecture."""
+        if not has_adapter(model):
+            logger.warning(
+                f"No KVPress adapter registered for model_type of {type(model).__name__}; "
+                "falling back to the Llama-like adapter, which is untested for this architecture."
+            )
+
+    @contextmanager
+    def hook_scope(self, model: PreTrainedModel, hook: Optional[Callable] = None) -> Generator:
+        """Install this press's forward hooks for the duration of the block.
+
+        The adapter decides *which* modules get hooked; presses differ only in how long
+        the hooks stay installed, which is what this scope expresses. Presses overriding
+        ``__call__`` should use this instead of registering hooks themselves.
+        """
+        hooks = get_adapter(model).register_forward_hooks(model, hook or self.forward_hook)
+        try:
+            yield
+        finally:
+            for forward_hook in hooks:
+                forward_hook.remove()
 
     def compress(
         self,
@@ -174,17 +180,11 @@ class BasePress:
         ...     # Forward pass with compression applied
         ...     outputs = model(input_ids, past_key_values=cache)
         """
-        if not isinstance(model, SUPPORTED_MODELS):
-            logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
+        self.warn_unsupported_model(model)
 
         if isinstance(model, Gemma3ForConditionalGeneration):
             logger.warning_once("Compression in Gemma3 is only applied to layer without sliding window attention")
 
         self.post_init_from_model(model)
-        adapter = get_adapter(model)
-        hooks = adapter.register_forward_hooks(model, self.forward_hook)
-        try:
+        with self.hook_scope(model):
             yield
-        finally:
-            for forward_hook in hooks:
-                forward_hook.remove()

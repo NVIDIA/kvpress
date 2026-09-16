@@ -6,10 +6,8 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import rotate_half
-
 from kvpress.presses.base_press import BasePress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import apply_rope, get_prerope_query_states
 
 
 @dataclass
@@ -50,7 +48,7 @@ class ThinKPress(BasePress):
         # Apply RoPE
         cos, sin = position_embeddings
         cos, sin = cos[:, -self.window_size :], sin[:, -self.window_size :]
-        query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
+        query_states = apply_rope(module, query_states, cos, sin)
 
         return query_states
 

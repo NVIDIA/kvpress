@@ -4,14 +4,17 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 from torch import nn
-from transformers import Cache, DynamicCache, PreTrainedModel, QuantizedCache
+from transformers import DynamicCache, PreTrainedModel, QuantizedCache
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention, Gemma3ForConditionalGeneration
+from transformers.models.llama.modeling_llama import rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
-from kvpress.adapters.base import ModelAdapter, register_adapter
+from kvpress.adapters.base import CacheLike, ModelAdapter, register_adapter
 from kvpress.utils import extract_keys_and_values
 
 
@@ -53,11 +56,13 @@ class LlamaLikeAdapter(ModelAdapter):
         if rotary_emb is not None:
             module.rotary_emb = rotary_emb
 
-    def get_keys_values(self, cache: Cache, module: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
-        return extract_keys_and_values(cache, module.layer_idx)
+    def get_keys_values(self, cache: CacheLike, module: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
+        return extract_keys_and_values(cache, int(module.layer_idx))
 
-    def set_keys_values(self, cache: Cache, module: nn.Module, keys: torch.Tensor, values: torch.Tensor) -> None:
-        cache_layer = cache.layers[module.layer_idx]
+    def set_keys_values(
+        self, cache: CacheLike, module: nn.Module, keys: torch.Tensor, values: torch.Tensor
+    ) -> None:
+        cache_layer: Any = cache.layers[int(module.layer_idx)]
         if isinstance(cache, QuantizedCache):
             cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
             cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
@@ -68,21 +73,17 @@ class LlamaLikeAdapter(ModelAdapter):
             cache_layer.keys = keys
             cache_layer.values = values
 
-    def make_cache(self, model: PreTrainedModel) -> Cache:
+    def make_cache(self, model: PreTrainedModel) -> CacheLike:
         return DynamicCache()
 
-    def rewind_cache(self, cache: Cache, seq_lengths: list[int]) -> None:
+    def rewind_cache(self, cache: CacheLike, seq_lengths: list[int]) -> None:
         for layer_idx, sequence_length in enumerate(seq_lengths):
-            cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
-            cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
-        if isinstance(cache, QuantizedCache):
-            for layer_idx, sequence_length in enumerate(seq_lengths):
-                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
-                    :, :, :sequence_length
-                ]
-                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
-                    :, :, :sequence_length
-                ]
+            layer: Any = cache.layers[layer_idx]
+            layer.keys = layer.keys[:, :, :sequence_length]
+            layer.values = layer.values[:, :, :sequence_length]
+            if isinstance(cache, QuantizedCache):
+                layer._quantized_keys = layer._quantized_keys[:, :, :sequence_length]
+                layer._quantized_values = layer._quantized_values[:, :, :sequence_length]
 
     def prerope_queries(self, module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
         bsz, q_len, _ = hidden_states.shape
@@ -121,3 +122,8 @@ class LlamaLikeAdapter(ModelAdapter):
         if isinstance(module, (Qwen3Attention, Gemma3Attention)):
             key_states = module.k_norm(key_states)
         return key_states
+
+    def apply_rope(
+        self, module: nn.Module, states: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
+    ) -> torch.Tensor:
+        return (states * cos.unsqueeze(1)) + (rotate_half(states) * sin.unsqueeze(1))

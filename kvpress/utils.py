@@ -20,6 +20,13 @@ def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> to
     return get_adapter_from_module(module).prerope_keys(module, hidden_states)
 
 
+def apply_rope(module: nn.Module, states: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    """Apply the module's RoPE variant to ``states``; dispatched through the model adapter."""
+    from kvpress.adapters import get_adapter_from_module
+
+    return get_adapter_from_module(module).apply_rope(module, states, cos, sin)
+
+
 def dequantize_layer(cache_layer) -> tuple[torch.Tensor, torch.Tensor]:
     keys = cache_layer._dequantize(cache_layer._quantized_keys)
     values = cache_layer._dequantize(cache_layer._quantized_values)

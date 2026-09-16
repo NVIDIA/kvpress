@@ -9,11 +9,15 @@ to the default Llama-like adapter.
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import torch
 from torch import nn
-from transformers import Cache, PreTrainedModel
+from transformers import PreTrainedModel
+
+# Not every architecture caches through ``transformers.Cache``: hybrid stacks such as
+# Qwen3.5 use their own container that also holds recurrent state.
+CacheLike = Any
 
 _ADAPTER_BY_MODEL_TYPE: dict[str, type["ModelAdapter"]] = {}
 _DEFAULT_ADAPTER_CLS: Optional[type["ModelAdapter"]] = None
@@ -53,6 +57,12 @@ def get_adapter_from_module(module: nn.Module) -> "ModelAdapter":
     return get_adapter_from_model_type(_model_type_from_config(getattr(module, "config", None)))
 
 
+def has_adapter(model: PreTrainedModel) -> bool:
+    """Whether an adapter is explicitly registered for ``model`` (rather than falling back)."""
+    model_type = _model_type_from_config(getattr(model, "config", None))
+    return (model_type or "") in _ADAPTER_BY_MODEL_TYPE
+
+
 def get_adapter_from_model_type(model_type: Optional[str]) -> "ModelAdapter":
     cls = _ADAPTER_BY_MODEL_TYPE.get(model_type or "")
     if cls is None:
@@ -81,20 +91,41 @@ class ModelAdapter:
             hooks.append(module.register_forward_hook(hook, with_kwargs=True))
         return hooks
 
-    def get_keys_values(self, cache: Cache, module: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
+    def get_keys_values(self, cache: CacheLike, module: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
         raise NotImplementedError
 
-    def set_keys_values(self, cache: Cache, module: nn.Module, keys: torch.Tensor, values: torch.Tensor) -> None:
+    def set_keys_values(
+        self, cache: CacheLike, module: nn.Module, keys: torch.Tensor, values: torch.Tensor
+    ) -> None:
         raise NotImplementedError
 
-    def make_cache(self, model: PreTrainedModel) -> Cache:
+    def make_cache(self, model: PreTrainedModel) -> CacheLike:
         raise NotImplementedError
 
-    def rewind_cache(self, cache: Cache, seq_lengths: list[int]) -> None:
+    def supports_multi_token_continuation(self) -> bool:
+        """Whether a populated cache can be extended by more than one token per forward pass.
+
+        Architectures with recurrent state may only be able to carry that state forward
+        one token at a time, in which case callers must feed follow-up tokens singly.
+        """
+        return True
+
+    def rewind_cache(self, cache: CacheLike, seq_lengths: list[int]) -> None:
         raise NotImplementedError
 
     def prerope_queries(self, module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 
     def prerope_keys(self, module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def apply_rope(
+        self, module: nn.Module, states: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
+    ) -> torch.Tensor:
+        """Rotate ``states`` of shape ``(bsz, n_heads, seq_len, head_dim)`` with the given cos/sin.
+
+        Presses that recompute queries must go through this rather than assuming a
+        Llama-style full rotation, since some architectures rotate only part of the
+        head dimension.
+        """
         raise NotImplementedError

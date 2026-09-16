@@ -15,11 +15,7 @@ import torch
 from torch import nn
 from transformers.cache_utils import DynamicCache
 from transformers.modeling_utils import PreTrainedModel
-from transformers.models.llama import LlamaForCausalLM
-from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
-from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
-from kvpress.adapters import get_adapter
 from kvpress.presses.base_press import BasePress
 from kvpress.utils import compute_n_kept
 
@@ -381,8 +377,7 @@ class KVComposePress(BasePress):
         """
 
         logger.warning("KVComposePress temporarily creates a KV cache of ~2x the context length during prefill; ")
-        if not isinstance(model, (LlamaForCausalLM, Qwen2ForCausalLM, Qwen3ForCausalLM)):
-            logger.warning(f"Model {type(model)} not tested")
+        self.warn_unsupported_model(model)
 
         self._register_model(model)
 
@@ -418,20 +413,16 @@ class KVComposePress(BasePress):
             self.model.config._attn_implementation = original_attn_implementation
             return outputs
 
-        hooks = []
-        try:
-            hooks.extend(get_adapter(model).register_forward_hooks(model, self.forward_hook))
+        with self.hook_scope(model):
+            try:
+                setattr(model, "original_forward_KVComposePress", model.model.forward)
+                new_forward_with_press = partial(new_forward, press=self)
+                model.model.forward = types.MethodType(new_forward_with_press, model)
 
-            setattr(model, "original_forward_KVComposePress", model.model.forward)
-            new_forward_with_press = partial(new_forward, press=self)
-            model.model.forward = types.MethodType(new_forward_with_press, model)
-
-            yield
-        finally:
-            model.model.forward = getattr(model, "original_forward_KVComposePress")
-            delattr(model, "original_forward_KVComposePress")
-            for forward_hook in hooks:
-                forward_hook.remove()
-            self.prepare_important_masks()
-            self.compress_cache(model)
-            self._reset_state()
+                yield
+            finally:
+                model.model.forward = getattr(model, "original_forward_KVComposePress")
+                delattr(model, "original_forward_KVComposePress")
+                self.prepare_important_masks()
+                self.compress_cache(model)
+                self._reset_state()

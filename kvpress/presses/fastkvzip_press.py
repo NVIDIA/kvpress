@@ -16,8 +16,7 @@ from torch import nn
 from transformers import AutoConfig, PreTrainedModel
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 
-from kvpress.adapters import get_adapter
-from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress, is_prefilling
+from kvpress.presses.base_press import BasePress, is_prefilling
 
 logger = logging.getLogger(__name__)
 
@@ -203,21 +202,13 @@ class FastKVzipPress(BasePress):
         1. First yield: allows initial prefilling with context and KV importance scoring via gates
         2. After yield: performs KV eviction based on the importance scores
         """
-        if not isinstance(model, SUPPORTED_MODELS):
-            logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
-
+        self.warn_unsupported_model(model)
         self.post_init_from_model(model)
-        hooks = []
-        try:
-            self.score_val = [None for _ in range(len(model.model.layers))]  # reset every prefilling
-            hooks.extend(get_adapter(model).register_forward_hooks(model, self.forward_hook))
+        self.score_val = [None for _ in range(len(model.model.layers))]  # reset every prefilling
+
+        with self.hook_scope(model):
             yield
-
             self.compress_post(model)  # Perform compression
-
-        finally:
-            for hook in hooks:
-                hook.remove()
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
         """

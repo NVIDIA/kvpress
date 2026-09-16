@@ -6,16 +6,15 @@ import math
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import MethodType
-from typing import Generator, List
+from typing import Any, Generator, List
 
 import torch
 from torch import nn
 from transformers import AutoTokenizer, Gemma3PreTrainedModel, PreTrainedModel, PreTrainedTokenizer
-from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.adapters import get_adapter, get_adapter_from_module
-from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.utils import get_prerope_query_states
+from kvpress.presses.base_press import BasePress
+from kvpress.utils import apply_rope, get_prerope_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +71,7 @@ class KVzipPress(BasePress):
         self._cache = None
 
         self.score_val = None
+        self._score_row_by_layer: dict[int, int] = {}
         self.causal_mask_score = None
         self.start_idx = 0
         self.end_idx = 0
@@ -85,8 +85,7 @@ class KVzipPress(BasePress):
         1. First yield: allows initial prefilling with context
         2. After yield: performs KVzip scoring and compression using context reconstruction
         """
-        if not isinstance(model, SUPPORTED_MODELS):
-            logger.warning(f"Model {type(model)} not tested, supported models: {SUPPORTED_MODELS}")
+        self.warn_unsupported_model(model)
 
         if isinstance(model, Gemma3PreTrainedModel):
             raise ValueError("KVzipPress is not supported for Gemma3ForCausalLM")
@@ -127,21 +126,18 @@ class KVzipPress(BasePress):
 
         model.model.forward = MethodType(wrapped_forward, model.model)
 
-        hooks = []
         try:
+            # The press hooks must stay off during prefilling: KVzip scores KV pairs
+            # afterwards, by reconstructing the context.
             try:
                 yield
             finally:
                 model.model.forward = original_forward
 
-            # After yield: KVzip scoring and compression phase
             if self.compression_ratio > 0 and self._context_ids is not None:
-                adapter = get_adapter(model)
-                hooks.extend(adapter.register_forward_hooks(model, self.forward_hook))
-                self._perform_kvzip_compression(model, tokenizer)
+                with self.hook_scope(model):
+                    self._perform_kvzip_compression(model, tokenizer)
         finally:
-            for hook in hooks:
-                hook.remove()
             self._reset_internal_parameters()
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
@@ -221,10 +217,16 @@ class KVzipPress(BasePress):
         """
         ctx_ids = self._context_ids[:, self.prefix_length :].to("cpu")
 
+        # Score only the layers that actually hold a KV cache: on hybrid stacks the
+        # remaining layers have no KV pairs, and all-zero rows would otherwise absorb
+        # the whole eviction budget.
+        modules = get_adapter(model).compressible_modules(model)
+        self._score_row_by_layer = {int(module.layer_idx): row for row, module in enumerate(modules)}
+
         # initialize score values
         self.score_val = torch.zeros(
             (
-                model.config.num_hidden_layers,
+                len(modules),
                 1,
                 model.config.num_key_value_heads,
                 self.context_length,
@@ -297,7 +299,7 @@ class KVzipPress(BasePress):
 
         # Apply RoPE
         cos, sin = kwargs["position_embeddings"]
-        queries = (queries * cos.unsqueeze(1)) + (rotate_half(queries) * sin.unsqueeze(1))
+        queries = apply_rope(module, queries, cos, sin)
         queries = queries.view(bsz, num_heads_kv, num_key_value_groups, q_len, head_dim)
 
         # Subsample keys
@@ -337,8 +339,8 @@ class KVzipPress(BasePress):
         attn_weights = attn_weights[..., sink : sink + ctx_len]
         scores = attn_weights.amax(dim=(-3, -2))  # max over group, q
 
-        layer_idx = int(module.layer_idx)
-        self.score_val[layer_idx][..., self.start_idx : self.end_idx] = scores  # update score
+        row = self._score_row_by_layer[int(module.layer_idx)]
+        self.score_val[row][..., self.start_idx : self.end_idx] = scores  # update score
 
         # Retain the originally prefilled context KV pairs and exclude KV pairs from the repeated context
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]
@@ -362,16 +364,15 @@ class KVzipPress(BasePress):
                 n_tokens_per_layer = bsz * num_key_value_heads * ctx_len
                 n_pruned_layers = torch.bincount(pruned_indices // n_tokens_per_layer, minlength=n_layer).int()
 
-            for layer in model.model.layers:
-                module = layer.self_attn
-                layer_idx = int(module.layer_idx)
-
+            modules: list[Any] = list(get_adapter(model).compressible_modules(model))
+            for module in modules:
                 assert module.config._attn_implementation != "eager", "eager mode not supported"
 
-                scores = self.score_val[layer_idx]
+                row = self._score_row_by_layer[int(module.layer_idx)]
+                scores = self.score_val[row]
 
                 # Compute bottom-k across heads
-                n_pruned = n_pruned_layers[layer_idx].cpu()
+                n_pruned = n_pruned_layers[row].cpu()
                 indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten().cpu()
 
                 # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for details
