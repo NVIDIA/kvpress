@@ -3,23 +3,23 @@
 
 
 import logging
+import types
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
 from typing import Generator, Union
 
-
 import numpy as np
 import torch
-import types
 from torch import nn
-from transformers.models.llama import LlamaForCausalLM
-from transformers.modeling_utils import PreTrainedModel
 from transformers.cache_utils import DynamicCache
+from transformers.modeling_utils import PreTrainedModel
+from transformers.models.llama import LlamaForCausalLM
 from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
 from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
+from kvpress.adapters import get_adapter
 from kvpress.presses.base_press import BasePress
 from kvpress.utils import compute_n_kept
 
@@ -72,7 +72,7 @@ class MaxAggregator(Aggregator):
         super().__init__(n, device)
 
     def _partial_fit(self, nd_data: torch.Tensor):
-        new_max_data = nd_data.amax(dim=tuple(range(len(nd_data.shape)-1)))
+        new_max_data = nd_data.amax(dim=tuple(range(len(nd_data.shape) - 1)))
         self.data = torch.maximum(self.data, new_max_data)
 
 
@@ -81,14 +81,14 @@ class MeanAggregator(Aggregator):
     count_data: torch.Tensor
 
     def __init__(self, n, device):
-        self.neutral = 0.
+        self.neutral = 0.0
         super().__init__(n, device)
-        self.sum_data = torch.full((n, ), self.neutral, device=self.device)
-        self.count_data = torch.full((n, ), self.neutral, device=self.device)
+        self.sum_data = torch.full((n,), self.neutral, device=self.device)
+        self.count_data = torch.full((n,), self.neutral, device=self.device)
 
     def _partial_fit(self, nd_data: torch.Tensor):
-        new_sum_data = nd_data.sum(dim=tuple(range(len(nd_data.shape)-1)))
-        new_count_data = torch.ones_like(nd_data, device=self.device).sum(dim=tuple(range(len(nd_data.shape)-1)))
+        new_sum_data = nd_data.sum(dim=tuple(range(len(nd_data.shape) - 1)))
+        new_count_data = torch.ones_like(nd_data, device=self.device).sum(dim=tuple(range(len(nd_data.shape) - 1)))
         self.sum_data += new_sum_data
         self.count_data += new_count_data
         self.data = self.sum_data / self.count_data
@@ -209,7 +209,7 @@ class KVComposePress(BasePress):
             if layer_attentions.shape[3] == layer_attentions.shape[2]:
                 # Skip self-to-self attention (prefill step), only record context-to-query attentions
                 continue
-            layer_att_head_attention = layer_attentions[:, att_head, :, :self.context_len]
+            layer_att_head_attention = layer_attentions[:, att_head, :, : self.context_len]
             self.task_aggregators[layer][att_head].partial_fit(layer_att_head_attention)
 
         # Clean up attention to save memory.
@@ -253,17 +253,18 @@ class KVComposePress(BasePress):
         - self.composite_scores_per_layer of shape (num_layers, context_len): structured compression.
         """
         self.composite_scores_per_head = self.scores.sort(dim=-1, descending=True)[0]
-        self.composite_scores_per_head[..., :self.keep_token_lower_bound] += 1e9
+        self.composite_scores_per_head[..., : self.keep_token_lower_bound] += 1e9
 
-        self.composite_scores_per_layer = torch.full((self.num_layers, self.context_len), 0., device=self.device)
+        self.composite_scores_per_layer = torch.full((self.num_layers, self.context_len), 0.0, device=self.device)
         for layer in range(self.num_layers):
             layer_aggregator = aggregator_by_name[self.agg_head](self.context_len, self.device)
             for kv_head in range(self.num_kv_heads):
                 layer_aggregator.partial_fit(self.scores[layer, kv_head].sort(descending=True)[0])
             self.composite_scores_per_layer[layer] = layer_aggregator.transform()
-        self.composite_scores_per_layer[..., :self.keep_token_lower_bound] += 1e9
-        self.composite_scores_per_layer[0] = \
-            self.composite_scores_per_layer.max(dim=0).values  # Ensures first layer is the largest.
+        self.composite_scores_per_layer[..., : self.keep_token_lower_bound] += 1e9
+        self.composite_scores_per_layer[0] = self.composite_scores_per_layer.max(
+            dim=0
+        ).values  # Ensures first layer is the largest.
 
     def compute_important_per_layer(self):
         """
@@ -303,7 +304,7 @@ class KVComposePress(BasePress):
 
         self.important_mask_per_kv_head = [
             [
-                torch.zeros(size=(self.context_len, ), device=self.device, dtype=torch.bool)
+                torch.zeros(size=(self.context_len,), device=self.device, dtype=torch.bool)
                 for _ in range(self.num_kv_heads)
             ]
             for _ in range(self.num_layers)
@@ -312,9 +313,7 @@ class KVComposePress(BasePress):
         for layer in range(self.num_layers):
             for kv_head in range(self.num_kv_heads):
                 count_of_important = (
-                    self.important_per_layer[layer]
-                    if self.structured
-                    else self.important_per_head[layer, kv_head]
+                    self.important_per_layer[layer] if self.structured else self.important_per_head[layer, kv_head]
                 )
                 important_indices = torch.argsort(self.scores[layer, kv_head], descending=True)[:count_of_important]
                 self.important_mask_per_kv_head[layer][kv_head][important_indices] = True
@@ -329,8 +328,8 @@ class KVComposePress(BasePress):
             for kv_head in range(self.num_kv_heads):
                 important_mask = self.important_mask_per_kv_head[layer][kv_head]
 
-                keys = self.cache.layers[layer].keys[0, kv_head][:self.context_len]
-                values = self.cache.layers[layer].values[0, kv_head][:self.context_len]
+                keys = self.cache.layers[layer].keys[0, kv_head][: self.context_len]
+                values = self.cache.layers[layer].values[0, kv_head][: self.context_len]
                 keys = keys[important_mask]
                 values = values[important_mask]
                 kv_over_layer[0].append(keys)
@@ -355,8 +354,8 @@ class KVComposePress(BasePress):
             for kv_head in range(self.num_kv_heads):
                 non_important_mask = ~self.important_mask_per_kv_head[layer_idx][kv_head]
                 num_non_important_tokens = int(non_important_mask.sum().item())
-                batch_indices = torch.full((num_non_important_tokens, ), 0, device=self.device)
-                head_indices = torch.full((num_non_important_tokens, ), kv_head, device=self.device)
+                batch_indices = torch.full((num_non_important_tokens,), 0, device=self.device)
+                head_indices = torch.full((num_non_important_tokens,), kv_head, device=self.device)
                 seq_indices = non_important_mask.nonzero(as_tuple=True)[0]
                 masked_over_layer[0].append(batch_indices)
                 masked_over_layer[1].append(head_indices)
@@ -381,21 +380,20 @@ class KVComposePress(BasePress):
             Model to apply the compression method to
         """
 
-        logger.warning(
-            "KVComposePress temporarily creates a KV cache of ~2x the context length during prefill; "
-        )
+        logger.warning("KVComposePress temporarily creates a KV cache of ~2x the context length during prefill; ")
         if not isinstance(model, (LlamaForCausalLM, Qwen2ForCausalLM, Qwen3ForCausalLM)):
             logger.warning(f"Model {type(model)} not tested")
 
         self._register_model(model)
 
-        def new_forward(self,
-                        input_ids,
-                        past_key_values,
-                        *args,
-                        press: KVComposePress,
-                        **kwargs,
-                        ):
+        def new_forward(
+            self,
+            input_ids,
+            past_key_values,
+            *args,
+            press: KVComposePress,
+            **kwargs,
+        ):
             press.register_context_ids(input_ids)
 
             original_attn_implementation = self.model.config._attn_implementation
@@ -405,26 +403,24 @@ class KVComposePress(BasePress):
                 past_key_values=past_key_values,
                 *args,
                 **kwargs,
-                )
+            )
 
             press._register_cache(past_key_values)
-            for prompt_ids in (press.prompt_ids or [press.context_ids]):
+            for prompt_ids in press.prompt_ids or [press.context_ids]:
                 cache = past_key_values
                 self.original_forward_KVComposePress(
                     input_ids=prompt_ids.to(self.model.device),
                     past_key_values=cache,
                     *args,
                     **kwargs,
-                    )
+                )
 
             self.model.config._attn_implementation = original_attn_implementation
             return outputs
 
         hooks = []
         try:
-            for layer in model.model.layers:
-                layer.self_attn.rotary_emb = model.model.rotary_emb
-                hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
+            hooks.extend(get_adapter(model).register_forward_hooks(model, self.forward_hook))
 
             setattr(model, "original_forward_KVComposePress", model.model.forward)
             new_forward_with_press = partial(new_forward, press=self)

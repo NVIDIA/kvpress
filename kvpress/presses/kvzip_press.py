@@ -10,11 +10,12 @@ from typing import Generator, List
 
 import torch
 from torch import nn
-from transformers import AutoTokenizer, Gemma3PreTrainedModel, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
+from transformers import AutoTokenizer, Gemma3PreTrainedModel, PreTrainedModel, PreTrainedTokenizer
 from transformers.models.llama.modeling_llama import rotate_half
 
+from kvpress.adapters import get_adapter, get_adapter_from_module
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.utils import extract_keys_and_values, get_prerope_query_states
+from kvpress.utils import get_prerope_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -135,11 +136,8 @@ class KVzipPress(BasePress):
 
             # After yield: KVzip scoring and compression phase
             if self.compression_ratio > 0 and self._context_ids is not None:
-                # Now register attention hooks for compression
-                for layer in model.model.layers:
-                    layer.self_attn.rotary_emb = model.model.rotary_emb
-                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
-
+                adapter = get_adapter(model)
+                hooks.extend(adapter.register_forward_hooks(model, self.forward_hook))
                 self._perform_kvzip_compression(model, tokenizer)
         finally:
             for hook in hooks:
@@ -155,24 +153,13 @@ class KVzipPress(BasePress):
 
         hidden_states = kwargs["hidden_states"]
         cache = kwargs.get("past_key_values", None) or kwargs.get("past_key_value", None)
-        cache_layer = cache.layers[module.layer_idx]
-
-        keys, values = extract_keys_and_values(cache, module.layer_idx)
+        adapter = get_adapter_from_module(module)
+        keys, values = adapter.get_keys_values(cache, module)
 
         # Compute importance scores for KV pairs in the prefilled context,
         # retaining only the originally prefilled KV pairs.
         keys, values = self.score_kvzip(module, hidden_states, keys, values, output[1], kwargs)
-
-        if isinstance(cache, QuantizedCache):
-            # Update cache with compressed keys and values
-            cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
-            cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
-            cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-            cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-            cache_layer.cumulative_length = keys.shape[2]
-        else:
-            cache_layer.keys = keys
-            cache_layer.values = values
+        adapter.set_keys_values(cache, module, keys, values)
 
         return output
 

@@ -9,14 +9,14 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from transformers import QuantizedCache
 from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
+from kvpress.adapters import get_adapter_from_module
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import extract_keys_and_values, get_prerope_query_states
+from kvpress.utils import get_prerope_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -251,8 +251,8 @@ class CAMPress(DecodingPress):
         # All hidden_states_buffer code is borrowed from DecodingPress
         self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
 
-        cache_layer = cache.layers[module.layer_idx]
-        keys, values = extract_keys_and_values(cache, layer_idx)
+        adapter = get_adapter_from_module(module)
+        keys, values = adapter.get_keys_values(cache, module)
         bsz, num_key_value_heads, seq_len, _ = keys.shape
 
         # Accumulate Cumulative Attention over generation steps
@@ -294,16 +294,7 @@ class CAMPress(DecodingPress):
             buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, kwargs)
 
-            # Update cache with compressed keys and values
-            if isinstance(cache, QuantizedCache):
-                cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
-                cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
-                cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-                cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-                cache_layer.cumulative_length = keys.shape[2]
-            else:
-                cache_layer.keys = keys
-                cache_layer.values = values
+            adapter.set_keys_values(cache, module, keys, values)
 
             self.layer_step_counts[layer_idx] = 0
             # Always clear the buffer after compression - otherwise there's a mismatch between

@@ -7,9 +7,9 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from kvpress.adapters import get_adapter_from_module
 from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import extract_keys_and_values
 
 
 @dataclass
@@ -86,7 +86,7 @@ class DMSPress(BasePress):
             return output
 
         # Compute importance scores for the new tokens using the underlying scorer press
-        keys, values = extract_keys_and_values(cache, layer_idx)
+        keys, values = get_adapter_from_module(module).get_keys_values(cache, module)
         scores = self.press.score(module, hidden_states, keys[:, :, -q_len:], values[:, :, -q_len:], None, kwargs)
 
         # Accumulate scores in the buffer: reset during prefill, append during decoding
