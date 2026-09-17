@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 kvpress-attempt contributors. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 Satyajeeth Suresh Kannan. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
