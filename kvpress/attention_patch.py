@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
@@ -8,8 +8,8 @@ from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 def search_hyperplane(X, max_iter: int = 1000):
     """
     Given a tensor X of shape (bsz, seq_len, head_dim), search for a hyperplane Y (bsz, head_dim)
-    such that for every i, <X[:, i], Y> <= 0. Returns - 1e5 * Y / ||Y|| ** 2 to ensure exp(<X, Y>) = 0
-    Raises a ValueError if no such hyperplane is found
+    such that for every i, <X[:, i], Y> <= 0. Returns -1e5 * Y / ||Y||², uniformly scaled down when
+    necessary to keep it representable in the input dtype.
 
     Parameters
     ----------
@@ -23,19 +23,27 @@ def search_hyperplane(X, max_iter: int = 1000):
     Returns
     -------
     torch.Tensor
-        Hyperplane tensor with shape (batch_size, head_dim) scaled by -1e5 / ||Y||²
-        to ensure that exp(<X, Y>) ≈ 0 for all queries in X.
+        Hyperplane tensor with shape (batch_size, head_dim) and the same dtype as X.
 
     Raises
     ------
     ValueError
         If no valid hyperplane is found within max_iter iterations.
     """
+    output_dtype = X.dtype
+    # float16 can overflow during the search and while constructing the fake key.
+    if output_dtype == torch.float16:
+        X = X.float()
+
     Y = X.mean(1)  # this initialization is enough for most cases
     for _ in range(max_iter):
         mask = torch.bmm(X, Y.unsqueeze(-1)) <= 0
         if not mask.any():
-            return -1e5 * Y / Y.norm(dim=-1, keepdim=True) ** 2
+            K = -1e5 * Y / Y.norm(dim=-1, keepdim=True) ** 2
+            if output_dtype == torch.float16:
+                scale = (torch.finfo(output_dtype).max / K.abs().amax(dim=-1, keepdim=True)).clamp(max=1)
+                K = (K * scale).to(output_dtype)
+            return K
         Y += (X * mask).sum(1) / mask.sum(1).clamp(min=1)
     raise ValueError("Could not find fake keys such that for every query q, exp(<q, k>) = 0")
 
@@ -43,7 +51,7 @@ def search_hyperplane(X, max_iter: int = 1000):
 def attention_patch(func):
     """
     Decorator to update the keys before the attention computation at the indices provided in module.masked_key_indices
-    The keys are updated with a fake key k such that exp(<q, k>) = 0 to fake head-wise compression
+    The keys are updated with a fake key k whose scaled attention weight underflows to zero
     This solution is not optimal as it does not reduce peak memory and slightly increases runtime
 
     Parameters
