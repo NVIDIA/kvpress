@@ -45,15 +45,19 @@ class KVzipPress(BasePress):
         Number of initial tokens to preserve as attention sinks.
     kvzip_plus_normalization: bool, default=False
         Whether to enable KVzip+ normalization.
+    chunk_size : int, default=2048
+        Number of context tokens reconstructed by each replay pass.
     """
 
     compression_ratio: float = 0.0
     layerwise: bool = False
     n_sink: int = 4
     kvzip_plus_normalization: bool = False
+    chunk_size: int = 2048
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
+        assert self.chunk_size > 0, "Chunk size must be positive"
         logger.warning(
             "KVzipPress requires multiple forward passes for chunked context reconstruction, "
             "resulting in a computational overhead of 2–3 times the initial prefilling cost. "
@@ -126,7 +130,6 @@ class KVzipPress(BasePress):
 
         model.model.forward = MethodType(wrapped_forward, model.model)
 
-        hooks = []
         try:
             try:
                 yield
@@ -135,15 +138,11 @@ class KVzipPress(BasePress):
 
             # After yield: KVzip scoring and compression phase
             if self.compression_ratio > 0 and self._context_ids is not None:
-                # Now register attention hooks for compression
                 for layer in model.model.layers:
                     layer.self_attn.rotary_emb = model.model.rotary_emb
-                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
 
                 self._perform_kvzip_compression(model, tokenizer)
         finally:
-            for hook in hooks:
-                hook.remove()
             self._reset_internal_parameters()
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
@@ -184,19 +183,22 @@ class KVzipPress(BasePress):
         # Prepare chunked inputs for context reconstruction
         self.context_length = self._context_ids.shape[1]
         chunked_context_pairs = self.prepare(model, tokenizer)
+        hooks = [
+            layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True) for layer in model.model.layers
+        ]
 
         # Perform scoring through context reconstruction
         # Use the stored cache from the initial forward pass
-        self.start_idx = self.prefix_length
-        for prefill_ids, repeat_ids in chunked_context_pairs:
-            self.end_idx = self.start_idx + prefill_ids.shape[1]
-            # Pass the cache that was used in the initial forward pass
-            model(
-                input_ids=repeat_ids.to(model.device),
-                past_key_values=self._cache,
-                logits_to_keep=1,
-            )
-            self.start_idx = self.end_idx
+        try:
+            self.start_idx = self.prefix_length
+            for prefill_ids, repeat_ids in chunked_context_pairs:
+                self.end_idx = self.start_idx + prefill_ids.shape[1]
+                # Pass the cache that was used in the initial forward pass
+                model.model(input_ids=repeat_ids.to(model.device), past_key_values=self._cache)
+                self.start_idx = self.end_idx
+        finally:
+            for hook in hooks:
+                hook.remove()
 
         # Perform final compression
         self.compress_post(model)
@@ -226,7 +228,6 @@ class KVzipPress(BasePress):
         self,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
-        chunk_size: int = 2048,
         prev_postfix_size=8,
     ) -> List[tuple[torch.Tensor, torch.Tensor]]:
         """
@@ -245,10 +246,9 @@ class KVzipPress(BasePress):
             dtype=model.dtype,
             device=model.device,
         )
-        self.score_val[..., : self.n_sink] = 1.0
 
         chunked_context_pairs = []
-        chunked_input_ids = self._chunk_fn(ctx_ids, chunk_size)
+        chunked_input_ids = self._chunk_fn(ctx_ids, self.chunk_size)
         for i, a_ids in enumerate(chunked_input_ids):
             if i == 0:
                 prompt = "\n\nRepeat the previous context exactly."
@@ -284,6 +284,44 @@ class KVzipPress(BasePress):
         self.causal_mask_score = self.causal_mask_score.to(attn_weights.device)
         attn_weights[..., -window_size:, -window_size:] += self.causal_mask_score
 
+    def _compute_cross_attention(
+        self, module: nn.Module, hidden_states: torch.Tensor, keys: torch.Tensor, kwargs: dict
+    ) -> torch.Tensor:
+        """
+        Attention weights of the reconstruction tokens over the attention sinks, the chunk being
+        reconstructed and the reconstruction tokens themselves.
+        Shape (bsz, num_kv_heads, num_kv_groups, q_len, n_sink + chunk_len + q_len).
+        """
+        bsz, q_len, _ = hidden_states.shape
+        num_heads_kv = module.config.num_key_value_heads
+        num_key_value_groups = module.config.num_attention_heads // num_heads_kv
+
+        queries = get_prerope_query_states(module, hidden_states)
+
+        # Apply RoPE
+        cos, sin = kwargs["position_embeddings"]
+        queries = (queries * cos.unsqueeze(1)) + (rotate_half(queries) * sin.unsqueeze(1))
+        queries = queries.view(bsz, num_heads_kv, num_key_value_groups, q_len, module.head_dim)
+
+        # Subsample keys: attention sinks, KV chunk in the cache, KV repeat chunk
+        sink = min(self.n_sink, self.start_idx)
+        keys = torch.cat([keys[:, :, :sink], keys[:, :, self.start_idx : self.end_idx], keys[:, :, -q_len:]], dim=2)
+        keys = keys.unsqueeze(2).transpose(-2, -1).contiguous()
+
+        attn_weights = torch.matmul(queries, keys) / math.sqrt(module.head_dim)
+        self._mask_causal(attn_weights, q_len)
+        return nn.functional.softmax(attn_weights, dim=-1)
+
+    def _compute_value_output_norm(self, module: nn.Module, values: torch.Tensor) -> torch.Tensor:
+        """
+        ||v W_O||, the magnitude of the signal each KV pair writes into the residual stream.
+        Shape (bsz, num_kv_heads, num_kv_groups, n_values).
+        """
+        num_heads_kv = module.config.num_key_value_heads
+        num_key_value_groups = module.config.num_attention_heads // num_heads_kv
+        Wo = module.o_proj.weight.view(module.config.hidden_size, num_heads_kv, num_key_value_groups, module.head_dim)
+        return torch.einsum("j h g i, b h t i -> b h g t j", Wo, values).norm(dim=-1)
+
     def score_kvzip(
         self,
         module: nn.Module,
@@ -300,36 +338,11 @@ class KVzipPress(BasePress):
         The computed scores are stored in self.score_val.
         """
 
-        bsz, q_len, _ = hidden_states.shape
-        num_heads = module.config.num_attention_heads
-        num_heads_kv = module.config.num_key_value_heads
-        head_dim = module.head_dim
-        num_key_value_groups = num_heads // num_heads_kv
-
-        queries = get_prerope_query_states(module, hidden_states)
-
-        # Apply RoPE
-        cos, sin = kwargs["position_embeddings"]
-        queries = (queries * cos.unsqueeze(1)) + (rotate_half(queries) * sin.unsqueeze(1))
-        queries = queries.view(bsz, num_heads_kv, num_key_value_groups, q_len, head_dim)
-
-        # Subsample keys
+        q_len = hidden_states.shape[1]
         sink = min(self.n_sink, self.start_idx)
         ctx_len = self.end_idx - self.start_idx
-        keys_subsampled = torch.cat(
-            [
-                keys[:, :, :sink],  # attention sink tokens (generally system prompt)
-                keys[:, :, self.start_idx : self.end_idx],  # KV chunk in the cache
-                keys[:, :, -q_len:],  # KV repeat chunk
-            ],
-            dim=2,
-        )
-        keys_subsampled = keys_subsampled.unsqueeze(2).transpose(-2, -1).contiguous()
 
-        # Compute attention
-        attn_weights = torch.matmul(queries, keys_subsampled) / math.sqrt(head_dim)
-        self._mask_causal(attn_weights, q_len)
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1)
+        attn_weights = self._compute_cross_attention(module, hidden_states, keys, kwargs)
 
         if self.kvzip_plus_normalization:
             # Divide by ||h|| (by row)
@@ -337,14 +350,10 @@ class KVzipPress(BasePress):
             attn_weights = torch.einsum("b h g t i, b t -> b h g t i", attn_weights, 1 / h_norm)
 
             # Multiply by ||WoV|| (by column)
-            Wo = module.o_proj.weight.transpose(0, 1)
-            Wo = Wo.view(num_heads_kv, num_key_value_groups, module.head_dim, module.config.hidden_size)
             values_subsampled = torch.cat(
                 [values[:, :, :sink], values[:, :, self.start_idx : self.end_idx], values[:, :, -q_len:]], dim=2
             )
-            values_subsampled = values_subsampled.unsqueeze(2).transpose(-2, -1).contiguous()
-            V = values_subsampled.repeat_interleave(module.num_key_value_groups, axis=2)
-            WoV_norm = torch.einsum("h g i j, b h g i t -> b h g t j", Wo, V).norm(dim=-1)
+            WoV_norm = self._compute_value_output_norm(module, values_subsampled)
             attn_weights = torch.einsum("b h g i t, b h g t -> b h g i t", attn_weights, WoV_norm)
 
         attn_weights = attn_weights[..., sink : sink + ctx_len]
@@ -363,6 +372,8 @@ class KVzipPress(BasePress):
         Adopted from adakv_press.compress (fake compression). KVzip does not rely on safeguards.
         """
         if self.compression_ratio > 0:
+            # Attention sinks are never evicted: they are given the highest score
+            self.score_val[..., : self.n_sink] = self.score_val.amax() + 1.0
             n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape
 
             # calculate the pruned KV pairs across layers
