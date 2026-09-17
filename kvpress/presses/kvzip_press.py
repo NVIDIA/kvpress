@@ -389,9 +389,11 @@ class KVzipPress(BasePress):
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]
         return keys, values
 
-    # A content token is a word, word piece or number: letters/digits, optionally with apostrophes or hyphens
-    # (after stripping surrounding whitespace). Everything else -- punctuation, whitespace, symbols -- is structure.
+    # A content token is a word, word piece or number: after stripping whitespace it starts with a letter or digit
+    # and contains only letters, digits, apostrophes and hyphens. Everything else -- punctuation, whitespace, list
+    # markers, brackets, quotes -- is structure and may be demoted when highly repeated.
     _CONTENT_TOKEN = re.compile(r"[^\W_](?:[^\W_]|['\-])*", re.UNICODE)
+    _ALNUM_CHAR = re.compile(r"[^\W_]", re.UNICODE)
 
     @staticmethod
     def demote_structure_scores(
@@ -405,23 +407,40 @@ class KVzipPress(BasePress):
         """
         In-place structure demotion on ``score_val`` (n_layer, bsz, n_kv_heads, ctx_len).
 
-        A position is demoted when its token is structural -- it does not decode to a word, word piece or number
-        (letters/digits, optionally with apostrophes or hyphens) once surrounding whitespace is stripped -- and the
-        same token id occurs at least ``min_repeats`` times in ``context_ids[start:]``. Positions before ``start``
-        (chat-template prefix, attention sinks) and positions beyond ``len(context_ids)`` (e.g. RestoreKV's appended
-        restore tokens) are never touched. ``decode(token_id) -> str``. Returns the number of demoted positions.
-        Pure function of tensors so it can be unit-tested without a model.
+        A position is demoted when (a) its token is structural (not a word, word piece or number, see
+        ``_CONTENT_TOKEN``), (b) the same token id occurs at least ``min_repeats`` times in ``context_ids[start:]``,
+        and (c) it is not a *joiner*: a whitespace-free structural token whose previous token ends with a letter or
+        digit and whose next token starts with one -- the dashes of a UUID, the dot of ``3.14``, the colon of
+        ``10:30``, the comma of ``1,000``. Separators (list markers, quotes, brackets, tokens carrying a newline)
+        have whitespace on at least one side and are demoted. Positions before ``start`` (chat prefix, sinks) and
+        beyond ``len(context_ids)`` (e.g. RestoreKV's restore tokens) are never touched.
+        ``decode(token_id) -> str``. Returns the number of demoted positions. Pure function of tensors + decode.
         """
         n = min(int(score_val.shape[-1]), int(context_ids.shape[-1]))
         if factor <= 0 or n <= start:
             return 0
-        ids = context_ids[start:n].detach().to("cpu")
+        ids_all = context_ids[:n].detach().to("cpu")
+        ids = ids_all[start:]
         uniq, inverse, counts = torch.unique(ids, return_inverse=True, return_counts=True)
+        dec = {int(t): decode(int(t)) for t in uniq.tolist()}
         structural = torch.tensor(
-            [KVzipPress._CONTENT_TOKEN.fullmatch(decode(int(t)).strip()) is None for t in uniq.tolist()],
-            dtype=torch.bool,
+            [KVzipPress._CONTENT_TOKEN.fullmatch(dec[int(t)].strip()) is None for t in uniq.tolist()], dtype=torch.bool
         )
         demote = (structural & (counts >= min_repeats))[inverse]
+        # joiner exclusion: depends on the neighbours, so it is evaluated per position
+        toks = ids_all.tolist()
+        alnum = KVzipPress._ALNUM_CHAR
+        for j in torch.nonzero(demote).flatten().tolist():
+            i = j + start
+            d = dec[toks[i]]
+            if i == 0 or i + 1 >= n or any(ch.isspace() for ch in d):
+                continue
+            prev_d = dec.get(toks[i - 1])
+            if prev_d is None:
+                prev_d = dec[toks[i - 1]] = decode(toks[i - 1])
+            next_d = dec[toks[i + 1]]
+            if alnum.fullmatch(prev_d[-1:]) and alnum.fullmatch(next_d[:1]):
+                demote[j] = False
         idx = torch.nonzero(demote).flatten() + start
         if idx.numel() == 0:
             return 0
