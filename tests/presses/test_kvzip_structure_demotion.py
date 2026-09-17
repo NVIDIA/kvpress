@@ -10,7 +10,24 @@ from kvpress.presses.restorekv_press import RestoreKVPress
 # a toy vocabulary: 0-3 sinks/prefix tokens, 10-19 words, 20-29 digits, 30-39 structure
 VOCAB = {**{i: f"<s{i}>" for i in range(4)}, **{10 + i: f" word{i}" for i in range(10)}}
 VOCAB.update({20 + i: str(i) for i in range(10)})
-VOCAB.update({30: ".", 31: "\n", 32: " (", 33: ",", 34: "  ", 35: " -", 36: "'s", 37: " é", 38: ")", 39: "!"})
+VOCAB.update(
+    {
+        30: ".",
+        31: "\n",
+        32: " (",
+        33: ",",
+        34: "  ",
+        35: " -",
+        36: "'s",
+        37: " é",
+        38: ")",
+        39: "!",
+        40: "-",
+        41: "-ce",
+        42: " word",
+        43: ".\n",
+    }
+)
 
 
 def decode(token_id: int) -> str:
@@ -65,10 +82,59 @@ def test_positions_beyond_the_context_are_never_touched():
 
 @pytest.mark.parametrize(
     "token_id,is_content",
-    [(10, True), (20, True), (37, True), (30, False), (31, False), (32, False), (34, False), (35, False), (36, False)],
+    [
+        (10, True),
+        (20, True),
+        (37, True),
+        (30, False),
+        (31, False),
+        (32, False),
+        (34, False),
+        (35, False),
+        (36, False),
+        (40, False),
+        (41, False),
+    ],
 )
 def test_token_classification(token_id, is_content):
     assert (KVzipPress._CONTENT_TOKEN.fullmatch(decode(token_id).strip()) is not None) is is_content
+
+
+def test_joiners_inside_uuids_are_not_demoted_but_separators_are():
+    # "8f-4a-9e" style ids: a dash glued between alphanumerics is a joiner and is never demoted, however often it recurs
+    uuid = [20, 21, 40, 22, 23, 40, 24, 25, 40, 26, 27]  # digits and dashes glued together
+    ids = uuid + [31] + uuid + [31] + uuid + [31] + uuid + [31]  # 4 ids on 4 lines: dash x12, newline x4
+    context = torch.tensor(ids)
+    score = _scores(len(ids))
+    n = KVzipPress.demote_structure_scores(score, context, decode, factor=0.25, min_repeats=4, start=0)
+    dashes = [i for i, t in enumerate(ids) if t == 40]
+    newlines = [i for i, t in enumerate(ids) if t == 31]
+    assert torch.all(score[..., dashes] == 1), "UUID dashes must not be demoted"
+    assert torch.all(score[..., newlines] == 0.25) and n == len(newlines)
+    # a dash+letters piece ("-ce") glued inside an id is a joiner too
+    ids = [20, 41, 21] * 5
+    score = _scores(len(ids))
+    assert (
+        KVzipPress.demote_structure_scores(score, torch.tensor(ids), decode, factor=0.25, min_repeats=4, start=0) == 0
+    )
+    # list markers "1." followed by " word" keep their demotion: the next token starts with whitespace
+    lst = []
+    for i in range(5):
+        lst += [20 + i, 30, 42, 31]
+    score = _scores(len(lst))
+    KVzipPress.demote_structure_scores(score, torch.tensor(lst), decode, factor=0.25, min_repeats=4, start=0)
+    dots = [i for i, t in enumerate(lst) if t == 30]
+    assert torch.all(score[..., dots] == 0.25)
+    # a token carrying a newline (".\n") between two words is a separator, not a joiner
+    para = [10, 43, 11] * 5
+    score = _scores(len(para))
+    KVzipPress.demote_structure_scores(score, torch.tensor(para), decode, factor=0.25, min_repeats=4, start=0)
+    assert torch.all(score[..., [i for i, t in enumerate(para) if t == 43]] == 0.25)
+    # a dash at the very first or last position has no two neighbours and is demoted like any structure token
+    edge = [40, 20, 40, 21, 40, 22, 40]
+    score = _scores(len(edge))
+    KVzipPress.demote_structure_scores(score, torch.tensor(edge), decode, factor=0.25, min_repeats=4, start=0)
+    assert torch.all(score[..., [0, 6]] == 0.25) and torch.all(score[..., [2, 4]] == 1)
 
 
 def test_factor_zero_disables_and_option_is_inherited_by_restorekv():
