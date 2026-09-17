@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass, field
@@ -9,7 +9,7 @@ import requests  # type: ignore[import-untyped]
 import torch
 from cachetools import LRUCache, cached  # type: ignore[import-untyped]
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, Gemma3ForConditionalGeneration
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
@@ -73,6 +73,9 @@ class DuoAttentionPress(BasePress):
         """
         Initialize sink_size, recent_size, and streaming_mask from a model
         """
+        if isinstance(model, Gemma3ForConditionalGeneration):
+            raise ValueError("DuoAttentionPress is not supported for Gemma3ForConditionalGeneration")
+
         # Load attention pattern from the DuoAttention repo
         if self.on_the_fly_scoring:
             self.sink_size, self.recent_size, head_scores = 128, 256, duo_attention_on_the_fly(model)
@@ -179,16 +182,16 @@ def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
                 # Mean query
                 q = module.self_attn.q_proj(h)
                 q = q.view(1, q.shape[1], -1, d)
-                if isinstance(module, (Gemma3Attention, Qwen3Attention)):
-                    q = module.q_norm(q)
+                if isinstance(module.self_attn, (Gemma3Attention, Qwen3Attention)):
+                    q = module.self_attn.q_norm(q)
                 q = q.mean(dim=1, keepdim=True)
                 q = q.repeat(1, q_len, 1, 1).transpose(1, 2)
 
                 # Mean key
                 k = module.self_attn.k_proj(h)
                 k = k.view(1, k.shape[1], -1, d)
-                if isinstance(module, (Gemma3Attention, Qwen3Attention)):
-                    k = module.k_norm(k)
+                if isinstance(module.self_attn, (Gemma3Attention, Qwen3Attention)):
+                    k = module.self_attn.k_norm(k)
                 k = k.mean(dim=1, keepdim=True)
                 k = k.repeat(1, q_len, 1, 1).transpose(1, 2)
 
