@@ -2,19 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-import math
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Callable, Generator, Optional
+from typing import Generator, Optional
 
 import torch
 from torch import nn
 from transformers import Cache, PreTrainedModel, PreTrainedTokenizer
 from transformers.cache_utils import DynamicLayer
-from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.kvzip_press import KVzipPress
-from kvpress.utils import extract_keys_and_values, get_prerope_query_states
+from kvpress.utils import extract_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -94,10 +92,11 @@ class KVgradPress(KVzipPress):
                      build a graph on the cached KV pairs
         replay     _perform_kvzip_compression -> prepare*, then _score_chunk per chunk
                      one forward pass over the probe prompt, during which the hooks set by
-                     _register_gradient_hooks capture A (_replay_attention_weights), the last
-                     hidden states h and the residual streams a
+                     _register_gradient_hooks capture A (_compute_cross_attention*), the last
+                     hidden states h and the attention outputs
         gradient   Phi.backward()
-                     populate the gradient of Phi w.r.t. every residual stream a_p^l
+                     populate the gradient of Phi w.r.t. every attention output. Since
+                     a = residual + attention output, grad_{a_p^l} Phi is that gradient
         scoring    _update_scores
                      A * ||v W_O|| * ||grad_a Phi|| -> score_val, per layer
         eviction   compress_post*
@@ -139,10 +138,6 @@ class KVgradPress(KVzipPress):
         with torch.inference_mode(False), torch.no_grad(), super().__call__(model):
             yield
 
-    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
-        # KVgrad scores the KV pairs with the hooks set by _register_gradient_hooks
-        return output
-
     def _perform_kvzip_compression(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
         """
         Score the KV pairs by replaying the context chunk by chunk, then compress.
@@ -153,36 +148,37 @@ class KVgradPress(KVzipPress):
         # The whole scoring runs outside inference mode: prefilling may have been called from it,
         # and score_val would then be an inference tensor that cannot be updated afterwards.
         with torch.inference_mode(False), torch.enable_grad(), frozen_parameters(model):
-            chunked_context_pairs = self.prepare(model, tokenizer, chunk_size=self.chunk_size)
+            chunked_context_pairs = self.prepare(model, tokenizer)
             with read_only_cache(self._cache) as cache:
-                for prefill_ids, repeat_ids in chunked_context_pairs:
-                    self.end_idx = self.start_idx + prefill_ids.shape[1]
-                    self._score_chunk(model, cache, repeat_ids)
-                    self.start_idx = self.end_idx
-
-        # Unlike KVzip attention weights, KVgrad scores are unbounded: sinks are given the highest one
-        self.score_val[..., : self.n_sink] = self.score_val.amax() + 1.0
+                captures: dict = {"hidden_states": None, "attn_weights": {}, "attention_outputs": {}}
+                hooks = self._register_gradient_hooks(model, cache, captures)
+                try:
+                    for prefill_ids, repeat_ids in chunked_context_pairs:
+                        self.end_idx = self.start_idx + prefill_ids.shape[1]
+                        self._score_chunk(model, cache, repeat_ids, captures)
+                        self.start_idx = self.end_idx
+                finally:
+                    for hook in hooks:
+                        hook.remove()
 
         self.compress_post(model)
 
-    def _score_chunk(self, model: PreTrainedModel, cache: Cache, repeat_ids: torch.Tensor):
+    def _score_chunk(self, model: PreTrainedModel, cache: Cache, repeat_ids: torch.Tensor, captures: dict):
         """
         Replay a single chunk of the context and update the scores of its KV pairs.
         """
-        captures: dict = {"hidden_states": None, "attn_weights": {}, "residuals": {}}
-        hooks = self._register_gradient_hooks(model, cache, captures)
-        try:
-            # Embedding the tokens here guarantees a differentiable graph despite frozen parameters
-            inputs_embeds = model.model.embed_tokens(repeat_ids.to(model.device))
-            inputs_embeds = inputs_embeds.detach().requires_grad_(True)
-            model.model(inputs_embeds=inputs_embeds, past_key_values=cache, use_cache=False)
+        captures["hidden_states"] = None
+        captures["attn_weights"].clear()
+        captures["attention_outputs"].clear()
 
-            # Phi = sum_p ||h_p^L||^2, h being the output of the last decoder layer (pre final norm)
-            Phi = (captures["hidden_states"].norm(dim=-1) ** 2).sum()
-            Phi.backward()
-        finally:
-            for hook in hooks:
-                hook.remove()
+        # Embedding the tokens here guarantees a differentiable graph despite frozen parameters
+        inputs_embeds = model.model.embed_tokens(repeat_ids.to(model.device))
+        inputs_embeds = inputs_embeds.detach().requires_grad_(True)
+        model.model(inputs_embeds=inputs_embeds, past_key_values=cache, use_cache=False)
+
+        # Phi = sum_p ||h_p^L||^2, h being the output of the last decoder layer (pre final norm)
+        Phi = captures["hidden_states"].float().square().sum()
+        Phi.backward()
 
         with torch.no_grad():
             for layer_idx in captures["attn_weights"]:
@@ -191,14 +187,19 @@ class KVgradPress(KVzipPress):
     def _register_gradient_hooks(self, model: PreTrainedModel, cache: Cache, captures: dict) -> list:
         """
         Register the hooks capturing the three quantities the scores are built from: the hidden
-        states the objective is defined on, the reconstruction attention weights, and the pre-MLP
-        residual stream of each layer, whose gradient measures how much the objective relies on it.
+        states the objective is defined on, the reconstruction attention weights, and the attention
+        output of each layer, whose gradient measures how much the objective relies on it.
         """
 
         def objective_hook(module: nn.Module, args: tuple, output):
             captures["hidden_states"] = output[0] if isinstance(output, tuple) else output
 
         def attention_hook(module: nn.Module, args: tuple, kwargs: dict, output: list):
+            # The attention output is written into the residual stream a, so grad_a Phi is its gradient
+            attention_output = output[0]
+            attention_output.retain_grad()
+            captures["attention_outputs"][int(module.layer_idx)] = attention_output
+
             with torch.no_grad():
                 sink = min(self.n_sink, self.start_idx)
                 ctx_len = self.end_idx - self.start_idx
@@ -206,52 +207,14 @@ class KVgradPress(KVzipPress):
                 assert isinstance(cache_layer, ReadOnlyDynamicLayer)
                 keys = cache_layer.last_keys
                 assert keys is not None
-                attn_weights = self._replay_attention_weights(module, kwargs["hidden_states"], keys, kwargs)
+                attn_weights = self._compute_cross_attention(module, kwargs["hidden_states"], keys, kwargs)
                 # Only the KV pairs of the chunk being reconstructed are scored
                 captures["attn_weights"][int(module.layer_idx)] = attn_weights[..., sink : sink + ctx_len].clone()
 
-        def make_residual_hook(layer_idx: int) -> Callable:
-            def residual_hook(module: nn.Module, args: tuple):
-                residual = args[0]
-                residual.retain_grad()
-                captures["residuals"][layer_idx] = residual
-
-            return residual_hook
-
         hooks = [model.model.layers[-1].register_forward_hook(objective_hook)]
-        for layer_idx, layer in enumerate(model.model.layers):
+        for layer in model.model.layers:
             hooks.append(layer.self_attn.register_forward_hook(attention_hook, with_kwargs=True))
-            # The input of the post-attention layer norm is the residual stream the attention
-            # output has just been written to, i.e. the pre-MLP residual stream a
-            hooks.append(layer.post_attention_layernorm.register_forward_pre_hook(make_residual_hook(layer_idx)))
         return hooks
-
-    def _replay_attention_weights(
-        self, module: nn.Module, hidden_states: torch.Tensor, keys: torch.Tensor, kwargs: dict
-    ) -> torch.Tensor:
-        """
-        Attention weights of the probe tokens over the attention sinks, the chunk being reconstructed
-        and the probe tokens themselves, computed as in KVzipPress.score_kvzip.
-        Shape (bsz, num_kv_heads, num_kv_groups, q_len, n_sink + chunk_len + q_len).
-        """
-        bsz, q_len, _ = hidden_states.shape
-        num_heads_kv = module.config.num_key_value_heads
-        num_key_value_groups = module.config.num_attention_heads // num_heads_kv
-
-        queries = get_prerope_query_states(module, hidden_states)
-        cos, sin = kwargs["position_embeddings"]
-        queries = (queries * cos.unsqueeze(1)) + (rotate_half(queries) * sin.unsqueeze(1))
-        queries = queries.view(bsz, num_heads_kv, num_key_value_groups, q_len, module.head_dim)
-
-        sink = min(self.n_sink, self.start_idx)
-        keys_subsampled = torch.cat(
-            [keys[:, :, :sink], keys[:, :, self.start_idx : self.end_idx], keys[:, :, -q_len:]], dim=2
-        )
-        keys_subsampled = keys_subsampled.unsqueeze(2).transpose(-2, -1).contiguous()
-
-        attn_weights = torch.matmul(queries, keys_subsampled) / math.sqrt(module.head_dim)
-        self._mask_causal(attn_weights, q_len)
-        return nn.functional.softmax(attn_weights, dim=-1)
 
     def _update_scores(self, model: PreTrainedModel, cache: Cache, layer_idx: int, captures: dict):
         """
@@ -265,18 +228,14 @@ class KVgradPress(KVzipPress):
 
         # ||v W_O||: magnitude of the signal each KV pair writes into the residual stream,
         # with shape (bsz, num_kv_heads, num_kv_groups, chunk_len)
-        num_heads_kv = module.config.num_key_value_heads
-        num_key_value_groups = module.config.num_attention_heads // num_heads_kv
-        Wo = module.o_proj.weight.transpose(0, 1)
-        Wo = Wo.view(num_heads_kv, num_key_value_groups, module.head_dim, module.config.hidden_size)
         values = cache.layers[layer_idx].values[:, :, self.start_idx : self.end_idx]
-        value_norm = torch.einsum("h g i j, b h t i -> b h g t j", Wo, values).norm(dim=-1)
+        value_norm = self._compute_value_output_norm(module, values)
 
         # ||grad_a Phi||: sensitivity of the objective to the residual stream of each probe token,
         # with shape (bsz, q_len)
-        residual = captures["residuals"][layer_idx]
-        assert residual.grad is not None, f"No gradient captured for layer {layer_idx}"
-        gradient_norm = residual.grad.detach().float().norm(dim=-1)
+        attention_output = captures["attention_outputs"][layer_idx]
+        assert attention_output.grad is not None, f"No gradient captured for layer {layer_idx}"
+        gradient_norm = attention_output.grad.detach().float().norm(dim=-1)
 
         scores = attn_weights * value_norm[:, :, :, None, :]
         scores = scores * gradient_norm[:, None, None, :, None]
