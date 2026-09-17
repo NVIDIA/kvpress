@@ -3,14 +3,22 @@
 
 import logging
 import math
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import MethodType
-from typing import Generator, List
+from typing import Callable, Generator, List, cast
 
 import torch
 from torch import nn
-from transformers import AutoTokenizer, Gemma3PreTrainedModel, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
+from transformers import (
+    AutoTokenizer,
+    Gemma3PreTrainedModel,
+    PreTrainedModel,
+    PreTrainedTokenizer,
+    PreTrainedTokenizerBase,
+    QuantizedCache,
+)
 from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
@@ -47,6 +55,15 @@ class KVzipPress(BasePress):
         Whether to enable KVzip+ normalization.
     chunk_size : int, default=2048
         Number of context tokens reconstructed by each replay pass.
+    structure_demotion : float, default=0.0
+        Structure demotion (off when 0). Before eviction, multiply the scores of *structural* tokens -- tokens
+        that decode to punctuation, whitespace or symbols only, no letters or digits -- that occur at least
+        ``structure_min_repeats`` times in the context by this factor. Reconstruction-based scores rate the
+        repeated scaffolding of long contexts (list separators, newlines, quotes) highly, and at high compression
+        ratios it absorbs a large share of the budget; demoting it hands that budget to content tokens. Letters and
+        digits are never touched, so rare facts (needles, numbers) are safe by construction.
+    structure_min_repeats : int, default=4
+        Minimum number of occurrences of a structural token id in the context for it to be demoted.
     """
 
     compression_ratio: float = 0.0
@@ -54,10 +71,14 @@ class KVzipPress(BasePress):
     n_sink: int = 4
     kvzip_plus_normalization: bool = False
     chunk_size: int = 2048
+    structure_demotion: float = 0.0
+    structure_min_repeats: int = 4
 
     def __post_init__(self):
         assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
         assert self.chunk_size > 0, "Chunk size must be positive"
+        assert 0 <= self.structure_demotion < 1, "structure_demotion is a factor in [0, 1); 0 disables it"
+        assert self.structure_min_repeats >= 1, "structure_min_repeats must be >= 1"
         logger.warning(
             "KVzipPress requires multiple forward passes for chunked context reconstruction, "
             "resulting in a computational overhead of 2–3 times the initial prefilling cost. "
@@ -75,6 +96,7 @@ class KVzipPress(BasePress):
         self._cache = None
 
         self.score_val = None
+        self._tokenizer: PreTrainedTokenizerBase | None = None
         self.causal_mask_score = None
         self.start_idx = 0
         self.end_idx = 0
@@ -98,6 +120,7 @@ class KVzipPress(BasePress):
 
         # Store model reference for later use
         tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+        self._tokenizer = tokenizer
 
         # Get suffix_ids directly using tokenizer's chat template (do this once, not in hook)
         if tokenizer.chat_template is None:
@@ -366,12 +389,72 @@ class KVzipPress(BasePress):
         keys, values = keys[:, :, : self.context_length], values[:, :, : self.context_length]
         return keys, values
 
+    # A content token is a word, word piece or number: letters/digits, optionally with apostrophes or hyphens
+    # (after stripping surrounding whitespace). Everything else -- punctuation, whitespace, symbols -- is structure.
+    _CONTENT_TOKEN = re.compile(r"[^\W_](?:[^\W_]|['\-])*", re.UNICODE)
+
+    @staticmethod
+    def demote_structure_scores(
+        score_val: torch.Tensor,
+        context_ids: torch.Tensor,
+        decode: Callable[[int], str],
+        factor: float,
+        min_repeats: int,
+        start: int = 0,
+    ) -> int:
+        """
+        In-place structure demotion on ``score_val`` (n_layer, bsz, n_kv_heads, ctx_len).
+
+        A position is demoted when its token is structural -- it does not decode to a word, word piece or number
+        (letters/digits, optionally with apostrophes or hyphens) once surrounding whitespace is stripped -- and the
+        same token id occurs at least ``min_repeats`` times in ``context_ids[start:]``. Positions before ``start``
+        (chat-template prefix, attention sinks) and positions beyond ``len(context_ids)`` (e.g. RestoreKV's appended
+        restore tokens) are never touched. ``decode(token_id) -> str``. Returns the number of demoted positions.
+        Pure function of tensors so it can be unit-tested without a model.
+        """
+        n = min(int(score_val.shape[-1]), int(context_ids.shape[-1]))
+        if factor <= 0 or n <= start:
+            return 0
+        ids = context_ids[start:n].detach().to("cpu")
+        uniq, inverse, counts = torch.unique(ids, return_inverse=True, return_counts=True)
+        structural = torch.tensor(
+            [KVzipPress._CONTENT_TOKEN.fullmatch(decode(int(t)).strip()) is None for t in uniq.tolist()],
+            dtype=torch.bool,
+        )
+        demote = (structural & (counts >= min_repeats))[inverse]
+        idx = torch.nonzero(demote).flatten() + start
+        if idx.numel() == 0:
+            return 0
+        idx = idx.to(score_val.device)
+        score_val[..., idx] = score_val[..., idx] * factor
+        return int(idx.numel())
+
     def compress_post(self, model: PreTrainedModel):
         """
         Obtain the indices of KV pairs to be evicted.
         Adopted from adakv_press.compress (fake compression). KVzip does not rely on safeguards.
         """
         if self.compression_ratio > 0:
+            if self.structure_demotion > 0 and self._context_ids is not None and self._tokenizer is not None:
+                tokenizer = self._tokenizer
+
+                def decode(token_id: int) -> str:
+                    return cast(str, tokenizer.decode([token_id]))
+
+                n_demoted = self.demote_structure_scores(
+                    self.score_val,
+                    self._context_ids[0],
+                    decode,
+                    self.structure_demotion,
+                    self.structure_min_repeats,
+                    start=max(self.prefix_length, self.n_sink),
+                )
+                logger.debug(
+                    "Structure demotion: %d of %d positions scaled by %.2f",
+                    n_demoted,
+                    self.score_val.shape[-1],
+                    self.structure_demotion,
+                )
             # Attention sinks are never evicted: they are given the highest score
             self.score_val[..., : self.n_sink] = self.score_val.amax() + 1.0
             n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape
