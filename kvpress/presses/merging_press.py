@@ -142,12 +142,18 @@ class MergingPress(BasePress):
         # Threshold gate
         merge_ok = max_sim >= self.similarity_threshold
 
-        # Fraction gate: keep only the top merge_fraction by similarity.
-        # Failed tokens sink to -inf so the quantile lands among valid candidates.
+        # Fraction gate: keep only the top merge_fraction of the eligible tokens by similarity.
+        # The rank is taken within the eligible set of each row. A quantile over the whole row
+        # (with rejected tokens set to -inf) measures a share of all evicted tokens, so the
+        # share of eligible tokens that merged depended on the rejection rate of the row.
+        # Same idiom as torch.nn.utils.prune.PruningContainer._combine_masks, which restricts
+        # to the still-unpruned entries (``mask == 1``) before computing a new sub-mask.
         if self.merge_fraction < 1.0 and merge_ok.any():
-            threshold = max_sim.masked_fill(~merge_ok, float("-inf")).quantile(
-                1.0 - self.merge_fraction, dim=-1, keepdim=True
-            )
+            n_eligible = merge_ok.sum(dim=-1, keepdim=True)
+            n_merge = (n_eligible.float() * self.merge_fraction).round().clamp(min=1).long()
+            k_max = int(n_merge.max())
+            top_sim = max_sim.masked_fill(~merge_ok, float("-inf")).topk(k_max, dim=-1).values
+            threshold = top_sim.gather(-1, (n_merge - 1).clamp(max=k_max - 1))
             merge_ok = merge_ok & (max_sim >= threshold)
 
         # Similarity- and value-norm-weighted merge
