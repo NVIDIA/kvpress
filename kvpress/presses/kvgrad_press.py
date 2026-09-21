@@ -106,14 +106,14 @@ class KVgradPress(KVzipPress):
 
     Parameters
     ----------
-    chunk_size : int, default=512
+    chunk_size : int, default=256
         Number of context tokens reconstructed by each replay pass. Smaller chunks give a finer
         gradient signal, at the cost of more forward and backward passes.
     compression_ratio, layerwise, n_sink
         See `KVzipPress`.
     """
 
-    chunk_size: int = 512
+    chunk_size: int = 256
     # KVgrad always weights the reconstruction attention by ||v W_O||, so the KVzip+ normalization
     # does not apply here.
     kvzip_plus_normalization: bool = field(init=False, default=False, repr=False)
