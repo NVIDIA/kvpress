@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
 import torch
 from transformers import DynamicCache
 
@@ -136,3 +137,54 @@ def test_merge_method_signature():
     assert torch.equal(new_keys, keys)
     # Kept positions absorb evicted information: values must change there
     assert not torch.equal(new_values[:, :, : seq_len // 2], values[:, :, : seq_len // 2])
+
+
+def _merged_share(merge_fraction, rejection_per_head, n=64, dtype=torch.float32):
+    """Share of threshold-eligible evicted tokens that ``MergingPress.merge`` actually merges.
+
+    Head h has n kept tokens with keys e_0..e_{n-1} and n evicted tokens whose only similar
+    survivor is kept token i, with cosine similarity a_i. A share ``rejection_per_head[h]`` of
+    the a_i lie below the similarity threshold 0.5, the rest at or above it, so the number of
+    eligible tokens is known exactly. Kept values are zero and evicted values are one, so a
+    kept value is non-zero after the merge iff its evicted partner was merged.
+    """
+    num_heads = len(rejection_per_head)
+    head_dim = 2 * n
+    keys = torch.zeros(1, num_heads, 2 * n, head_dim)
+    values = torch.zeros(1, num_heads, 2 * n, head_dim)
+    n_eligible = []
+    for h, rejection in enumerate(rejection_per_head):
+        n_reject = round(rejection * n)
+        a = torch.cat([torch.linspace(0.05, 0.45, n_reject), torch.linspace(0.5, 0.99, n - n_reject)])
+        idx = torch.arange(n)
+        keys[0, h, idx, idx] = 1.0
+        keys[0, h, n + idx, idx] = a
+        keys[0, h, n + idx, n + idx] = (1 - a**2).sqrt()
+        values[0, h, n:] = 1.0
+        n_eligible.append(n - n_reject)
+    kept = torch.arange(n).expand(1, num_heads, n)
+    press = MergingPress(
+        press=KnormPress(compression_ratio=0.5), similarity_threshold=0.5, merge_fraction=merge_fraction
+    )
+    _, new_values = press.merge(keys.to(dtype), values.to(dtype), kept)
+    merged = (new_values[0, :, :n].abs().sum(-1) > 0).sum(-1)
+    return [m / e for m, e in zip(merged.tolist(), n_eligible)]
+
+
+@pytest.mark.parametrize("rejection", [0.0, 0.25, 0.5, 0.75])
+def test_merge_fraction_is_a_share_of_eligible_tokens(rejection):
+    """merge_fraction=0.75 must merge 75% of the threshold-eligible tokens at any rejection rate."""
+    (share,) = _merged_share(0.75, [rejection])
+    assert abs(share - 0.75) < 0.02, f"rejection={rejection}: merged share {share:.3f} != 0.75"
+
+
+def test_merge_fraction_per_row_with_heterogeneous_rejection():
+    """The share holds per (batch, head) row when rows reject different fractions."""
+    shares = _merged_share(0.75, [0.0, 0.25, 0.5, 0.75])
+    assert all(abs(s - 0.75) < 0.02 for s in shares), shares
+
+
+def test_merge_fraction_one_is_unchanged_by_the_gate():
+    """merge_fraction=1.0 merges every eligible token."""
+    shares = _merged_share(1.0, [0.0, 0.5])
+    assert shares == [1.0, 1.0]
