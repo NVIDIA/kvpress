@@ -99,6 +99,7 @@ PRESS_REGISTRY = {
     "kvgrad": KVgradPress(),
     "kvzip": KVzipPress(),
     "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
+    "kvzip_plus_sd": KVzipPress(kvzip_plus_normalization=True, structure_demotion=0.25),  # + structure demotion
     "kvzap_linear": DMSPress(press=KVzapPress(model_type="linear")),
     "kvzap_mlp": DMSPress(press=KVzapPress(model_type="mlp")),
     "kvzap_mlp_head": KVzapPress(model_type="mlp"),
@@ -112,6 +113,7 @@ PRESS_REGISTRY = {
     "random": RandomPress(),
     "RestoreKV": RestoreKVPress(),
     "RestoreKV_plus": RestoreKVPress(kvzip_plus_normalization=True),  # RestoreKV+ (KVzip+ scoring)
+    "RestoreKV_plus_sd": RestoreKVPress(kvzip_plus_normalization=True, structure_demotion=0.25),  # + structure demotion
     "snap_think": ComposedPress([SnapKVPress(), ThinKPress()]),
     "snapkv": SnapKVPress(),
     "streaming_llm": StreamingLLMPress(),
