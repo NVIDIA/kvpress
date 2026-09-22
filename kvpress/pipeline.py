@@ -257,12 +257,18 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         if isinstance(cache, QuantizedCache):
             for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                cache.layers[layer_idx]._quantized_keys = cache.layers[layer_idx]._quantized_keys[
-                    :, :, :sequence_length
-                ]
-                cache.layers[layer_idx]._quantized_values = cache.layers[layer_idx]._quantized_values[
-                    :, :, :sequence_length
-                ]
+                layer = cache.layers[layer_idx]
+                if isinstance(layer._quantized_keys, tuple):
+                    # hqq backend returns a (qtensor, meta) tuple whose packed shape has no seq_len axis
+                    # to slice - dequantize to a real tensor, slice, then re-quantize.
+                    keys = layer._dequantize(layer._quantized_keys)[:, :, :sequence_length]
+                    values = layer._dequantize(layer._quantized_values)[:, :, :sequence_length]
+                    layer._quantized_keys = layer._quantize(keys, axis=layer.axis_key)
+                    layer._quantized_values = layer._quantize(values, axis=layer.axis_value)
+                else:
+                    # quanto backend: already a sliceable tensor-like object
+                    layer._quantized_keys = layer._quantized_keys[:, :, :sequence_length]
+                    layer._quantized_values = layer._quantized_values[:, :, :sequence_length]
 
     def generate_answer(
         self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
