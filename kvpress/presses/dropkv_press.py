@@ -7,10 +7,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
+from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import compute_n_kept, get_prerope_query_states
+from kvpress.utils import get_query_states
 
 
 @dataclass
@@ -40,7 +40,9 @@ class DropKVPress(ScorerPress):
     so the score is exact for a single eviction rather than a proxy such as the
     raw attention weight. Scores are averaged over the query heads sharing a KV
     head, smoothed along the sequence with average pooling over `kernel_size`
-    positions, and the most recent `window_size` positions are always retained.
+    positions, and the observation window is always retained. Under the eager
+    attention implementation the probabilities are taken from the forward pass
+    instead of being recomputed.
 
     Based on DropKV (https://openreview.net/forum?id=MqfNzH3TVH).
 
@@ -55,7 +57,8 @@ class DropKVPress(ScorerPress):
         Fraction of key-value pairs to remove during compression.
     window_size : int, default=32
         Number of recent queries used for scoring and recent KV pairs that are
-        always retained.
+        always retained. Clamped to the query and cache lengths available in the
+        current forward pass, so decoding presses can score short buffers.
     kernel_size : int, default=7
         Odd-sized average-pooling kernel used to smooth token scores.
     epsilon : float, default=1e-6
@@ -76,47 +79,41 @@ class DropKVPress(ScorerPress):
         if self.epsilon <= 0:
             raise ValueError(f"epsilon must be positive, got {self.epsilon}")
 
+    def _effective_window_size(self, q_len: int, k_len: int) -> int:
+        """Observation window, clamped to what the current forward pass provides.
+
+        Decoding presses call the scorer with only a handful of buffered queries,
+        so the nominal ``window_size`` is not always available.
+        """
+        return max(1, min(self.window_size, q_len, k_len))
+
     def _get_window_queries(
         self,
         module: nn.Module,
         hidden_states: torch.Tensor,
         position_embeddings: tuple[torch.Tensor, torch.Tensor],
+        window_size: int,
     ) -> torch.Tensor:
         """Project and rotate the most recent query window."""
-        if hidden_states.shape[1] < self.window_size:
-            raise ValueError(f"Query length {hidden_states.shape[1]} must be at least window_size={self.window_size}")
-
-        query_states = get_prerope_query_states(module, hidden_states[:, -self.window_size :])
         cos, sin = position_embeddings
-        cos = cos[:, -self.window_size :]
-        sin = sin[:, -self.window_size :]
-        return (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
+        return get_query_states(
+            module,
+            hidden_states[:, -window_size:],
+            (cos[:, -window_size:], sin[:, -window_size:]),
+        )
 
-    def _compute_scores(
-        self,
-        query_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-    ) -> torch.Tensor:
-        """Compute DropKV scores in query-head space, then average GQA groups."""
-        if keys.shape != values.shape:
-            raise ValueError(f"keys and values must have the same shape, got {keys.shape} and {values.shape}")
+    def _compute_window_probabilities(self, query_states: torch.Tensor, keys: torch.Tensor) -> torch.Tensor:
+        """Attention probabilities of the window queries over the whole cache.
 
-        bsz, num_kv_heads, seq_len, head_dim = keys.shape
-        num_query_heads = query_states.shape[1]
+        Only used when the attention weights are not already available from the
+        forward pass, i.e. outside of the eager attention implementation.
+        """
+        num_query_heads, query_len = query_states.shape[1], query_states.shape[2]
+        num_kv_heads, seq_len, head_dim = keys.shape[1], keys.shape[2], keys.shape[3]
         if num_query_heads % num_kv_heads != 0:
             raise ValueError(f"Query heads {num_query_heads} must be divisible by KV heads {num_kv_heads}")
 
-        num_groups = num_query_heads // num_kv_heads
-        query_len = query_states.shape[2]
-        if query_len != self.window_size:
-            raise ValueError(f"Expected {self.window_size} query states, got {query_len}")
-        if seq_len < query_len:
-            raise ValueError(f"KV length {seq_len} must be at least query length {query_len}")
-
-        repeated_keys = repeat_kv(keys, num_groups)
-        repeated_values = repeat_kv(values, num_groups)
-
+        repeated_keys = repeat_kv(keys, num_query_heads // num_kv_heads)
         attention_weights = torch.matmul(query_states, repeated_keys.transpose(2, 3)) / math.sqrt(head_dim)
 
         causal_mask = torch.full(
@@ -126,13 +123,35 @@ class DropKVPress(ScorerPress):
         )
         causal_mask = torch.triu(causal_mask, diagonal=seq_len - query_len + 1)
         attention_weights += causal_mask
-        attention_weights = F.softmax(attention_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        return F.softmax(attention_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
 
-        attention_output = torch.matmul(attention_weights, repeated_values)
+    def _compute_scores(
+        self,
+        probabilities: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+    ) -> torch.Tensor:
+        """Accumulate the squared residual over the query window, then average GQA groups."""
+        if keys.shape != values.shape:
+            raise ValueError(f"keys and values must have the same shape, got {keys.shape} and {values.shape}")
+
+        bsz, num_kv_heads, seq_len, _ = keys.shape
+        num_query_heads, query_len = probabilities.shape[1], probabilities.shape[2]
+        if num_query_heads % num_kv_heads != 0:
+            raise ValueError(f"Query heads {num_query_heads} must be divisible by KV heads {num_kv_heads}")
+        if seq_len < query_len:
+            raise ValueError(f"KV length {seq_len} must be at least query length {query_len}")
+        if probabilities.shape[-1] != seq_len:
+            raise ValueError(f"Expected probabilities over {seq_len} positions, got {probabilities.shape[-1]}")
+
+        num_groups = num_query_heads // num_kv_heads
+        repeated_values = repeat_kv(values, num_groups)
+
+        attention_output = torch.matmul(probabilities, repeated_values)
 
         # Preserve the original precision path: probabilities are rounded to
         # the query dtype before all sensitivity terms are evaluated in fp32.
-        attention_float = attention_weights.float()
+        attention_float = probabilities.float()
         sensitivity_weights = (attention_float / (1.0 - attention_float + self.epsilon)).square()
 
         weight_sum = sensitivity_weights.sum(dim=-2)
@@ -158,10 +177,17 @@ class DropKVPress(ScorerPress):
         attentions: torch.Tensor,
         kwargs: dict,
     ) -> torch.Tensor:
-        del attentions
+        window_size = self._effective_window_size(hidden_states.shape[1], keys.shape[2])
 
-        query_states = self._get_window_queries(module, hidden_states, kwargs["position_embeddings"])
-        scores = self._compute_scores(query_states, keys, values)
+        if attentions is not None:
+            # Eager attention already materialized the probabilities. Unlike SnapKV,
+            # DropKV needs every column: the attention output is recomputed from them.
+            probabilities = attentions[..., -window_size:, :]
+        else:
+            query_states = self._get_window_queries(module, hidden_states, kwargs["position_embeddings"], window_size)
+            probabilities = self._compute_window_probabilities(query_states, keys)
+
+        scores = self._compute_scores(probabilities, keys, values)
 
         scores = F.avg_pool1d(
             scores,
@@ -173,29 +199,5 @@ class DropKVPress(ScorerPress):
         # Recent positions are both the observation window and the context most
         # immediately relevant to decoding, so guarantee that top-k retains them.
         protected_score = scores.amax(dim=-1, keepdim=True) + 1.0
-        scores[:, :, -self.window_size :] = protected_score
+        scores[:, :, -window_size:] = protected_score
         return scores
-
-    def compress(
-        self,
-        module: nn.Module,
-        hidden_states: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-        attentions: torch.Tensor,
-        kwargs: dict,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        if self.compression_ratio == 0 or keys.shape[2] < self.window_size:
-            return keys, values
-
-        scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
-
-        seq_len = keys.shape[2]
-        n_kept = min(seq_len, max(compute_n_kept(seq_len, self.compression_ratio), self.window_size))
-        indices = scores.topk(n_kept, dim=-1, largest=True).indices
-        indices = indices.sort(dim=-1).values
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, keys.shape[-1])
-
-        keys = keys.gather(2, indices).contiguous()
-        values = values.gather(2, indices).contiguous()
-        return keys, values

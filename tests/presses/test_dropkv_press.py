@@ -9,7 +9,9 @@ from torch.nn import functional as F
 from transformers import DynamicCache
 
 from kvpress import DropKVPress
+from kvpress.utils import compute_n_kept
 from tests.fixtures import unit_test_model  # noqa: F401
+from tests.fixtures import unit_test_model_output_attention  # noqa: F401
 
 
 def _repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -76,7 +78,8 @@ def test_dropkv_scores_match_reference(num_query_heads, num_kv_heads):
     press = DropKVPress(window_size=window_size)
 
     expected = _reference_scores(query_states, keys, values, press.epsilon)
-    actual = press._compute_scores(query_states, keys, values)
+    probabilities = press._compute_window_probabilities(query_states, keys)
+    actual = press._compute_scores(probabilities, keys, values)
 
     torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-5)
 
@@ -96,31 +99,69 @@ def test_dropkv_rejects_invalid_parameters(kwargs):
 
 
 @torch.no_grad()
-def test_dropkv_press_compresses_cache_and_protects_window(unit_test_model):  # noqa: F811
-    seq_len = 64
-    window_size = 8
-    press = DropKVPress(compression_ratio=0.9, window_size=window_size, kernel_size=3)
+@pytest.mark.parametrize("seq_len", [64, 4])
+def test_dropkv_press_keeps_the_shared_budget(unit_test_model, seq_len):  # noqa: F811
+    """The budget follows ScorerPress, including when the context is shorter than the window."""
+    compression_ratio = 0.5
+    press = DropKVPress(compression_ratio=compression_ratio, window_size=8, kernel_size=3)
     input_ids = torch.randint(0, 1024, (1, seq_len), device=unit_test_model.device)
 
     with press(unit_test_model):
         cache = DynamicCache()
         unit_test_model(input_ids, past_key_values=cache)
 
+    expected = compute_n_kept(seq_len, compression_ratio)
     for layer in cache.layers:
-        assert layer.keys.shape[2] == window_size
-        assert layer.values.shape[2] == window_size
+        assert layer.keys.shape[2] == expected
+        assert layer.values.shape[2] == expected
 
 
 @torch.no_grad()
-def test_dropkv_skips_context_shorter_than_window(unit_test_model):  # noqa: F811
-    seq_len = 4
-    press = DropKVPress(compression_ratio=0.8, window_size=8, kernel_size=3)
-    input_ids = torch.randint(0, 1024, (1, seq_len), device=unit_test_model.device)
+def test_dropkv_score_protects_recent_window(unit_test_model):  # noqa: F811
+    """The observation window outranks every other position, so top-k always keeps it."""
+    window_size = 8
+    recorded = []
+
+    class RecordingDropKVPress(DropKVPress):
+        def score(self, *args, **kwargs):
+            scores = super().score(*args, **kwargs)
+            recorded.append(scores.clone())
+            return scores
+
+    press = RecordingDropKVPress(compression_ratio=0.5, window_size=window_size, kernel_size=3)
+    input_ids = torch.randint(0, 1024, (1, 64), device=unit_test_model.device)
 
     with press(unit_test_model):
-        cache = DynamicCache()
-        unit_test_model(input_ids, past_key_values=cache)
+        unit_test_model(input_ids, past_key_values=DynamicCache())
 
-    for layer in cache.layers:
-        assert layer.keys.shape[2] == seq_len
-        assert layer.values.shape[2] == seq_len
+    assert recorded
+    for scores in recorded:
+        window, rest = scores[..., -window_size:], scores[..., :-window_size]
+        assert torch.all(window == window[..., :1])
+        assert window.min() > rest.max()
+
+
+@torch.no_grad()
+def test_dropkv_reuses_eager_attention_weights(unit_test_model_output_attention):  # noqa: F811
+    """With eager attention the scores must match the ones recomputed from the queries."""
+    window_size = 8
+    model = unit_test_model_output_attention
+    input_ids = torch.randint(0, 1024, (1, 40), device=model.device)
+
+    recorded: dict[str, list] = {"reused": [], "recomputed": []}
+
+    class RecordingDropKVPress(DropKVPress):
+        def score(self, module, hidden_states, keys, values, attentions, kwargs):
+            reused = super().score(module, hidden_states, keys, values, attentions, kwargs)
+            recomputed = super().score(module, hidden_states, keys, values, None, kwargs)
+            recorded["reused"].append(reused.clone())
+            recorded["recomputed"].append(recomputed.clone())
+            return reused
+
+    press = RecordingDropKVPress(compression_ratio=0.5, window_size=window_size, kernel_size=3)
+    with press(model):
+        model(input_ids, past_key_values=DynamicCache(), output_attentions=True)
+
+    assert recorded["reused"], "the press never saw eager attention weights"
+    for reused, recomputed in zip(recorded["reused"], recorded["recomputed"]):
+        torch.testing.assert_close(reused, recomputed, rtol=1e-4, atol=1e-4)
