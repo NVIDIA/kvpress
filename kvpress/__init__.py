@@ -41,6 +41,7 @@ from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.pyramidkv_press import PyramidKVPress
 from kvpress.presses.qfilter_press import QFilterPress
+from kvpress.presses.query_span_press import QuerySpanPress
 from kvpress.presses.random_press import RandomPress
 from kvpress.presses.restorekv_press import RestoreKVPress
 from kvpress.presses.scorer_press import ScorerPress
@@ -78,6 +79,7 @@ __all__ = [
     "DuoAttentionPress",
     "ChunkKVPress",
     "QFilterPress",
+    "QuerySpanPress",
     "PyramidKVPress",
     "FinchPress",
     "LagKVPress",

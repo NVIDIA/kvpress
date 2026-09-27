@@ -41,6 +41,7 @@ from kvpress import (
     ObservedAttentionPress,
     PyramidKVPress,
     QFilterPress,
+    QuerySpanPress,
     RandomPress,
     RestoreKVPress,
     SnapKVPress,
@@ -109,6 +110,7 @@ PRESS_REGISTRY = {
     "observed_attention": ObservedAttentionPress(),
     "pyramidkv": PyramidKVPress(),
     "qfilter": QFilterPress(),
+    "query_span": QuerySpanPress(),  # requires query_aware=True
     "random": RandomPress(),
     "RestoreKV": RestoreKVPress(),
     "RestoreKV_plus": RestoreKVPress(kvzip_plus_normalization=True),  # RestoreKV+ (KVzip+ scoring)
