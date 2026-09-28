@@ -24,6 +24,7 @@ from kvpress import (
     CURPress,
     DecodingPress,
     DMSPress,
+    DropKVPress,
     DuoAttentionPress,
     EntropyGatedChunkKVPress,
     ExpectedAttentionPress,
@@ -79,6 +80,7 @@ SCORER_REGISTRY = {
 
 
 PRESS_REGISTRY = {
+    "adakv_dropkv": AdaKVPress(DropKVPress()),
     "adakv_snapkv": AdaKVPress(SnapKVPress()),
     "block_keydiff": BlockPress(press=KeyDiffPress(), block_size=128),
     "chunkkv": ChunkKVPress(press=SnapKVPress(), chunk_length=20),
@@ -87,6 +89,7 @@ PRESS_REGISTRY = {
     "critical_expected_attention": CriticalKVPress(ExpectedAttentionPress(use_vnorm=False)),
     "critical_snapkv": CriticalKVPress(SnapKVPress()),
     "cur": CURPress(),
+    "dropkv": DropKVPress(),
     "duo_attention": DuoAttentionPress(),
     "duo_attention_on_the_fly": DuoAttentionPress(on_the_fly_scoring=True),
     "entropy_gated_chunkkv": EntropyGatedChunkKVPress(press=SnapKVPress()),

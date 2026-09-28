@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from transformers import Cache, QuantizedCache
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
+from transformers.models.llama.modeling_llama import rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
@@ -51,6 +52,38 @@ def get_prerope_query_states(module: nn.Module, hidden_states: torch.Tensor) -> 
         query_states = module.q_norm(query_states)
 
     return query_states
+
+
+def get_query_states(
+    module: nn.Module,
+    hidden_states: torch.Tensor,
+    position_embeddings: tuple[torch.Tensor, torch.Tensor],
+) -> torch.Tensor:
+    """
+    Extracts the query states from an attention module and applies rotary embeddings.
+
+    Thin wrapper around :func:`get_prerope_query_states` for presses that score with
+    post-RoPE queries. Callers slice ``hidden_states`` and ``position_embeddings``
+    themselves, e.g. ``hidden_states[:, -window_size:]`` together with
+    ``(cos[:, -window_size:], sin[:, -window_size:])``.
+
+    Parameters
+    ----------
+    module : nn.Module
+        The attention module from which to extract query states.
+    hidden_states : torch.Tensor
+        The input hidden states of shape (batch_size, seq_len, hidden_dim).
+    position_embeddings : tuple[torch.Tensor, torch.Tensor]
+        The (cos, sin) rotary embeddings, each of shape (batch_size, seq_len, head_dim).
+
+    Returns
+    -------
+    query_states : torch.Tensor
+        The rotated query states of shape (batch_size, num_heads, seq_len, head_dim).
+    """
+    cos, sin = position_embeddings
+    query_states = get_prerope_query_states(module, hidden_states)
+    return (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
 
 
 def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:

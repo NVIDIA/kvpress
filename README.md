@@ -120,6 +120,7 @@ Several presses inherit from `ScorerPress` ([source](kvpress/presses/scorer_pres
 - `KVzapPress` ([source](kvpress/presses/kvzap_press.py), [paper](https://arxiv.org/abs/2601.07891), [training](kvzap)): approximate KVzip+ using a fast surrogate model. To be used in conjunction with the `DMSPress`.
 - `FastKVzipPress` ([source](kvpress/presses/fastkvzip_press.py), [paper](https://arxiv.org/abs/2601.17668)): approximate KVzip through a lightweight gating mechanism.
 - `CapPress` ([source](kvpress/presses/cap_press.py), [paper](https://arxiv.org/abs/2604.25975)): evict tokens based on query-aware capacity scores from a log-determinant leverage proxy.
+- `DropKVPress` ([source](kvpress/presses/dropkv_press.py), [paper](https://openreview.net/forum?id=MqfNzH3TVH)): evict KV pairs by decoupled residual-output perturbation, scoring each pair with the closed-form output deviation its removal alone would cause.
 
 Some presses rely on a different logic:
 - `ThinKPress` ([source](kvpress/presses/think_press.py), [paper](https://arxiv.org/abs/2407.21018)): compress the dimensions of the keys based on the channel attention score on the last queries 

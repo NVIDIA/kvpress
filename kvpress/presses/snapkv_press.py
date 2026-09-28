@@ -8,10 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
+from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import get_query_states
 
 
 @dataclass
@@ -49,13 +49,11 @@ class SnapKVPress(ScorerPress):
         head_dim = module.head_dim
         num_key_value_groups = num_heads // module.config.num_key_value_heads
 
-        # Get last window_size queries
-        query_states = get_prerope_query_states(module, hidden_states[:, -window_size:])
-
-        # Apply RoPE
+        # Get last window_size queries and apply RoPE
         cos, sin = position_embeddings
-        cos, sin = cos[:, -window_size:], sin[:, -window_size:]
-        query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
+        query_states = get_query_states(
+            module, hidden_states[:, -window_size:], (cos[:, -window_size:], sin[:, -window_size:])
+        )
 
         # Compute attention for first q_len - window_size tokens
         key_states = repeat_kv(keys, num_key_value_groups)

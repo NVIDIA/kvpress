@@ -8,6 +8,7 @@ from kvpress import (
     CapPress,
     CompactorPress,
     CURPress,
+    DropKVPress,
     DuoAttentionPress,
     ExpectedAttentionPress,
     ExpectedAttentionStatsPress,
@@ -104,6 +105,13 @@ class TestRestoreKVPress(RestoreKVPress):
 # kwargs should be ordered easy to hard compression
 default_presses = [
     {"cls": TestDuoAttentionPress, "kwargs": [{"head_compression_ratio": 0.2}, {"head_compression_ratio": 0.8}]},
+    {
+        "cls": DropKVPress,
+        "kwargs": [
+            {"compression_ratio": 0.2, "window_size": 8, "kernel_size": 3},
+            {"compression_ratio": 0.8, "window_size": 8, "kernel_size": 3},
+        ],
+    },
     {"cls": KnormPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": ExpectedAttentionPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
     {"cls": ExpectedAttentionStatsPress, "kwargs": [{"compression_ratio": 0.2}, {"compression_ratio": 0.8}]},
