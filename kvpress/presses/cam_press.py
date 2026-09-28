@@ -10,13 +10,13 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from transformers import QuantizedCache
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
+from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import extract_keys_and_values, get_prerope_query_states
+from kvpress.utils import extract_keys_and_values, get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -335,13 +335,10 @@ class CAMPress(DecodingPress):
         num_query_heads = module.config.num_attention_heads
         num_key_value_groups = num_query_heads // num_key_value_heads
 
-        query_states = get_prerope_query_states(module, hidden_states)
-        query_states = query_states[:, :, -1:, :]
-
         cos, sin = kwargs["position_embeddings"]
-        cos = cos[:, -1:, :].unsqueeze(1)
-        sin = sin[:, -1:, :].unsqueeze(1)
-        query_states = (query_states * cos) + (rotate_half(query_states) * sin)
+        # Preserve the full projection shape; only the last query and its RoPE position are used.
+        query_states = get_query_states(module, hidden_states, (cos[:, -1:, :], sin[:, -1:, :]))
+        query_states = query_states[:, :, -1:, :]
 
         keys_repeated = repeat_kv(keys, num_key_value_groups)
         scores = torch.matmul(query_states, keys_repeated.transpose(-2, -1)) / math.sqrt(head_dim)

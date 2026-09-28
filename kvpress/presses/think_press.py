@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 
@@ -6,10 +6,9 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import get_query_states
 
 
 @dataclass
@@ -45,14 +44,9 @@ class ThinKPress(BasePress):
         Re-compute the last window_size query states
         """
         # Get last self.window_size queries
-        query_states = get_prerope_query_states(module, hidden_states[:, -self.window_size :])
-
-        # Apply RoPE
         cos, sin = position_embeddings
         cos, sin = cos[:, -self.window_size :], sin[:, -self.window_size :]
-        query_states = (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
-
-        return query_states
+        return get_query_states(module, hidden_states[:, -self.window_size :], (cos, sin))
 
     def compress(
         self,

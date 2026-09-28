@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
@@ -11,10 +11,9 @@ from typing import Generator, List
 import torch
 from torch import nn
 from transformers import AutoTokenizer, Gemma3PreTrainedModel, PreTrainedModel, PreTrainedTokenizer, QuantizedCache
-from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
-from kvpress.utils import extract_keys_and_values, get_prerope_query_states
+from kvpress.utils import extract_keys_and_values, get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -296,11 +295,7 @@ class KVzipPress(BasePress):
         num_heads_kv = module.config.num_key_value_heads
         num_key_value_groups = module.config.num_attention_heads // num_heads_kv
 
-        queries = get_prerope_query_states(module, hidden_states)
-
-        # Apply RoPE
-        cos, sin = kwargs["position_embeddings"]
-        queries = (queries * cos.unsqueeze(1)) + (rotate_half(queries) * sin.unsqueeze(1))
+        queries = get_query_states(module, hidden_states, kwargs["position_embeddings"])
         queries = queries.view(bsz, num_heads_kv, num_key_value_groups, q_len, module.head_dim)
 
         # Subsample keys: attention sinks, KV chunk in the cache, KV repeat chunk

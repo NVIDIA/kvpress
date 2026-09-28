@@ -1,3 +1,4 @@
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-FileCopyrightText: Copyright Vivek Chari
 # SPDX-License-Identifier: Apache-2.0
 
@@ -7,10 +8,10 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
+from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import get_query_states
 
 
 @dataclass
@@ -105,12 +106,9 @@ class NonCausalAttnPress(ScorerPress):
         assert keys.shape[-2] == n_queries, "NonCausalAttnPress only supports prefill"
 
         cos, sin = kwargs["position_embeddings"]
-        q = get_prerope_query_states(module, hidden_states)  # (B, H_q, S, d)
-
-        q_len = q.shape[-2]
+        # Apply RoPE to the queries for the last n_queries positions.
+        q = get_query_states(module, hidden_states, (cos[:, -n_queries:, :], sin[:, -n_queries:, :]))
         num_kv_groups = q.shape[1] // values.shape[1]
-        # apply RoPE to the queries for the last q_len positions
-        q = (q * cos[:, -q_len:, :].unsqueeze(1)) + (rotate_half(q) * sin[:, -q_len:, :].unsqueeze(1))
 
         A = self.non_causal_chunked_attn(q, repeat_kv(keys, num_kv_groups), self.chunk_size)  # (B, H_q, S)
         # average across query-head groups back to H_kv
