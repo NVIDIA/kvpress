@@ -172,7 +172,7 @@ We support KV cache quantization through the transformers `QuantizedCache` class
 ```python
 from transformers import QuantizedCache
 
-cache = QuantizedCache(backend="quanto", nbits=4)
+cache = QuantizedCache(backend="quanto", config=pipe.model.config, nbits=4)
 
 pipe(..., cache=cache)
 ```

@@ -238,37 +238,35 @@ class KVPressTextGenerationPipeline(Pipeline):
                     context_length = cache.get_seq_length()
 
                 cache_seq_lengths = [cache.get_seq_length(layer_idx) for layer_idx in range(len(cache))]
+                # A quantized cache can't be sliced back to the context, so save its layer states instead
+                layer_states = (
+                    [vars(layer).copy() for layer in cache.layers] if isinstance(cache, QuantizedCache) else None
+                )
                 answer = self.generate_answer(
                     question_ids=question_ids.to(self.model.device),
                     cache=cache,
                     context_length=context_length,
                     max_new_tokens=max_new_tokens,
                 )
-                self._remove_answer_from_cache(cache, cache_seq_lengths)
+                self._remove_answer_from_cache(cache, cache_seq_lengths, layer_states)
 
                 answers.append(answer)
         return answers
 
-    def _remove_answer_from_cache(self, cache: Cache, cache_seq_lengths: list[int]):
+    def _remove_answer_from_cache(
+        self, cache: Cache, cache_seq_lengths: list[int], layer_states: Optional[list[dict]] = None
+    ):
+        if isinstance(cache, QuantizedCache):
+            # A QuantizedLayer flushes its full-precision residual into the quantized storage once it reaches
+            # residual_length, so the question and answer can't be sliced off. Restore the saved states instead.
+            # A shallow copy is enough: QuantizedLayer.update assigns new tensors instead of writing in place.
+            for layer, state in zip(cache.layers, layer_states):
+                vars(layer).update(state)
+            return
 
         for layer_idx, sequence_length in enumerate(cache_seq_lengths):
             cache.layers[layer_idx].keys = cache.layers[layer_idx].keys[:, :, :sequence_length]
             cache.layers[layer_idx].values = cache.layers[layer_idx].values[:, :, :sequence_length]
-
-        if isinstance(cache, QuantizedCache):
-            for layer_idx, sequence_length in enumerate(cache_seq_lengths):
-                layer = cache.layers[layer_idx]
-                if isinstance(layer._quantized_keys, tuple):
-                    # hqq backend returns a (qtensor, meta) tuple whose packed shape has no seq_len axis
-                    # to slice - dequantize to a real tensor, slice, then re-quantize.
-                    keys = layer._dequantize(layer._quantized_keys)[:, :, :sequence_length]
-                    values = layer._dequantize(layer._quantized_values)[:, :, :sequence_length]
-                    layer._quantized_keys = layer._quantize(keys, axis=layer.axis_key)
-                    layer._quantized_values = layer._quantize(values, axis=layer.axis_value)
-                else:
-                    # quanto backend: already a sliceable tensor-like object
-                    layer._quantized_keys = layer._quantized_keys[:, :, :sequence_length]
-                    layer._quantized_values = layer._quantized_values[:, :, :sequence_length]
 
     def generate_answer(
         self, question_ids: torch.Tensor, cache: Cache, context_length: int, max_new_tokens: int
