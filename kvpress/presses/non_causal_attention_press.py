@@ -88,7 +88,7 @@ class NonCausalAttnPress(ScorerPress):
         # (B, H, num_chunks, chunk_size, chunk_size)
         dots = torch.matmul(q_chunks, k_chunks.transpose(-2, -1))
         dots[:, :, -1].masked_fill_(query_mask.unsqueeze(-1), 0)
-        dots[:, :, -1].masked_fill_(key_mask.unsqueeze(-2), -1e-9)
+        dots[:, :, -1].masked_fill_(key_mask.unsqueeze(-2), torch.finfo(dots.dtype).min)
         attn = torch.softmax(dots.to(torch.float32), dim=-1)
         # sum over query and trim padding
         return attn.sum(dim=-2).view(B, H, S_pad)[..., :S]
