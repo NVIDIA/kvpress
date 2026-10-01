@@ -43,13 +43,19 @@ def get_exact_match(reference, hypothesis):
     try:
         reference = ast.literal_eval(reference)
         count = len(reference)
-        hypothesis = ast.literal_eval(hypothesis)
-        assert isinstance(hypothesis, dict)
     except Exception:
         return 0, 1
 
+    try:
+        hypothesis = ast.literal_eval(hypothesis)
+        if not isinstance(hypothesis, dict):
+            return 0, count or 1
+        items = reference.items()
+    except Exception:
+        return 0, count or 1
+
     exact_score_count = 0
-    for key, value in reference.items():
+    for key, value in items:
         if hypothesis.get(key) == value:
             exact_score_count += 1
     return exact_score_count, count
