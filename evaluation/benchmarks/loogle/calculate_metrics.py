@@ -4,13 +4,16 @@
 
 import ast
 
+import nltk
 import pandas as pd
+from bert_score import score
+from nltk.translate.bleu_score import sentence_bleu
+from nltk.translate.meteor_score import single_meteor_score
+from rouge import Rouge
 
 
 # Code below is adapted from https://github.com/bigai-nlco/LooGLE/blob/main/Evaluation/automatic_metrics.py
 def get_bleu_score(reference, hypothesis):
-    from nltk.translate.bleu_score import sentence_bleu
-
     reference, hypothesis = (
         reference.replace("\n", " ").split(),
         hypothesis.replace("\n", " ").split(),
@@ -22,16 +25,12 @@ def get_bleu_score(reference, hypothesis):
 
 
 def get_rouge_score(reference, hypothesis, metric="r"):
-    from rouge import Rouge
-
     rouge = Rouge()
     rouge_ = rouge.get_scores(hyps=[hypothesis], refs=[reference])[0]
     return dict((key, rouge_[key][metric]) for key in ["rouge-1", "rouge-2", "rouge-l"])
 
 
 def get_meteor_score(reference, hypothesis):
-    from nltk.translate.meteor_score import single_meteor_score
-
     reference, hypothesis = (
         reference.replace("\n", " ").split(),
         hypothesis.replace("\n", " ").split(),
@@ -92,9 +91,6 @@ def try_except_metric(metric_fn):
 
 
 def calculate_metrics(df: pd.DataFrame) -> dict:
-    import nltk
-    from bert_score import score
-
     nltk.download("wordnet")
 
     scores: dict = {}
