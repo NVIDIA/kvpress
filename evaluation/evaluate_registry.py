@@ -26,6 +26,7 @@ from kvpress import (
     DMSPress,
     DropKVPress,
     DuoAttentionPress,
+    EchoPress,
     EntropyGatedChunkKVPress,
     ExpectedAttentionPress,
     FastKVzipPress,
@@ -102,6 +103,7 @@ PRESS_REGISTRY = {
     "kvgrad": KVgradPress(),
     "kvzip": KVzipPress(),
     "kvzip_plus": KVzipPress(kvzip_plus_normalization=True),
+    "echo": EchoPress(),  # Exact first chunk with per-request, per-head virtual-to-exact calibration.
     "kvzap_linear": DMSPress(press=KVzapPress(model_type="linear")),
     "kvzap_mlp": DMSPress(press=KVzapPress(model_type="mlp")),
     "kvzap_mlp_head": KVzapPress(model_type="mlp"),
