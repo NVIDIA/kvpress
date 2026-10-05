@@ -7,7 +7,7 @@ import logging
 import pytest
 import torch
 from transformers import AutoTokenizer, DynamicCache, QuantizedCache
-from transformers.utils import is_flash_attn_2_available, is_optimum_quanto_available
+from transformers.utils import is_flash_attn_2_available, is_hqq_available, is_optimum_quanto_available
 
 from kvpress import ExpectedAttentionPress, KVzipPress
 from kvpress.pipeline import KVPressTextGenerationPipeline
@@ -106,13 +106,22 @@ def test_pipeline_answer_is_correct(danube_500m_model, caplog):  # noqa: F811
     assert "Compressed Context Length: 16" in messages
 
 
-@pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available")
-def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noqa: F811
+@pytest.mark.parametrize(
+    "backend",
+    [
+        pytest.param(
+            "quanto",
+            marks=pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available"),
+        ),
+        pytest.param("hqq", marks=pytest.mark.skipif(not is_hqq_available(), reason="HQQ is not available")),
+    ],
+)
+def test_pipeline_with_quantized_cache(backend, kv_press_danube_pipeline, caplog):  # noqa: F811
     with caplog.at_level(logging.DEBUG):
         context = "This is a test article. It was written on 2022-01-01."
         questions = ["When was this article written?"]
         press = ExpectedAttentionPress(compression_ratio=0.4)
-        cache = QuantizedCache(backend="quanto", config=kv_press_danube_pipeline.model.config, nbits=4)
+        cache = QuantizedCache(backend=backend, config=kv_press_danube_pipeline.model.config, nbits=4)
         answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
 
     assert len(answers) == 1
@@ -124,6 +133,36 @@ def test_pipeline_with_quantized_cache(kv_press_danube_pipeline, caplog):  # noq
     messages = [record.message for record in caplog.records]
     assert "Context Length: 28" in messages
     assert "Compressed Context Length: 16" in messages
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        pytest.param(
+            "quanto",
+            marks=pytest.mark.skipif(not is_optimum_quanto_available(), reason="Optimum Quanto is not available"),
+        ),
+        pytest.param("hqq", marks=pytest.mark.skipif(not is_hqq_available(), reason="HQQ is not available")),
+    ],
+)
+def test_pipeline_with_quantized_cache_multiple_questions(backend, kv_press_danube_pipeline):  # noqa: F811
+    # residual_length=4 makes the full-precision residual flush into the quantized storage while answering,
+    # so the cache must be restored to the context after each answer, not just sliced.
+    context = "This is a test article. It was written on 2022-01-01."
+    questions = ["When was this article written?", "What is this article?"]
+    press = ExpectedAttentionPress(compression_ratio=0.4)
+
+    def make_cache():
+        return QuantizedCache(backend=backend, config=kv_press_danube_pipeline.model.config, nbits=4, residual_length=4)
+
+    cache = make_cache()
+    answers = kv_press_danube_pipeline(context, questions=questions, press=press, cache=cache)["answers"]
+
+    assert cache.get_seq_length() == 16  # the compressed context, without any question or answer
+
+    for question, answer in zip(questions, answers):
+        single = kv_press_danube_pipeline(context, question=question, press=press, cache=make_cache())["answer"]
+        assert answer == single
 
 
 def test_pipeline_compresses_context(unit_test_model, caplog):  # noqa: F811
