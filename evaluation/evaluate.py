@@ -5,7 +5,7 @@ import json
 import logging
 import random
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -80,6 +80,16 @@ class EvaluationConfig:
 
     def __post_init__(self):
         """Validate configuration after initialization."""
+        # Fire parses "--trust_remote_code false" as the (truthy) string "false"
+        for config_field in fields(self):
+            if config_field.type is bool:
+                value = getattr(self, config_field.name)
+                if isinstance(value, str) and value.lower() in ["true", "false"]:
+                    value = value.lower() == "true"
+                    setattr(self, config_field.name, value)
+                if not isinstance(value, bool):
+                    raise ValueError(f"{config_field.name} must be a boolean, got {value!r}")
+
         # Validate dataset
         assert self.dataset in DATASET_REGISTRY, f"No dataset found for {self.dataset}"
         assert self.dataset in SCORER_REGISTRY, f"No scorer found for {self.dataset}"
