@@ -54,9 +54,9 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.chunk_length > self.low_entropy_chunk_length >= 1, (
-            "EntropyGatedChunkKVPress requires chunk_length > low_entropy_chunk_length >= 1"
-        )
+        assert (
+            self.chunk_length > self.low_entropy_chunk_length >= 1
+        ), "EntropyGatedChunkKVPress requires chunk_length > low_entropy_chunk_length >= 1"
 
     def compress(
         self,
