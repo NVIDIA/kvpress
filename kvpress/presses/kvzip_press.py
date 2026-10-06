@@ -123,9 +123,16 @@ class KVzipPress(BasePress):
         original_forward = model.model.forward
 
         def wrapped_forward(model_self, *args, **kwargs):
-            self._context_ids = kwargs["input_ids"]
-            self._cache = kwargs["past_key_values"]
-            return original_forward(*args, **kwargs)
+            input_ids = kwargs["input_ids"] if "input_ids" in kwargs else (args[0] if args else None)
+            if input_ids is None:
+                raise ValueError(f"{type(self).__name__} replays the context, call the model with input_ids")
+            outputs = original_forward(*args, **kwargs)
+            # The model creates the cache if none is passed
+            if outputs.past_key_values is None:
+                raise ValueError(f"{type(self).__name__} compresses the KV cache, call the model with use_cache=True")
+            self._context_ids = input_ids
+            self._cache = outputs.past_key_values
+            return outputs
 
         model.model.forward = MethodType(wrapped_forward, model.model)
 
