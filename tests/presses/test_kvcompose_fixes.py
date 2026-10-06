@@ -39,6 +39,18 @@ def test_kvcompose_unstructured_cache_only_holds_the_context(unit_test_model):  
         assert layer.self_attn.masked_key_indices[2].max() < context_len
 
 
+def test_kvcompose_prefill_discards_masks_of_a_previous_press(unit_test_model):  # noqa: F811
+    stale_masks = (torch.tensor([0]), torch.tensor([0]), torch.tensor([10_000]))
+    for layer in unit_test_model.model.layers:
+        layer.self_attn.masked_key_indices = stale_masks
+    with KVComposePress(compression_ratio=0.5)(unit_test_model):
+        input_ids = torch.randint(0, 1024, (1, 32), device=unit_test_model.device)
+        unit_test_model(input_ids, past_key_values=DynamicCache())
+
+    for layer in unit_test_model.model.layers:
+        assert layer.self_attn.masked_key_indices is None
+
+
 @torch.no_grad()
 @pytest.mark.parametrize("structured", [True, False])
 def test_kvcompose_generate_decodes_with_the_uncompressed_context(unit_test_model, structured):  # noqa: F811

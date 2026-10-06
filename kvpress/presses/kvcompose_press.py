@@ -403,6 +403,9 @@ class KVComposePress(BasePress):
                 )
 
             press.register_context_ids(input_ids)
+            # Eager attention bypasses kvpress' attention patch, which discards the masked keys on prefill
+            for layer in self.model.layers:
+                layer.self_attn.masked_key_indices = None
 
             hooks = [
                 layer.self_attn.register_forward_hook(press.forward_hook, with_kwargs=True)
