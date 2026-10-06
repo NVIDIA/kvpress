@@ -56,3 +56,20 @@ def test_pipeline_accepts_multiple_questions_with_prefill_compression(
 ):
     answers = kv_press_unit_test_pipeline(CONTEXT, questions=QUESTIONS, press=make_press(), max_new_tokens=3)
     assert len(answers["answers"]) == 2
+
+
+def test_generate_answer_stops_at_tokenizer_eos_token(unit_test_model, monkeypatch):  # noqa: F811
+    tokenizer = AutoTokenizer.from_pretrained(unit_test_model.config.name_or_path)
+    pipe = KVPressTextGenerationPipeline(model=unit_test_model, tokenizer=tokenizer, device=unit_test_model.device)
+    monkeypatch.setattr(unit_test_model.generation_config, "eos_token_id", None)
+    generated_ids = []
+    monkeypatch.setattr(tokenizer, "decode", lambda ids, **kwargs: generated_ids.append(ids.tolist()) or "")
+
+    pipe(CONTEXT, question=QUESTIONS[0], max_new_tokens=8)
+    reference = generated_ids.pop()
+    assert len(reference) == 8
+
+    # The first generated token is never checked, so the second one is the earliest possible stop
+    tokenizer.eos_token = tokenizer.convert_ids_to_tokens(reference[1])
+    pipe(CONTEXT, question=QUESTIONS[0], max_new_tokens=8)
+    assert generated_ids.pop() == reference[:2]

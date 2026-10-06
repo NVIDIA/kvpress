@@ -311,9 +311,12 @@ class KVPressTextGenerationPipeline(Pipeline):
         position_ids = position_ids[:, -1:] + 1
         generated_ids = [outputs.logits[0, -1].argmax()]
 
-        should_stop_token_ids = self.model.generation_config.eos_token_id
-        if not isinstance(should_stop_token_ids, list):
-            should_stop_token_ids = [should_stop_token_ids]
+        eos_token_ids = self.model.generation_config.eos_token_id
+        if not isinstance(eos_token_ids, list):
+            eos_token_ids = [eos_token_ids]
+        should_stop_token_ids = {
+            token_id for token_id in [*eos_token_ids, self.tokenizer.eos_token_id] if token_id is not None
+        }
 
         for i in range(max_new_tokens - 1):
             outputs = self.model(
