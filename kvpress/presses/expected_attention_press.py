@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import math
 from dataclasses import dataclass
 
 import torch
@@ -26,8 +25,8 @@ class ExpectedAttentionPress(ScorerPress):
         1. Compute the mean and covariance matrix of the queries before RoPE.
         2. Compute the RoPE rotation matrix R on next n_future_positions and average it
         3. Apply R to the mean and covariance matrice of the queries.
-        4. As attention A = exp(Q @ K / sqrt(d)), we compute the expected attention
-        E(A) = exp(K @ mean.T / sqrt(d) + 1/2 K @ cov @ K.T / d)
+        4. As attention A = exp(Q @ K * s) with s = module.scaling (usually 1 / sqrt(d)), we compute the expected
+        attention E(A) = exp(K @ mean.T * s + 1/2 K @ cov @ K.T * s^2)
         5. Rescale the scores using (scores + epsilon) * ||V||_2
 
     Parameters
@@ -142,13 +141,13 @@ class ExpectedAttentionPress(ScorerPress):
         mean_query, cov_query = self.get_query_statistics(module, hidden_states)
 
         # Compute scores
-        bsz, num_key_value_heads, q_len, d = keys.shape
+        bsz, num_key_value_heads, q_len, _ = keys.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
 
         keys = repeat_kv(keys, num_key_value_groups).transpose(2, 3)
-        scores = torch.matmul(mean_query.unsqueeze(2), keys).squeeze(2) / math.sqrt(d)
+        scores = torch.matmul(mean_query.unsqueeze(2), keys).squeeze(2) * module.scaling
         if self.use_covariance:
-            scores += torch.einsum("bhin, bhij, bhjn->bhn", keys, cov_query, keys) / d / 2
+            scores += torch.einsum("bhin, bhij, bhjn->bhn", keys, cov_query, keys) * module.scaling**2 / 2
         scores = F.softmax(scores, dim=-1)
 
         # Average scores across groups

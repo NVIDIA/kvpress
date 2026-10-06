@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
 
 import torch
@@ -321,7 +320,7 @@ class CAMPress(DecodingPress):
         kwargs: dict,
     ) -> torch.Tensor:
         """Compute softmax attention from the last query token to all cached keys."""
-        _, num_key_value_heads, cache_len, head_dim = keys.shape
+        num_key_value_heads = keys.shape[1]
         num_query_heads = module.config.num_attention_heads
         num_key_value_groups = num_query_heads // num_key_value_heads
 
@@ -331,7 +330,7 @@ class CAMPress(DecodingPress):
         query_states = query_states[:, :, -1:, :]
 
         keys_repeated = repeat_kv(keys, num_key_value_groups)
-        scores = torch.matmul(query_states, keys_repeated.transpose(-2, -1)) / math.sqrt(head_dim)
+        scores = torch.matmul(query_states, keys_repeated.transpose(-2, -1)) * module.scaling
         return torch.nn.functional.softmax(scores, dim=-1, dtype=torch.float32).to(query_states.dtype)
 
     @staticmethod

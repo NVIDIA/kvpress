@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import math
 from dataclasses import dataclass
 
 import torch
@@ -46,7 +45,6 @@ class SnapKVPress(ScorerPress):
 
         bsz, _, k_len, _ = keys.shape
         num_heads = module.config.num_attention_heads
-        head_dim = module.head_dim
         num_key_value_groups = num_heads // module.config.num_key_value_heads
 
         # Get last window_size queries and apply RoPE
@@ -57,7 +55,7 @@ class SnapKVPress(ScorerPress):
 
         # Compute attention for first q_len - window_size tokens
         key_states = repeat_kv(keys, num_key_value_groups)
-        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(head_dim)
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) * module.scaling
         attention_mask = torch.ones_like(attn_weights) * float("-inf")
         attention_mask = torch.triu(attention_mask, diagonal=k_len - window_size + 1)
         attn_weights += attention_mask
