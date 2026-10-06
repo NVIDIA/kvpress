@@ -115,8 +115,9 @@ class CapPress(ScorerPress):
         head_dim = module.head_dim
         dummy = torch.zeros((1, 1, head_dim), device=device, dtype=dtype)
 
+        # The rotary embedding is shared by all layers and may be placed on another device
         cos, sin = module.rotary_emb(dummy, position_ids)
-        cos, sin = cos[0], sin[0]  # [n_future_positions, D_head]
+        cos, sin = cos[0].to(device), sin[0].to(device)  # [n_future_positions, D_head]
 
         identity = torch.eye(head_dim, device=device, dtype=dtype)
         rotate_half = torch.zeros((head_dim, head_dim), device=device, dtype=dtype)
