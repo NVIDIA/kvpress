@@ -383,6 +383,11 @@ class KVComposePress(BasePress):
         logger.warning("KVComposePress temporarily creates a KV cache of ~2x the context length during prefill; ")
         if not isinstance(model, (LlamaForCausalLM, Qwen2ForCausalLM, Qwen3ForCausalLM)):
             logger.warning(f"Model {type(model)} not tested")
+        if not self.structured and model.config._attn_implementation == "eager":
+            raise ValueError(
+                "Unstructured KVComposePress does not support eager attention: the evicted keys are masked by "
+                "kvpress' attention patch, which does not apply to eager attention"
+            )
 
         self._register_model(model)
         self._reset_state()

@@ -6,7 +6,7 @@ import torch
 from transformers import DynamicCache
 
 from kvpress import KVComposePress
-from tests.fixtures import unit_test_model  # noqa: F401
+from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
 @pytest.mark.parametrize("structured", [True, False])
@@ -21,6 +21,22 @@ def test_kvcompose_rejects_batch_size_above_1(unit_test_model, structured):  # n
         with KVComposePress(structured=structured, compression_ratio=0.5)(unit_test_model):
             input_ids = torch.randint(0, 1024, (2, 16), device=unit_test_model.device)
             unit_test_model(input_ids, past_key_values=DynamicCache())
+
+
+def test_kvcompose_unstructured_rejects_eager_attention(unit_test_model_output_attention):  # noqa: F811
+    with pytest.raises(ValueError, match="eager"):
+        with KVComposePress(structured=False, compression_ratio=0.5)(unit_test_model_output_attention):
+            pytest.fail("the press should raise before running the context")
+
+
+def test_kvcompose_structured_supports_eager_attention(unit_test_model_output_attention):  # noqa: F811
+    model = unit_test_model_output_attention
+    cache = DynamicCache()
+    with KVComposePress(compression_ratio=0.5)(model):
+        model(torch.randint(0, 1024, (1, 32), device=model.device), past_key_values=cache)
+
+    assert 0 < cache.get_seq_length() < 32
+    assert model.config._attn_implementation == "eager"
 
 
 def test_kvcompose_does_not_mask_errors_raised_in_the_context(unit_test_model):  # noqa: F811
