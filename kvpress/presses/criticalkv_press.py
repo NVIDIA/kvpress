@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import torch
 from transformers.models.llama.modeling_llama import repeat_kv
 
+from kvpress.attention_patch import check_masked_key_indices_support
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.scorer_press import ScorerPress
@@ -60,7 +61,7 @@ class CriticalKVPress(ScorerPress):
         bsz, num_key_value_heads, k_len, _ = values.shape
         num_key_value_groups = module.config.num_attention_heads // num_key_value_heads
         Wo = module.o_proj.weight.transpose(0, 1)
-        Wo = Wo.view(module.config.num_attention_heads, module.config.head_dim, module.config.hidden_size)
+        Wo = Wo.view(module.config.num_attention_heads, module.head_dim, module.config.hidden_size)
         V = repeat_kv(values, num_key_value_groups)
 
         # We use head-wise computation instead of direct matmul to reduce the memory usage of WoV.
@@ -131,6 +132,9 @@ class CriticalAdaKVPress(BasePress):
         if isinstance(self.press, ExpectedAttentionPress) and self.press.use_vnorm:
             logger.warning("use_vnorm should be disabled for CriticalAdaKVPress")
 
+    def post_init_from_model(self, model):
+        self.press.post_init_from_model(model)
+
     @property
     def compression_ratio(self):
         return self.press.compression_ratio
@@ -144,7 +148,7 @@ class CriticalAdaKVPress(BasePress):
         if self.compression_ratio == 0:
             return keys, values
 
-        assert module.config._attn_implementation != "eager", "eager mode not supported"
+        check_masked_key_indices_support(module)
 
         # Compute scores
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)

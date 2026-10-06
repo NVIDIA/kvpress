@@ -3,6 +3,10 @@
 
 from dataclasses import dataclass, field
 
+import torch
+import torch.nn as nn
+
+from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 
 
@@ -12,8 +16,7 @@ class CompressionRatioDecodingPress(DecodingPress):
     A decoding press that keeps a fixed fraction of all tokens seen so far.
 
     Unlike `DecodingPress`, which compresses to a fixed absolute `target_size`,
-    this subclass derives the target size from the full sequence length observed
-    so far during decoding.
+    this subclass derives the target size from the number of tokens seen so far.
 
     Parameters
     ----------
@@ -28,8 +31,8 @@ class CompressionRatioDecodingPress(DecodingPress):
 
     Notes
     -----
-    This press requires logical `position_ids` to be passed through the model
-    forward call. Otherwise an exception will be raised.
+    The press counts the tokens of the prefill and of every decoding step. If the prefill ran outside of the press
+    context (as in the pipeline), the count starts from the position of the first decoding step.
     """
 
     target_compression_ratio: float = 0.5
@@ -38,13 +41,26 @@ class CompressionRatioDecodingPress(DecodingPress):
     def __post_init__(self):
         super().__post_init__()
         assert 0 <= self.target_compression_ratio < 1, "target_compression_ratio must be between 0 and 1"
+        self.tokens_seen: dict[int, int] = {}  # Per-layer number of tokens seen
 
-    def _resolve_target_size(self, kwargs: dict) -> int:
-        total_tokens_seen = self._resolve_total_tokens_seen(kwargs)
-        return max(1, int(total_tokens_seen * (1 - self.target_compression_ratio)))
+    def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+        layer_idx = int(module.layer_idx)
+        q_len = kwargs["hidden_states"].shape[1]
+        if is_prefilling(kwargs["cache_position"], q_len):
+            self.tokens_seen[layer_idx] = q_len
+        else:
+            if layer_idx not in self.tokens_seen:
+                # The prefill was not seen, count the tokens before the first position of this step
+                positions = kwargs.get("position_ids")
+                if positions is None:
+                    positions = kwargs["cache_position"]
+                self.tokens_seen[layer_idx] = int(positions[..., 0].max())
+            self.tokens_seen[layer_idx] += q_len
+        return super().forward_hook(module, input, kwargs, output)
 
-    def _resolve_total_tokens_seen(self, kwargs: dict) -> int:
-        if "position_ids" in kwargs and kwargs["position_ids"] is not None:
-            return int(kwargs["position_ids"].max().item()) + 1
+    def _resolve_target_size(self, layer_idx: int) -> int:
+        return max(1, int(self.tokens_seen[layer_idx] * (1 - self.target_compression_ratio)))
 
-        raise NotImplementedError("CompressionRatioDecodingPress requires logical position_ids in kwargs")
+    def reset(self):
+        super().reset()
+        self.tokens_seen = {}

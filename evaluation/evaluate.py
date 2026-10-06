@@ -5,7 +5,7 @@ import json
 import logging
 import random
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -80,6 +80,16 @@ class EvaluationConfig:
 
     def __post_init__(self):
         """Validate configuration after initialization."""
+        # Fire parses "--trust_remote_code false" as the (truthy) string "false"
+        for config_field in fields(self):
+            if config_field.type is bool:
+                value = getattr(self, config_field.name)
+                if isinstance(value, str) and value.lower() in ["true", "false"]:
+                    value = value.lower() == "true"
+                    setattr(self, config_field.name, value)
+                if not isinstance(value, bool):
+                    raise ValueError(f"{config_field.name} must be a boolean, got {value!r}")
+
         # Validate dataset
         assert self.dataset in DATASET_REGISTRY, f"No dataset found for {self.dataset}"
         assert self.dataset in SCORER_REGISTRY, f"No scorer found for {self.dataset}"
@@ -173,7 +183,7 @@ class EvaluationConfig:
         if self.head_compression_ratio is None:
             config_dict.pop("head_compression_ratio", None)
         with open(str(config_filename), "w") as f:
-            yaml.dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
+            yaml.safe_dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
 
 
 def _load_yaml_config(path: str | Path) -> dict:
@@ -327,7 +337,9 @@ class EvaluationRunner:
         logger.info(f"Loading dataset: {DATASET_REGISTRY[dataset_name]} (data_dir: {data_dir})")
         df = load_dataset(DATASET_REGISTRY[dataset_name], data_dir=data_dir, split="test").to_pandas()
 
-        if fraction < 1.0:
+        if fraction < 1.0 and dataset_name == "needle_in_haystack":
+            logger.warning("Ignoring fraction for needle_in_haystack: the haystack dataset has a single row.")
+        elif fraction < 1.0:
             original_len = len(df)
             df = df.sample(frac=fraction, random_state=self.config.seed)
             logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
@@ -366,7 +378,7 @@ class EvaluationRunner:
             device = "auto" if torch.cuda.is_available() else "cpu"
             logger.info(f"No device specified, auto-detected device: {device}")
 
-        model_kwargs = self.config.model_kwargs or {}
+        model_kwargs = dict(self.config.model_kwargs or {})
 
         if self.config.fp8:
             model_kwargs["quantization_config"] = FineGrainedFP8Config()
@@ -375,6 +387,8 @@ class EvaluationRunner:
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
+        elif model_kwargs.get("attn_implementation") is not None:
+            logger.info(f"Using attn_implementation='{model_kwargs['attn_implementation']}' from model_kwargs.")
         else:
             try:
                 import flash_attn  # noqa: F401

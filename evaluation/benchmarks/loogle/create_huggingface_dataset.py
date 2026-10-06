@@ -38,9 +38,7 @@ for task in ["shortdep_qa", "longdep_qa", "shortdep_cloze", "longdep_summarizati
 
     if task == "shortdep_cloze":
         df["answer"] = df["answer"].apply(
-            lambda values: json.dumps(
-                {f"<mask-{i}>": value for i, value in enumerate(values)}, ensure_ascii=False
-            )
+            lambda values: json.dumps({f"<mask-{i}>": value for i, value in enumerate(values)}, ensure_ascii=False)
         )
 
     df["context"] = df["context"].apply(lambda x: context_prompt[task].format(input=x))

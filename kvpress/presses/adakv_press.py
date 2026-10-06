@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import torch
 
+from kvpress.attention_patch import check_masked_key_indices_support
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import compute_n_kept
@@ -55,7 +56,7 @@ class AdaKVPress(BasePress):
         if self.compression_ratio == 0:
             return keys, values
 
-        assert module.config._attn_implementation != "eager", "eager mode not supported"
+        check_masked_key_indices_support(module)
 
         # Compute scores
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)

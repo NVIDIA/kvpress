@@ -14,10 +14,37 @@ from tqdm import tqdm
 
 def calculate_metrics(df):
     preds = df["predicted_answer"].tolist()
-    labels = df["answer"].tolist()
     task = df["task"].tolist()[0]
+    labels = [to_upstream_label(row, task) for _, row in df.iterrows()]
     model = "dummy_model"  # not really used
     return get_score(labels, preds, task, model)
+
+
+# The Hub dataset stores every answer as a list of strings and keeps only the letter of multiple-choice answers,
+# while the upstream scorers below expect numbers for code_run, math_find and math_calc, and [option_text, letter]
+# for code_debug and longbook_choice_eng (see get_answer in InfiniteBench/src/eval_utils.py).
+OPTIONS_PATTERN = re.compile(r"\nA\. (.*)\nB\. (.*)\nC\. (.*)\nD\. (.*)\Z")
+
+
+def to_upstream_label(row, task: str) -> list:
+    label = list(row["answer"])
+    if task in ["code_run", "math_find", "math_calc"]:
+        return [to_number(value) for value in label]
+    if task in ["code_debug", "longbook_choice_eng"]:
+        # The options end the question, which query-aware evaluation moves to the end of the context
+        match = OPTIONS_PATTERN.search(row["question"] or row["context"])
+        if match is None:
+            raise ValueError(f"Could not find the A-D options of the {task} question")
+        letter = label[0]
+        return [match.group("ABCD".index(letter) + 1), letter]
+    return label
+
+
+def to_number(value: str) -> int | float:
+    try:
+        return int(value)
+    except ValueError:
+        return float(value)
 
 
 def normalize_answer(s: str) -> str:

@@ -123,9 +123,22 @@ class KVzipPress(BasePress):
         original_forward = model.model.forward
 
         def wrapped_forward(model_self, *args, **kwargs):
-            self._context_ids = kwargs["input_ids"]
-            self._cache = kwargs["past_key_values"]
-            return original_forward(*args, **kwargs)
+            cache = kwargs.get("past_key_values")
+            if self._context_ids is not None or (cache is not None and cache.get_seq_length() > 0):
+                # Only the first prefill is replayed, later calls (e.g. decoding steps) run unchanged
+                return original_forward(*args, **kwargs)
+            if isinstance(cache, QuantizedCache):
+                raise ValueError(f"{type(self).__name__} does not support QuantizedCache")
+            input_ids = kwargs["input_ids"] if "input_ids" in kwargs else (args[0] if args else None)
+            if input_ids is None:
+                raise ValueError(f"{type(self).__name__} replays the context, call the model with input_ids")
+            outputs = original_forward(*args, **kwargs)
+            # The model creates the cache if none is passed
+            if outputs.past_key_values is None:
+                raise ValueError(f"{type(self).__name__} compresses the KV cache, call the model with use_cache=True")
+            self._context_ids = input_ids
+            self._cache = outputs.past_key_values
+            return outputs
 
         model.model.forward = MethodType(wrapped_forward, model.model)
 
@@ -140,6 +153,8 @@ class KVzipPress(BasePress):
                 for layer in model.model.layers:
                     layer.self_attn.rotary_emb = model.model.rotary_emb
 
+                # Tokens decoded after the prefill (e.g. by model.generate) are not part of the context
+                self._cache.crop(self._context_ids.shape[1])
                 self._perform_kvzip_compression(model, tokenizer)
         finally:
             self._reset_internal_parameters()
@@ -161,16 +176,8 @@ class KVzipPress(BasePress):
         # retaining only the originally prefilled KV pairs.
         keys, values = self.score_kvzip(module, hidden_states, keys, values, output[1], kwargs)
 
-        if isinstance(cache, QuantizedCache):
-            # Update cache with compressed keys and values
-            cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
-            cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
-            cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-            cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-            cache_layer.cumulative_length = keys.shape[2]
-        else:
-            cache_layer.keys = keys
-            cache_layer.values = values
+        cache_layer.keys = keys
+        cache_layer.values = values
 
         return output
 
