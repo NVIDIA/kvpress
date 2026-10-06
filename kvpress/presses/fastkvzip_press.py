@@ -274,7 +274,7 @@ class FastKVzipPress(BasePress):
         ]
         if not modules:
             return
-        self.score_val = torch.stack([self.score_val[module.layer_idx] for module in modules], dim=0)
+        self.score_val = torch.stack([self.score_val[module.layer_idx].to(model.device) for module in modules], dim=0)
 
         if self.compression_ratio > 0:
             n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape

@@ -100,6 +100,21 @@ def test_fastkvzip_gemma3_compresses_full_attention_layers(monkeypatch, tmp_path
     assert all(layer.self_attn.masked_key_indices is None for layer in layers if layer.self_attn.is_sliding)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs a second device")
+def test_fastkvzip_gathers_the_scores_of_layers_on_other_devices(monkeypatch):
+    use_random_gates(monkeypatch)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).eval()
+    context_len, press = 64, FastKVzipPress(compression_ratio=0.5)
+    with press(model):
+        model(torch.randint(0, 1024, (1, context_len)), past_key_values=DynamicCache())
+        # Scores are computed on the device of each layer
+        press.score_val[-1] = press.score_val[-1].cuda()
+
+    assert press.score_val.device == model.device
+    config = model.config
+    assert n_masked(model) == int(config.num_hidden_layers * config.num_key_value_heads * context_len * 0.5)
+
+
 def test_fastkvzip_without_forward_pass_is_a_no_op(unit_test_model, monkeypatch):  # noqa: F811
     use_random_gates(monkeypatch)
     with FastKVzipPress(compression_ratio=0.5)(unit_test_model):
