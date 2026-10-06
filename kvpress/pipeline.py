@@ -138,7 +138,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Apply chat template if available
         if self.tokenizer.chat_template is None:
-            bos_token = getattr(self.tokenizer, "bos_token", "")
+            bos_token = self.tokenizer.bos_token or ""
             context = bos_token + context
             question_suffix = "\n"  # to separate the question from the answer
         else:
