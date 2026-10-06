@@ -239,7 +239,7 @@ class KVComposePress(BasePress):
         for layer in range(self.num_layers):
             if self.add_v_norm:
                 for kv_head in range(self.num_kv_heads):
-                    v = self.cache.layers[layer].values[0, kv_head].detach()
+                    v = self.cache.layers[layer].values[0, kv_head, : self.context_len].detach()
                     self.scores[layer, kv_head] = self.scores[layer, kv_head] * v.norm(dim=1)
             if self.add_mean_across_heads:
                 self.scores[layer] += self.scores[layer].mean(dim=0, keepdim=True)
