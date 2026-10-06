@@ -99,7 +99,7 @@ class DecodingPress(BasePress):
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
         """
         k_len = keys.shape[2]
-        target_size = self._resolve_target_size(kwargs)
+        target_size = self._resolve_target_size(module.layer_idx)
         target_compression_ratio = self._find_target_compression_ratio(k_len, target_size)
         logger.debug(f"Compressing {k_len} to {target_size} with ratio {target_compression_ratio}")
 
@@ -138,7 +138,7 @@ class DecodingPress(BasePress):
         self.layer_step_counts[layer_idx] += 1
 
         # Apply compression if we've reached the compression step threshold
-        target_size = self._resolve_target_size(kwargs)
+        target_size = self._resolve_target_size(layer_idx)
         if (self.layer_step_counts[layer_idx] >= self.compression_interval) or (q_len >= target_size):
             logger.debug(
                 f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})"  # noqa: E501
@@ -236,5 +236,5 @@ class DecodingPress(BasePress):
 
         return ratio
 
-    def _resolve_target_size(self, kwargs: dict) -> int:
+    def _resolve_target_size(self, layer_idx: int) -> int:
         return self.target_size
