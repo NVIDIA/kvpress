@@ -166,6 +166,7 @@ class CapPress(ScorerPress):
         self,
         module: nn.Module,
         hidden_states: torch.Tensor,
+        cache_position: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute the historical-query anchor.
@@ -173,11 +174,12 @@ class CapPress(ScorerPress):
         Args:
             module: Attention module.
             hidden_states: Hidden states with shape [B, T, D_model].
+            cache_position: Positions of the hidden states in the sequence, with shape [T].
 
         Returns:
             Query anchor with shape [B, H, D_head].
         """
-        q_len = hidden_states.shape[1]
+        q_len = int(cache_position[-1]) + 1
         query_states = self._query_states_pre_rope(module, hidden_states)
         query_states = self._apply_avg_rope(module, query_states, q_len)
         return query_states.mean(dim=2)
@@ -239,13 +241,13 @@ class CapPress(ScorerPress):
             keys: Cached keys with shape [B, H_kv, T_cache, D_head].
             values: Cached values with shape [B, H_kv, T_cache, D_head].
             attentions: Unused; included for KVPress scorer compatibility.
-            kwargs: Unused; included for KVPress scorer compatibility.
+            kwargs: Keyword arguments of the attention layer, including `cache_position`.
 
         Returns:
             Retention scores with shape [B, H_kv, T_cache]. Larger values
             indicate higher retention priority.
         """
-        del attentions, kwargs
+        del attentions
 
         if keys.size(2) <= self.n_sink:
             raise ValueError(f"Input cache length ({keys.size(2)}) must be larger than " f"n_sink={self.n_sink}.")
@@ -261,7 +263,7 @@ class CapPress(ScorerPress):
         values_rep = repeat_kv(values_no_sink, num_key_value_groups)
 
         # Query relevance.
-        query_anchor = self._query_anchor(module, hidden_states)
+        query_anchor = self._query_anchor(module, hidden_states, kwargs["cache_position"])
         statistic = self._compute_query_key_statistic(query_anchor, keys_rep)
         weights = self._compute_query_relevance_weights(statistic)
 
