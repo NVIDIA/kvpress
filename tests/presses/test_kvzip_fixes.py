@@ -3,12 +3,28 @@
 
 import pytest
 import torch
-from transformers import DynamicCache
+from transformers import Cache, DynamicCache, QuantizedCache
+from transformers.cache_utils import QuantizedLayer
 
-from kvpress import KVgradPress, KVzipPress
+from kvpress import KVComposePress, KVgradPress, KVzipPress
 from tests.fixtures import unit_test_model  # noqa: F401
 
 PRESSES = [(KVzipPress, {"chunk_size": 32}), (KVgradPress, {"chunk_size": 32})]
+
+
+class IdentityQuantizedLayer(QuantizedLayer):
+    def _quantize(self, tensor, axis):
+        return tensor
+
+    def _dequantize(self, q_tensor):
+        return q_tensor
+
+
+class IdentityQuantizedCache(QuantizedCache):
+    """QuantizedCache without quantization backend."""
+
+    def __init__(self, num_layers: int):
+        Cache.__init__(self, layers=[IdentityQuantizedLayer() for _ in range(num_layers)])
 
 
 def masked_keys(model, press, run):
@@ -65,6 +81,17 @@ def test_kvzip_generate_replays_the_prefilled_context(unit_test_model, press_cls
 
     assert_same_masks(masks, reference)
     assert cache.get_seq_length() == context_len
+
+
+@pytest.mark.parametrize(
+    "press",
+    [KVzipPress(compression_ratio=0.5), KVgradPress(compression_ratio=0.5), KVComposePress(compression_ratio=0.5)],
+)
+def test_multipass_presses_reject_quantized_cache(unit_test_model, press):  # noqa: F811
+    cache = IdentityQuantizedCache(unit_test_model.config.num_hidden_layers)
+    with pytest.raises(ValueError, match="QuantizedCache"):
+        with press(unit_test_model):
+            unit_test_model(torch.randint(0, 1024, (1, 16), device=unit_test_model.device), past_key_values=cache)
 
 
 def test_kvzip_requires_input_ids(unit_test_model):  # noqa: F811

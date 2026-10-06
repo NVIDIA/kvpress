@@ -13,7 +13,7 @@ from typing import Generator, Union
 import numpy as np
 import torch
 from torch import nn
-from transformers.cache_utils import DynamicCache
+from transformers.cache_utils import DynamicCache, QuantizedCache
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.llama import LlamaForCausalLM
 from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
@@ -408,6 +408,8 @@ class KVComposePress(BasePress):
                     *args,
                     **kwargs,
                 )
+            if isinstance(past_key_values, QuantizedCache):
+                raise ValueError("KVComposePress does not support QuantizedCache")
 
             press.register_context_ids(input_ids)
             # Eager attention bypasses kvpress' attention patch, which discards the masked keys on prefill
