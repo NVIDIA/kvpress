@@ -18,6 +18,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 
 
+def get_head_dim(config) -> int:
+    return getattr(config, "head_dim", None) or config.hidden_size // config.num_attention_heads
+
+
 @dataclass
 class ExpectedAttentionStatsPress(ExpectedAttentionPress):
     """
@@ -87,7 +91,7 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
             model_name=model.config.name_or_path,
             num_layers=model.config.num_hidden_layers,
             num_heads=model.config.num_attention_heads,
-            head_dim=model.config.head_dim,
+            head_dim=get_head_dim(model.config),
             dataset_name=self.dataset_name,
             num_samples=self.num_samples,
             sample_seq_len=self.sample_seq_len,
@@ -270,7 +274,7 @@ def main(
     stats = ExpectedAttentionStats(
         num_layers=model.config.num_hidden_layers,
         num_heads=model.config.num_attention_heads,
-        head_dim=model.config.head_dim,
+        head_dim=get_head_dim(model.config),
         dataset_name=dataset_name,
         model_name=model_name,
         num_samples=num_samples,
