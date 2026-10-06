@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers.models.llama.modeling_llama import repeat_kv
+from transformers.models.llama.modeling_llama import repeat_kv, rotate_half
 
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import get_prerope_query_states
@@ -122,6 +122,28 @@ class ExpectedAttentionPress(ScorerPress):
             cov = torch.matmul(R, torch.matmul(cov, R.T))
         return mu, cov
 
+    @staticmethod
+    def get_next_position(kwargs: dict, hidden_states: torch.Tensor) -> int:
+        """
+        Position of the token following the current forward pass. RoPE uses position_ids, which may differ from
+        cache_position once the cache has been compressed. Defaults to the number of hidden states.
+        """
+        positions = kwargs.get("position_ids")
+        if positions is None:
+            positions = kwargs.get("cache_position")
+        if positions is None:
+            return hidden_states.shape[1]
+        return int(positions.max()) + 1
+
+    @staticmethod
+    def rotate_keys(module, keys: torch.Tensor, n_positions: int) -> torch.Tensor:
+        """
+        Rotate post-RoPE keys by n_positions positions.
+        """
+        inv_freq = module.rotary_emb.inv_freq
+        angles = torch.cat([inv_freq, inv_freq]).to(keys.device, torch.float32) * n_positions
+        return keys * angles.cos().to(keys.dtype) + rotate_half(keys) * angles.sin().to(keys.dtype)
+
     def score(
         self,
         module: nn.Module,
@@ -139,6 +161,13 @@ class ExpectedAttentionPress(ScorerPress):
 
         # Compute query statistics
         mean_query, cov_query = self.get_query_statistics(module, hidden_states)
+
+        # The statistics place the future queries right after the hidden_states.shape[1] first positions. If the
+        # next position differs (e.g. for chunks or buffered hidden states), rotating the keys back by the difference
+        # is equivalent to moving the future queries after the next position.
+        shift = self.get_next_position(kwargs, hidden_states) - hidden_states.shape[1]
+        if shift != 0:
+            keys = self.rotate_keys(module, keys, -shift)
 
         # Compute scores
         bsz, num_key_value_heads, q_len, _ = keys.shape
