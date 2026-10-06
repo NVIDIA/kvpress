@@ -208,8 +208,8 @@ class FastKVzipPress(BasePress):
         self.post_init_from_model(model)
         hooks = []
         try:
-            self.score_val = [None for _ in range(len(model.model.layers))]  # reset every prefilling
             language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model
+            self.score_val = [None for _ in range(len(language_model.layers))]  # reset every prefilling
             for layer in language_model.layers:
                 if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
                     # Skip layers with sliding window attention, only for Gemma3
@@ -267,7 +267,14 @@ class FastKVzipPress(BasePress):
         Obtain the indices of KV pairs to be evicted.
         Adopted from adakv_press.compress (fake compression). KVzip does not rely on safeguards.
         """
-        self.score_val = torch.stack(self.score_val, dim=0)
+        language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model
+        # Layers without scores (e.g. sliding window layers of Gemma3) are not compressed
+        modules = [
+            layer.self_attn for layer in language_model.layers if self.score_val[layer.self_attn.layer_idx] is not None
+        ]
+        if not modules:
+            return
+        self.score_val = torch.stack([self.score_val[module.layer_idx] for module in modules], dim=0)
 
         if self.compression_ratio > 0:
             n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape
@@ -282,16 +289,13 @@ class FastKVzipPress(BasePress):
                 n_tokens_per_layer = bsz * num_key_value_heads * ctx_len
                 n_pruned_layers = torch.bincount(pruned_indices // n_tokens_per_layer, minlength=n_layer).int()
 
-            for layer in model.model.layers:
-                module = layer.self_attn
-                layer_idx = int(module.layer_idx)
-
+            for i, module in enumerate(modules):
                 assert module.config._attn_implementation != "eager", "eager mode not supported"
 
-                scores = self.score_val[layer_idx]
+                scores = self.score_val[i]
 
                 # Compute bottom-k across heads
-                n_pruned = n_pruned_layers[layer_idx].cpu()
+                n_pruned = n_pruned_layers[i].cpu()
                 indices = torch.topk(-scores.reshape(bsz, -1), n_pruned, dim=1).indices.flatten().cpu()
 
                 # Save indices to mask during the attention mechanism. Please refer to attention_patch.py for details
