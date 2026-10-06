@@ -114,8 +114,8 @@ class DecodingPress(BasePress):
         Forward hook that manages decoding-specific compression logic.
 
         This hook:
-        1. Detects when we're in decoding phase (not prefilling)
-        2. Accumulates hidden states and their RoPE embeddings in a buffer
+        1. Resets the state of the layer during prefilling
+        2. Accumulates hidden states and their RoPE embeddings in a buffer during decoding
         3. Applies compression every N steps
         4. Clears the buffer after compression
         """
@@ -126,7 +126,9 @@ class DecodingPress(BasePress):
 
         # Only operate during decoding phase (after prefilling)
         if is_prefilling(kwargs["cache_position"], q_len):
-            # We're still in prefilling phase, don't do anything
+            # A new sequence starts, drop the state left over from a previous one
+            self.hidden_states_buffer[layer_idx] = []
+            self.layer_step_counts[layer_idx] = 0
             return output
         # print(f"Adding hidden states to buffer: {hidden_states.shape}")
         # Add current hidden states and their RoPE embeddings to buffer for this layer

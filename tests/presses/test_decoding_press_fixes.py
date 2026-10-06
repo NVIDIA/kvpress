@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 
 import pytest
 import torch
+from transformers import DynamicCache
 
-from kvpress import CAMPress, DecodingPress, ScorerPress
-from tests.fixtures import unit_test_model_output_attention  # noqa: F401
+from kvpress import CAMPress, DecodingPress, KnormPress, ScorerPress
+from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
 @dataclass
@@ -41,3 +42,16 @@ def test_buffered_hidden_states_come_with_their_rope_embeddings(
     torch.testing.assert_close(sin, expected_sin)
     # Attention weights of the eager model only cover the current query
     assert all(attentions is None for _, _, attentions in base_press.calls)
+
+
+@torch.no_grad()
+def test_state_is_reset_on_prefill(unit_test_model):  # noqa: F811
+    press = DecodingPress(base_press=KnormPress(), compression_interval=10, target_size=64)
+    input_ids = torch.randint(0, 1000, (1, 16), device=unit_test_model.device)
+    with press(unit_test_model):
+        unit_test_model.generate(input_ids, max_new_tokens=4, do_sample=False)
+        assert set(press.layer_step_counts.values()) == {3}
+
+        unit_test_model(input_ids, past_key_values=DynamicCache())
+        assert set(press.layer_step_counts.values()) == {0}
+        assert all(len(buffer) == 0 for buffer in press.hidden_states_buffer.values())
