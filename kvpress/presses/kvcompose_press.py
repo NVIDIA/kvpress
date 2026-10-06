@@ -169,6 +169,8 @@ class KVComposePress(BasePress):
         self.device = next(model.parameters()).device
 
     def register_context_ids(self, context_ids: torch.Tensor):
+        if context_ids.shape[0] != 1:
+            raise ValueError(f"KVComposePress supports only batch size 1, got {context_ids.shape[0]}")
         self.context_ids = context_ids
         self.context_len = self.context_ids.shape[-1]
         self.prompt_ids: list[torch.Tensor] = []

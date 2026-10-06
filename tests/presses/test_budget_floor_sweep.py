@@ -92,16 +92,6 @@ def test_kvcompose_keep_token_lower_bound_survives_on_short_contexts(unit_test_m
         assert layer.keys.shape[2] >= press.keep_token_lower_bound
 
 
-def test_kvcompose_structured_batch_size_2_does_not_collapse_on_short_contexts(unit_test_model):  # noqa: F811
-    """The same zero budget also collapses a batch of sequences to an empty cache."""
-    press = KVComposePress(compression_ratio=0.95)
-    cache = compress_short_context(press, unit_test_model, batch_size=2)
-
-    assert cache.get_seq_length() >= 1
-    for layer in cache.layers:
-        assert layer.keys.shape[2] >= 1
-
-
 def test_kvcompose_unstructured_keeps_at_least_one_token_on_short_contexts(unit_test_model):  # noqa: F811
     """Unstructured compression flags evicted tokens via ``masked_key_indices``; with a zero
     budget every token of every head is flagged for eviction. Per-head zero counts remain

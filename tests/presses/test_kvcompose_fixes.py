@@ -15,6 +15,14 @@ def test_kvcompose_without_forward_pass_is_a_no_op(unit_test_model, structured):
         pass
 
 
+@pytest.mark.parametrize("structured", [True, False])
+def test_kvcompose_rejects_batch_size_above_1(unit_test_model, structured):  # noqa: F811
+    with pytest.raises(ValueError, match="batch size 1"):
+        with KVComposePress(structured=structured, compression_ratio=0.5)(unit_test_model):
+            input_ids = torch.randint(0, 1024, (2, 16), device=unit_test_model.device)
+            unit_test_model(input_ids, past_key_values=DynamicCache())
+
+
 def test_kvcompose_does_not_mask_errors_raised_in_the_context(unit_test_model):  # noqa: F811
     with pytest.raises(RuntimeError, match="boom"):
         with KVComposePress(compression_ratio=0.5)(unit_test_model):
