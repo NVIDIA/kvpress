@@ -64,6 +64,7 @@ def test_cam_accumulates_attention_in_float32():
 
 @torch.no_grad()
 def test_cam_compresses_half_precision_caches():
+    torch.manual_seed(0)
     config = LlamaConfig(
         hidden_size=64,
         intermediate_size=128,
@@ -75,5 +76,11 @@ def test_cam_compresses_half_precision_caches():
     model = LlamaForCausalLM(config).to(torch.bfloat16).eval()
     cache = DynamicCache()
     with CAMPress(base_press=KnormPress(), compression_interval=2, target_size=12)(model):
-        model.generate(torch.randint(0, 128, (1, 16)), past_key_values=cache, max_new_tokens=5, do_sample=False)
+        model.generate(
+            torch.randint(0, 128, (1, 16)),
+            past_key_values=cache,
+            max_new_tokens=5,
+            min_new_tokens=5,
+            do_sample=False,
+        )
     assert cache.get_seq_length() == 12
