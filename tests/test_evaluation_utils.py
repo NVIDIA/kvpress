@@ -8,6 +8,7 @@ import pytest
 from evaluation.benchmarks.aime25.calculate_metrics import score_aime as score_aime25
 from evaluation.benchmarks.infinite_bench.calculate_metrics import calculate_metrics as infinite_bench_scorer
 from evaluation.benchmarks.math500.calculate_metrics import score_aime as score_math500
+from evaluation.benchmarks.needle_in_haystack.utils import insert_needle_in_haystack
 from evaluation.benchmarks.utils import extract_boxed
 
 CODE_DEBUG_QUESTION = (
@@ -18,6 +19,27 @@ LONGBOOK_CHOICE_QUESTION = (
     "correct, tell me the answer using one single letter (A, B, C, or D). Don't say anything else.\n"
     "A. Walking Georgie\nB. Taking care of Totty\nC. Working in the dairy\nD. Light housework"
 )
+
+
+class WordTokenizer:
+    def encode(self, text, add_special_tokens=False):
+        return text.split()
+
+    def decode(self, tokens, skip_special_tokens=True):
+        return " ".join(tokens)
+
+
+def haystack_df(index):
+    return pd.DataFrame(
+        {
+            "context": [" ".join(f"word{i}" for i in range(1000))],
+            "needle": ["The secret is 42."],
+            "question": ["What is the secret?"],
+            "answer_prefix": ["Answer:"],
+            "max_new_tokens": [10],
+        },
+        index=[index],
+    )
 
 
 def infinite_bench_df(task, question, answer, prediction, context="Some long context."):
@@ -84,6 +106,19 @@ INFINITE_BENCH_ROWS = {
     "longbook_choice_eng": (LONGBOOK_CHOICE_QUESTION, ["A"], "A"),
     "longdialogue_qa_eng": ("Which character is $$MASK$$ ?", ["ACE", "ACE ROTHSTEIN"], "ACE"),
 }
+
+
+def test_insert_needle_in_haystack_reads_first_row_by_position():
+    df = insert_needle_in_haystack(haystack_df(index=7), WordTokenizer(), max_context_length=400, needle_depth=[0, 50])
+
+    assert df["needle_depth"].tolist() == [0, 50]
+    assert all("The secret is 42." in context for context in df["context"])
+    assert df["question"].tolist() == ["What is the secret?"] * 2
+
+
+def test_insert_needle_in_haystack_rejects_too_small_max_context_length():
+    with pytest.raises(ValueError, match="max_context_length"):
+        insert_needle_in_haystack(haystack_df(index=0), WordTokenizer(), max_context_length=150, needle_depth=50)
 
 
 @pytest.mark.filterwarnings("error::DeprecationWarning")

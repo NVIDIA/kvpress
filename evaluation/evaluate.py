@@ -337,7 +337,9 @@ class EvaluationRunner:
         logger.info(f"Loading dataset: {DATASET_REGISTRY[dataset_name]} (data_dir: {data_dir})")
         df = load_dataset(DATASET_REGISTRY[dataset_name], data_dir=data_dir, split="test").to_pandas()
 
-        if fraction < 1.0:
+        if fraction < 1.0 and dataset_name == "needle_in_haystack":
+            logger.warning("Ignoring fraction for needle_in_haystack: the haystack dataset has a single row.")
+        elif fraction < 1.0:
             original_len = len(df)
             df = df.sample(frac=fraction, random_state=self.config.seed)
             logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
