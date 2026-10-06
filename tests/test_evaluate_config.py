@@ -10,6 +10,8 @@ from unittest.mock import MagicMock
 import fire
 import pytest
 
+from kvpress import KnormPress
+
 EVALUATION_DIR = Path(__file__).resolve().parents[1] / "evaluation"
 
 # Imported by the scorers in evaluate_registry.py, but only needed to compute metrics ("eval" extra)
@@ -57,6 +59,19 @@ def run_cli(evaluate, monkeypatch):
     return run
 
 
+@pytest.fixture
+def pipeline_calls(evaluate, monkeypatch):
+    """Records the keyword arguments of the transformers pipeline() calls instead of loading a model."""
+    calls = []
+
+    def fake_pipeline(task, **kwargs):
+        calls.append(kwargs)
+        return MagicMock()
+
+    monkeypatch.setattr(evaluate, "pipeline", fake_pipeline)
+    return calls
+
+
 @pytest.mark.parametrize(("value", "expected"), [("false", False), ("FALSE", False), ("true", True), ("True", True)])
 def test_cli_parses_boolean_strings(run_cli, value, expected):
     config = run_cli("--trust_remote_code", value, "--query_aware", value, "--fp8", value)
@@ -70,3 +85,17 @@ def test_cli_parses_boolean_strings(run_cli, value, expected):
 def test_config_rejects_non_boolean_values(evaluate, value):
     with pytest.raises(ValueError, match="trust_remote_code"):
         evaluate.EvaluationConfig(trust_remote_code=value)
+
+
+@pytest.mark.parametrize("flash_attn_available", [True, False])
+def test_model_pipeline_keeps_configured_attn_implementation(
+    evaluate, pipeline_calls, monkeypatch, flash_attn_available
+):
+    monkeypatch.setitem(sys.modules, "flash_attn", MagicMock() if flash_attn_available else None)
+    runner = evaluate.EvaluationRunner(
+        evaluate.EvaluationConfig(device="cpu", model_kwargs={"attn_implementation": "sdpa"})
+    )
+    runner.press = KnormPress()
+    runner._setup_model_pipeline()
+
+    assert pipeline_calls[-1]["model_kwargs"]["attn_implementation"] == "sdpa"

@@ -385,6 +385,8 @@ class EvaluationRunner:
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
+        elif model_kwargs.get("attn_implementation") is not None:
+            logger.info(f"Using attn_implementation='{model_kwargs['attn_implementation']}' from model_kwargs.")
         else:
             try:
                 import flash_attn  # noqa: F401
