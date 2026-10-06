@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from kvpress.attention_patch import check_masked_key_indices_support
 from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import extract_keys_and_values
@@ -67,6 +68,7 @@ class DMSPress(BasePress):
         raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+        check_masked_key_indices_support(module)
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]

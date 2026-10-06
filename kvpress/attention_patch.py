@@ -48,6 +48,18 @@ def search_hyperplane(X, max_iter: int = 1000):
     raise ValueError("Could not find fake keys such that for every query q, exp(<q, k>) = 0")
 
 
+def check_masked_key_indices_support(module):
+    """
+    Raise a ValueError if the attention implementation of the module ignores module.masked_key_indices.
+    Eager attention is not registered in ALL_ATTENTION_FUNCTIONS, so it is not patched by patch_attention_functions.
+    """
+    if module.config._attn_implementation == "eager":
+        raise ValueError(
+            "Head-wise compression is not supported with attn_implementation='eager' as masked keys would be ignored. "
+            "Please use another attention implementation such as 'sdpa' or 'flash_attention_2'."
+        )
+
+
 def attention_patch(func):
     """
     Decorator to update the keys before the attention computation at the indices provided in module.masked_key_indices

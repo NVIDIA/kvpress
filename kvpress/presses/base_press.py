@@ -190,6 +190,9 @@ class BasePress:
                     # Skip layers with sliding window attention, only for Gemma3
                     continue
                 layer.self_attn.rotary_emb = language_model.rotary_emb
+                # Masks set by head-wise presses during prefilling must survive later press contexts (e.g. decoding)
+                if not hasattr(layer.self_attn, "masked_key_indices"):
+                    layer.self_attn.masked_key_indices = None
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield
         finally:
