@@ -53,7 +53,7 @@ class FastKVzipGate(nn.Module):
         self.d = math.sqrt(self.output_dim)
 
     def forward(self, hidden_states: torch.Tensor):
-        hidden_states = hidden_states.squeeze(0)  # bsz = 1
+        hidden_states = hidden_states.squeeze(0).to(self.q_proj.weight.dtype)  # bsz = 1
         nseq = hidden_states.shape[0]  # sequence x dim
         hidden_shape = (nseq, self.nhead, -1, self.output_dim)
 
