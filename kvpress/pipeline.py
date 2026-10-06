@@ -199,9 +199,15 @@ class KVPressTextGenerationPipeline(Pipeline):
         list[str]
             Generated answers for each input question.
         """
-        if isinstance(press, (DecodingPress, PrefillDecodingPress)) and len(input_tensors["questions_ids"]) > 1:
+        compresses_during_decoding = (
+            isinstance(press, DecodingPress)
+            or (isinstance(press, PrefillDecodingPress) and press.decoding_press is not None)
+            or (isinstance(press, DMSPress) and press.decoding)
+        )
+        if compresses_during_decoding and len(input_tensors["questions_ids"]) > 1:
             raise ValueError(
-                "DecodingPress is not compatible with multiple questions. Please specify a single question."
+                f"{type(press).__name__} compresses the cache during decoding and is not compatible with multiple "
+                "questions. Please specify a single question."
             )
 
         context_ids = input_tensors["context_ids"].to(self.model.device)
