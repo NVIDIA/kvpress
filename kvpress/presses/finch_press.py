@@ -152,8 +152,9 @@ class FinchPress(BasePress):
         if delimiter_token not in tokenizer.get_vocab():
             tokenizer.add_special_tokens({"additional_special_tokens": [delimiter_token]})
         self.delimiter_token_id = tokenizer.convert_tokens_to_ids(delimiter_token)  # type: ignore
-        # update model embeddings
-        model.resize_token_embeddings(len(tokenizer))
+        # update model embeddings, len(tokenizer) can be smaller than the embeddings (e.g. Qwen2.5)
+        if self.delimiter_token_id >= model.get_input_embeddings().num_embeddings:
+            model.resize_token_embeddings(len(tokenizer))
         return tokenizer
 
     @contextmanager
@@ -167,7 +168,7 @@ class FinchPress(BasePress):
 
         with super().__call__(model):
             try:
-                hook = model.model.embed_tokens.register_forward_hook(self.embed_token_forward_hook)
+                hook = model.get_input_embeddings().register_forward_hook(self.embed_token_forward_hook)
                 yield
             finally:
                 hook.remove()

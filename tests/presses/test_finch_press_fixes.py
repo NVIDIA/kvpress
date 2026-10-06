@@ -5,6 +5,18 @@ import types
 
 import pytest
 import torch
+from transformers import (
+    AutoTokenizer,
+    DynamicCache,
+    Gemma3Config,
+    Gemma3ForConditionalGeneration,
+    Gemma3TextConfig,
+    LlamaConfig,
+    LlamaForCausalLM,
+    Qwen2Config,
+    Qwen2ForCausalLM,
+    SiglipVisionConfig,
+)
 
 from kvpress import FinchPress
 from kvpress.utils import compute_n_kept
@@ -54,3 +66,75 @@ def test_window_size_is_not_reused_across_samples(unit_test_model):  # noqa: F81
         unit_test_model(input_ids_with_delimiter.unsqueeze(0))
         with pytest.raises(AssertionError, match="window_size must be provided"):
             unit_test_model(input_ids.unsqueeze(0))
+
+
+def test_update_model_and_tokenizer_does_not_shrink_embeddings():
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
+    config = Qwen2Config(
+        hidden_size=16, intermediate_size=32, num_hidden_layers=1, num_attention_heads=2, num_key_value_heads=1
+    )
+    vocab_size = config.vocab_size
+    assert vocab_size > len(tokenizer) + 1
+    model = Qwen2ForCausalLM(config)
+
+    press = FinchPress()
+    press.update_model_and_tokenizer(model, tokenizer)
+    assert model.get_input_embeddings().num_embeddings == vocab_size
+    assert press.delimiter_token_id == len(tokenizer) - 1
+
+
+def test_update_model_and_tokenizer_grows_embeddings_when_needed():
+    tokenizer = AutoTokenizer.from_pretrained("MaxJeblick/llama2-0b-unit-test")
+    vocab_size = len(tokenizer)
+    config = LlamaConfig(
+        hidden_size=16,
+        intermediate_size=32,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        num_key_value_heads=1,
+        vocab_size=vocab_size,
+    )
+    model = LlamaForCausalLM(config)
+
+    press = FinchPress()
+    press.update_model_and_tokenizer(model, tokenizer)
+    assert model.get_input_embeddings().num_embeddings == len(tokenizer) == vocab_size + 1
+
+
+@torch.no_grad()
+def test_finch_press_with_gemma3_for_conditional_generation():
+    text_config = Gemma3TextConfig(
+        hidden_size=64,
+        intermediate_size=128,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        head_dim=16,
+        vocab_size=300,
+        layer_types=["sliding_attention", "full_attention"],
+        sliding_window=8,
+    )
+    vision_config = SiglipVisionConfig(
+        hidden_size=32, intermediate_size=64, num_hidden_layers=1, num_attention_heads=2, image_size=28, patch_size=14
+    )
+    config = Gemma3Config(
+        text_config=text_config,
+        vision_config=vision_config,
+        mm_tokens_per_image=4,
+        image_token_index=299,
+        boi_token_index=297,
+        eoi_token_index=298,
+    )
+    model = Gemma3ForConditionalGeneration(config).eval()
+    assert not hasattr(model.model, "embed_tokens")
+
+    press = FinchPress(compression_ratio=0.5, rerotate_keys=False)
+    press.delimiter_token_id = 296
+    input_ids = torch.arange(10, 30)
+    input_ids[15] = press.delimiter_token_id
+    cache = DynamicCache()
+    with press(model):
+        model(input_ids.unsqueeze(0), past_key_values=cache)
+    # The delimiter is removed and only the full attention layer is compressed
+    assert cache.layers[0].keys.shape[2] == 19
+    assert cache.layers[1].keys.shape[2] == 9
