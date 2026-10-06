@@ -9,6 +9,8 @@ from unittest.mock import MagicMock
 
 import fire
 import pytest
+import yaml
+from transformers import FineGrainedFP8Config
 
 from kvpress import KnormPress
 
@@ -87,15 +89,32 @@ def test_config_rejects_non_boolean_values(evaluate, value):
         evaluate.EvaluationConfig(trust_remote_code=value)
 
 
+def setup_model_pipeline(evaluate, press, **config_kwargs):
+    runner = evaluate.EvaluationRunner(evaluate.EvaluationConfig(device="cpu", **config_kwargs))
+    runner.press = press
+    runner._setup_model_pipeline()
+    return runner
+
+
 @pytest.mark.parametrize("flash_attn_available", [True, False])
 def test_model_pipeline_keeps_configured_attn_implementation(
     evaluate, pipeline_calls, monkeypatch, flash_attn_available
 ):
     monkeypatch.setitem(sys.modules, "flash_attn", MagicMock() if flash_attn_available else None)
-    runner = evaluate.EvaluationRunner(
-        evaluate.EvaluationConfig(device="cpu", model_kwargs={"attn_implementation": "sdpa"})
-    )
-    runner.press = KnormPress()
-    runner._setup_model_pipeline()
+    setup_model_pipeline(evaluate, KnormPress(), model_kwargs={"attn_implementation": "sdpa"})
 
     assert pipeline_calls[-1]["model_kwargs"]["attn_implementation"] == "sdpa"
+
+
+def test_saved_config_can_be_read_with_safe_load(evaluate, pipeline_calls, tmp_path):
+    runner = setup_model_pipeline(
+        evaluate, KnormPress(), fp8=True, model_kwargs={"dtype": "auto"}, needle_depth=(10, 50)
+    )
+    runner.config.save_config(tmp_path / "config.yaml")
+    with open(tmp_path / "config.yaml") as f:
+        saved_config = yaml.safe_load(f)
+
+    assert isinstance(pipeline_calls[-1]["model_kwargs"]["quantization_config"], FineGrainedFP8Config)
+    assert runner.config.model_kwargs == {"dtype": "auto"}
+    assert saved_config["model_kwargs"] == {"dtype": "auto"}
+    assert saved_config["needle_depth"] == [10, 50]

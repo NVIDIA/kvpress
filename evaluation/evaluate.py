@@ -183,7 +183,7 @@ class EvaluationConfig:
         if self.head_compression_ratio is None:
             config_dict.pop("head_compression_ratio", None)
         with open(str(config_filename), "w") as f:
-            yaml.dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
+            yaml.safe_dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
 
 
 def _load_yaml_config(path: str | Path) -> dict:
@@ -376,7 +376,7 @@ class EvaluationRunner:
             device = "auto" if torch.cuda.is_available() else "cpu"
             logger.info(f"No device specified, auto-detected device: {device}")
 
-        model_kwargs = self.config.model_kwargs or {}
+        model_kwargs = dict(self.config.model_kwargs or {})
 
         if self.config.fp8:
             model_kwargs["quantization_config"] = FineGrainedFP8Config()
