@@ -438,17 +438,21 @@ class KVComposePress(BasePress):
             return outputs
 
         try:
-            for layer in model.model.layers:
-                layer.self_attn.rotary_emb = model.model.rotary_emb
+            try:
+                for layer in model.model.layers:
+                    layer.self_attn.rotary_emb = model.model.rotary_emb
 
-            setattr(model, "original_forward_KVComposePress", model.model.forward)
-            new_forward_with_press = partial(new_forward, press=self)
-            model.model.forward = types.MethodType(new_forward_with_press, model)
+                setattr(model, "original_forward_KVComposePress", model.model.forward)
+                new_forward_with_press = partial(new_forward, press=self)
+                model.model.forward = types.MethodType(new_forward_with_press, model)
 
-            yield
+                yield
+            finally:
+                model.model.forward = getattr(model, "original_forward_KVComposePress")
+                delattr(model, "original_forward_KVComposePress")
+
+            if self.context_ids is not None:
+                self.prepare_important_masks()
+                self.compress_cache(model)
         finally:
-            model.model.forward = getattr(model, "original_forward_KVComposePress")
-            delattr(model, "original_forward_KVComposePress")
-            self.prepare_important_masks()
-            self.compress_cache(model)
             self._reset_state()

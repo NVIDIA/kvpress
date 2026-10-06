@@ -10,6 +10,18 @@ from tests.fixtures import unit_test_model  # noqa: F401
 
 
 @pytest.mark.parametrize("structured", [True, False])
+def test_kvcompose_without_forward_pass_is_a_no_op(unit_test_model, structured):  # noqa: F811
+    with KVComposePress(structured=structured, compression_ratio=0.5)(unit_test_model):
+        pass
+
+
+def test_kvcompose_does_not_mask_errors_raised_in_the_context(unit_test_model):  # noqa: F811
+    with pytest.raises(RuntimeError, match="boom"):
+        with KVComposePress(compression_ratio=0.5)(unit_test_model):
+            raise RuntimeError("boom")
+
+
+@pytest.mark.parametrize("structured", [True, False])
 def test_kvcompose_add_v_norm(unit_test_model, structured):  # noqa: F811
     context_len = 64
     for layer in unit_test_model.model.layers:
