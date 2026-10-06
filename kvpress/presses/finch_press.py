@@ -101,13 +101,15 @@ class FinchPress(BasePress):
             n_kept = compute_n_kept(k_len, self.compression_ratio)
             indices = scores.topk(n_kept, dim=-1).indices
         else:
-            assert self.chunk_length > self.window_size / (1 - self.compression_ratio)
+            # Chunks only cover the context, the window is always kept
+            context_length = k_len - self.window_size
             indices = []
-            for i in range(0, k_len, self.chunk_length):
-                chunk_scores = scores[:, :, i : i + self.chunk_length]
+            for i in range(0, context_length, self.chunk_length):
+                chunk_scores = scores[:, :, i : min(i + self.chunk_length, context_length)]
                 n_kept = compute_n_kept(chunk_scores.shape[2], self.compression_ratio)
                 chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices
                 indices.append(chunk_indices)
+            indices.append(torch.arange(context_length, k_len, device=keys.device).expand(*scores.shape[:2], -1))
             indices = torch.cat(indices, dim=-1)
         if self.rerotate_keys:
             indices = torch.sort(indices, dim=2).values
