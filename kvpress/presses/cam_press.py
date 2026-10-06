@@ -197,7 +197,7 @@ class CAMPress(DecodingPress):
             -1, num_key_value_heads, -1, head_dim
         )
 
-        values.scatter_add_(2, scatter_idx, contributions)
+        values.scatter_add_(2, scatter_idx, contributions.to(values.dtype))
 
         # Physical Pruning
         kept_indices_expand = kept_indices.view(bsz, 1, self.target_size, 1).expand(
@@ -265,7 +265,8 @@ class CAMPress(DecodingPress):
             attn_squeezed = attentions.squeeze(2)
 
             if layer_idx not in self._running_attn_sum:
-                self._running_attn_sum[layer_idx] = attn_squeezed.clone()
+                # Accumulate in float32, small attention weights vanish when summed in half precision
+                self._running_attn_sum[layer_idx] = attn_squeezed.to(torch.float32, copy=True)
             else:
                 # Pad running sum for the new token growth
                 prev_len = self._running_attn_sum[layer_idx].shape[-1]
@@ -273,7 +274,7 @@ class CAMPress(DecodingPress):
 
                 if pad_len > 0:
                     pad = torch.zeros(
-                        (bsz, num_key_value_heads, pad_len), device=attn_squeezed.device, dtype=attn_squeezed.dtype
+                        (bsz, num_key_value_heads, pad_len), device=attn_squeezed.device, dtype=torch.float32
                     )
                     self._running_attn_sum[layer_idx] = torch.cat([self._running_attn_sum[layer_idx], pad], dim=-1)
 
