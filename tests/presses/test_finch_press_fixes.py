@@ -32,6 +32,17 @@ def test_chunked_compression_keeps_the_window(context_length, window_size, chunk
     assert len(kept) == sum(compute_n_kept(length, 0.5) for length in chunk_lengths) + window_size
 
 
+def test_normalized_scores_do_not_overflow_in_float16():
+    k_len = 80_001
+    press = FinchPress(compression_ratio=0.5)
+    press.window_size = 1
+    keys = torch.zeros(1, 1, k_len, 1, dtype=torch.float16)
+    attentions = torch.full((1, 1, 1, k_len), 0.9, dtype=torch.float16)
+    scores = press.score(make_module(1), None, keys, keys, attentions, {})
+    assert torch.isfinite(scores).all()
+    torch.testing.assert_close(scores[0, 0, 0], torch.tensor(0.9 * 80_000), rtol=1e-3, atol=0)
+
+
 @torch.no_grad()
 def test_window_size_is_not_reused_across_samples(unit_test_model):  # noqa: F811
     press = FinchPress(compression_ratio=0.5)

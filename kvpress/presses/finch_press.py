@@ -72,7 +72,8 @@ class FinchPress(BasePress):
         if self.normalize_scores:
             non_zero_counts = torch.arange(k_len - self.window_size, k_len)[None, None, :, None]
             non_zero_counts = non_zero_counts.to(attn_weights.device)
-            attn_weights = attn_weights * non_zero_counts
+            # float32 as the products overflow float16 for long contexts
+            attn_weights = attn_weights.float() * non_zero_counts
 
         # Average per group
         scores = attn_weights.mean(dim=-2)
