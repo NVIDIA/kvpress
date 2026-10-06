@@ -8,6 +8,7 @@ import torch
 
 from kvpress import FinchPress
 from kvpress.utils import compute_n_kept
+from tests.fixtures import unit_test_model  # noqa: F401
 
 
 def make_module(num_heads):
@@ -29,3 +30,16 @@ def test_chunked_compression_keeps_the_window(context_length, window_size, chunk
     assert set(range(context_length, k_len)) <= set(kept)
     chunk_lengths = [min(chunk_length, context_length - i) for i in range(0, context_length, chunk_length)]
     assert len(kept) == sum(compute_n_kept(length, 0.5) for length in chunk_lengths) + window_size
+
+
+@torch.no_grad()
+def test_window_size_is_not_reused_across_samples(unit_test_model):  # noqa: F811
+    press = FinchPress(compression_ratio=0.5)
+    press.delimiter_token_id = unit_test_model.config.eos_token_id
+    input_ids = torch.arange(10, 30, device=unit_test_model.device)
+    input_ids_with_delimiter = input_ids.clone()
+    input_ids_with_delimiter[15] = press.delimiter_token_id
+    with press(unit_test_model):
+        unit_test_model(input_ids_with_delimiter.unsqueeze(0))
+        with pytest.raises(AssertionError, match="window_size must be provided"):
+            unit_test_model(input_ids.unsqueeze(0))

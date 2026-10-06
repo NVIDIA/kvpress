@@ -127,6 +127,9 @@ class FinchPress(BasePress):
         """
         Forward hook to detect a delimiter token between the context and the window
         """
+        if input[0].shape[1] > 1:  # prefilling
+            # Reset the window size so that an input without delimiter can't reuse the previous one
+            self.window_size = None
         if input[0].shape[1] > 1 and self.delimiter_token_id in input[0][0]:  # prefilling
             assert len(input[0]) == 1, "Only batch size 1 is supported."
             # Find the delimiter token and compute the window size
