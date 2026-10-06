@@ -76,15 +76,17 @@ def evaluate(
 
         # Tokenize question
         messages = [{"role": "user", "content": row["question"]}]
-        tokens = tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
-        tokens = tokens.to(model.device)
+        inputs = tokenizer.apply_chat_template(
+            messages, return_tensors="pt", return_dict=True, add_generation_prompt=True
+        )
+        inputs = inputs.to(model.device)
 
         with press(model):
             # Generation config from model card: https://huggingface.co/Qwen/Qwen3-32B
             output_tokens = model.generate(
-                tokens, temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_new_tokens=max_new_tokens
+                **inputs, temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, max_new_tokens=max_new_tokens
             )
-            answer = tokenizer.decode(output_tokens[0, tokens.shape[1] :])
+            answer = tokenizer.decode(output_tokens[0, inputs["input_ids"].shape[1] :])
             df.loc[idx, "predicted_answer"] = answer
             if isinstance(press, DMSPress):
                 df.loc[idx, "compression_ratio"] = press.compression_ratio
