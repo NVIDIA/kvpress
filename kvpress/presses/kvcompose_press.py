@@ -383,6 +383,7 @@ class KVComposePress(BasePress):
             logger.warning(f"Model {type(model)} not tested")
 
         self._register_model(model)
+        self._reset_state()
 
         def new_forward(
             self,
@@ -392,35 +393,50 @@ class KVComposePress(BasePress):
             press: KVComposePress,
             **kwargs,
         ):
-            press.register_context_ids(input_ids)
-
-            original_attn_implementation = self.model.config._attn_implementation
-            self.model.config._attn_implementation = "eager"
-            outputs = self.original_forward_KVComposePress(
-                input_ids=input_ids,
-                past_key_values=past_key_values,
-                *args,
-                **kwargs,
-            )
-
-            press._register_cache(past_key_values)
-            for prompt_ids in press.prompt_ids or [press.context_ids]:
-                cache = past_key_values
-                self.original_forward_KVComposePress(
-                    input_ids=prompt_ids.to(self.model.device),
-                    past_key_values=cache,
+            if press.context_ids is not None or (past_key_values is not None and past_key_values.get_seq_length() > 0):
+                # Only the first prefill is scored, later calls (e.g. decoding steps) run unchanged
+                return self.original_forward_KVComposePress(
+                    input_ids=input_ids,
+                    past_key_values=past_key_values,
                     *args,
                     **kwargs,
                 )
 
-            self.model.config._attn_implementation = original_attn_implementation
+            press.register_context_ids(input_ids)
+
+            hooks = [
+                layer.self_attn.register_forward_hook(press.forward_hook, with_kwargs=True)
+                for layer in self.model.layers
+            ]
+            original_attn_implementation = self.model.config._attn_implementation
+            self.model.config._attn_implementation = "eager"
+            try:
+                outputs = self.original_forward_KVComposePress(
+                    input_ids=input_ids,
+                    past_key_values=past_key_values,
+                    *args,
+                    **kwargs,
+                )
+
+                cache = outputs.past_key_values
+                press._register_cache(cache)
+                for prompt_ids in press.prompt_ids or [press.context_ids]:
+                    # The positions and masks of the prefill (e.g. passed by model.generate) do not apply here
+                    self.original_forward_KVComposePress(
+                        input_ids=prompt_ids.to(self.model.device),
+                        past_key_values=cache,
+                    )
+                # Later forward passes must only attend to the context
+                cache.crop(press.context_len)
+            finally:
+                self.model.config._attn_implementation = original_attn_implementation
+                for hook in hooks:
+                    hook.remove()
             return outputs
 
-        hooks = []
         try:
             for layer in model.model.layers:
                 layer.self_attn.rotary_emb = model.model.rotary_emb
-                hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
 
             setattr(model, "original_forward_KVComposePress", model.model.forward)
             new_forward_with_press = partial(new_forward, press=self)
@@ -430,8 +446,6 @@ class KVComposePress(BasePress):
         finally:
             model.model.forward = getattr(model, "original_forward_KVComposePress")
             delattr(model, "original_forward_KVComposePress")
-            for forward_hook in hooks:
-                forward_hook.remove()
             self.prepare_important_masks()
             self.compress_cache(model)
             self._reset_state()
