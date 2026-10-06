@@ -46,6 +46,27 @@ def test_kvzip_compresses_the_cache_created_by_the_model(unit_test_model, press_
     )
 
 
+@pytest.mark.parametrize("press_cls, kwargs", PRESSES)
+def test_kvzip_generate_replays_the_prefilled_context(unit_test_model, press_cls, kwargs):  # noqa: F811
+    context_len = 64
+    input_ids = torch.randint(0, 1024, (1, context_len), device=unit_test_model.device)
+    reference = masked_keys(
+        unit_test_model,
+        press_cls(compression_ratio=0.5, **kwargs),
+        lambda m: m(input_ids, past_key_values=DynamicCache()),
+    )
+
+    cache = DynamicCache()
+    masks = masked_keys(
+        unit_test_model,
+        press_cls(compression_ratio=0.5, **kwargs),
+        lambda m: m.generate(input_ids, past_key_values=cache, max_new_tokens=5, do_sample=False),
+    )
+
+    assert_same_masks(masks, reference)
+    assert cache.get_seq_length() == context_len
+
+
 def test_kvzip_requires_input_ids(unit_test_model):  # noqa: F811
     inputs_embeds = unit_test_model.model.embed_tokens(torch.randint(0, 1024, (1, 16), device=unit_test_model.device))
     with pytest.raises(ValueError, match="input_ids"):

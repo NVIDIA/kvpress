@@ -123,6 +123,10 @@ class KVzipPress(BasePress):
         original_forward = model.model.forward
 
         def wrapped_forward(model_self, *args, **kwargs):
+            cache = kwargs.get("past_key_values")
+            if self._context_ids is not None or (cache is not None and cache.get_seq_length() > 0):
+                # Only the first prefill is replayed, later calls (e.g. decoding steps) run unchanged
+                return original_forward(*args, **kwargs)
             input_ids = kwargs["input_ids"] if "input_ids" in kwargs else (args[0] if args else None)
             if input_ids is None:
                 raise ValueError(f"{type(self).__name__} replays the context, call the model with input_ids")
@@ -147,6 +151,8 @@ class KVzipPress(BasePress):
                 for layer in model.model.layers:
                     layer.self_attn.rotary_emb = model.model.rotary_emb
 
+                # Tokens decoded after the prefill (e.g. by model.generate) are not part of the context
+                self._cache.crop(self._context_ids.shape[1])
                 self._perform_kvzip_compression(model, tokenizer)
         finally:
             self._reset_internal_parameters()
