@@ -7,7 +7,7 @@ import pytest
 import torch
 from transformers import DynamicCache
 
-from kvpress import CAMPress, DecodingPress, KnormPress, ScorerPress
+from kvpress import AdaKVPress, CAMPress, DecodingPress, KnormPress, PrefillDecodingPress, ScorerPress
 from tests.fixtures import unit_test_model, unit_test_model_output_attention  # noqa: F401
 
 
@@ -55,3 +55,16 @@ def test_state_is_reset_on_prefill(unit_test_model):  # noqa: F811
         unit_test_model(input_ids, past_key_values=DynamicCache())
         assert set(press.layer_step_counts.values()) == {0}
         assert all(len(buffer) == 0 for buffer in press.hidden_states_buffer.values())
+
+
+@pytest.mark.parametrize("press_cls", [DecodingPress, CAMPress])
+@torch.no_grad()
+def test_decoding_compression_rejects_keys_masked_during_prefilling(unit_test_model, press_cls):  # noqa: F811
+    press = PrefillDecodingPress(
+        prefilling_press=AdaKVPress(KnormPress(compression_ratio=0.5)),
+        decoding_press=press_cls(base_press=KnormPress(), compression_interval=2, target_size=8),
+    )
+    input_ids = torch.randint(0, 1000, (1, 16), device=unit_test_model.device)
+    with pytest.raises(ValueError, match="head-wise press"):
+        with press(unit_test_model):
+            unit_test_model.generate(input_ids, max_new_tokens=4, do_sample=False)

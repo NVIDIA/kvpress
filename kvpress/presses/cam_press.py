@@ -287,6 +287,7 @@ class CAMPress(DecodingPress):
             q_len >= self.target_size
         ):
 
+            self._check_no_masked_keys(module)
             # Apply compression using cumulative attention scores and buffered hidden states
             attn_squeezed = self._running_attn_sum[layer_idx]
             buffered_hidden_states, buffered_kwargs = self._get_buffered_inputs(layer_idx, kwargs)

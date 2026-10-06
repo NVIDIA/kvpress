@@ -64,6 +64,17 @@ class DecodingPress(BasePress):
     def post_init_from_model(self, model):
         self.base_press.post_init_from_model(model)
 
+    def _check_no_masked_keys(self, module: nn.Module):
+        """
+        Removing tokens from the cache would shift the positions of keys masked by a head-wise press
+        (e.g. AdaKVPress, KVzipPress or DMSPress) during prefilling.
+        """
+        if not isinstance(self.base_press, AdaKVPress) and getattr(module, "masked_key_indices", None) is not None:
+            raise ValueError(
+                f"{type(self).__name__} removes tokens from the cache and cannot be combined with a head-wise press "
+                "applied during prefilling, such as AdaKVPress, KVzipPress or DMSPress."
+            )
+
     def compress(
         self,
         module: nn.Module,
@@ -144,6 +155,7 @@ class DecodingPress(BasePress):
                 f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})"  # noqa: E501
             )
 
+            self._check_no_masked_keys(module)
             keys, values = extract_keys_and_values(cache, module.layer_idx)
 
             # Apply compression using buffered hidden states for this layer. Attention weights are not used
