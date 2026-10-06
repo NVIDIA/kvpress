@@ -78,10 +78,10 @@ class DMSPress(BasePress):
         # Extract layer index as int for type safety
         layer_idx: int = module.layer_idx  # type: ignore[assignment]
 
-        # Reset the scores buffer and compression ratios if we are in prefilling
-        if prefilling and (layer_idx == 0):
-            self.scores_buffer.clear()
-            self.compression_ratios.clear()
+        # Reset the state of this layer if we are in prefilling (layer 0 is not hooked for every model, e.g. Gemma3)
+        if prefilling:
+            self.scores_buffer.pop(layer_idx, None)
+            self.compression_ratios.pop(layer_idx, None)
 
         # Skip compression during decoding if not enabled
         if not prefilling and not self.decoding:
