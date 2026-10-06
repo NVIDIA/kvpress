@@ -9,12 +9,11 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
-from transformers.cache_utils import QuantizedCache
 
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import extract_keys_and_values
+from kvpress.utils import extract_keys_and_values, set_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +142,6 @@ class DecodingPress(BasePress):
                 f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})"  # noqa: E501
             )
 
-            cache_layer = cache.layers[module.layer_idx]
             keys, values = extract_keys_and_values(cache, module.layer_idx)
 
             # Get attention weights from output
@@ -155,15 +153,7 @@ class DecodingPress(BasePress):
             logger.debug(f"Applied decoding compression: " f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values
-            if isinstance(cache, QuantizedCache):
-                cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
-                cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
-                cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-                cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-                cache_layer.cumulative_length = keys.shape[2]
-            else:
-                cache_layer.keys = keys
-                cache_layer.values = values
+            set_keys_and_values(cache, module.layer_idx, keys, values)
 
             # Reset step count and clear buffer for this layer
             self.layer_step_counts[layer_idx] = 0
