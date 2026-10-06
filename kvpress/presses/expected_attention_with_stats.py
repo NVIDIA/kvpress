@@ -65,7 +65,9 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
         """
         q_len = hidden_states.shape[1]
         layer_idx = module.layer_idx
-        mu, cov = self.apply_avg_rope(module, self.mu[layer_idx], self.cov[layer_idx], q_len)  # type: ignore
+        mu = self.mu[layer_idx].to(hidden_states.device)  # type: ignore[index]
+        cov = self.cov[layer_idx].to(hidden_states.device)  # type: ignore[index]
+        mu, cov = self.apply_avg_rope(module, mu, cov, q_len)
         return mu.unsqueeze(0), cov.unsqueeze(0)
 
     @staticmethod
