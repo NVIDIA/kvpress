@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 from transformers.models.llama.modeling_llama import repeat_kv
 
-from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
@@ -56,13 +55,15 @@ class CAMPress(DecodingPress):
         more evenly.
     """
 
-    base_press: ScorerPress | AdaKVPress
+    base_press: ScorerPress
     compression_interval: int = 512
     target_size: int = 2048
     hidden_states_buffer_size: int = 256
     merge_budget: int = 32
 
     def __post_init__(self):
+        if not isinstance(self.base_press, ScorerPress):
+            raise ValueError(f"CAMPress requires a ScorerPress as base_press, got {type(self.base_press).__name__}")
         super().__post_init__()
         assert self.merge_budget > 0, "merge_budget must be positive "
 
