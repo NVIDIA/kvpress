@@ -178,6 +178,7 @@ class FastKVzipPress(BasePress):
 
     gates: list[nn.Module] | None = field(init=False, default=None)
     score_val: list[torch.Tensor] | torch.Tensor | None = field(init=False, default=None)
+    gate_indices: dict[int, int] = field(init=False, default_factory=dict)
 
     def post_init_from_model(self, model):
         """
@@ -210,10 +211,13 @@ class FastKVzipPress(BasePress):
         try:
             language_model = model.model.language_model if hasattr(model.model, "language_model") else model.model
             self.score_val = [None for _ in range(len(language_model.layers))]  # reset every prefilling
+            # The gates are only trained for the scored layers, in order
+            self.gate_indices = {}
             for layer in language_model.layers:
                 if isinstance(model, Gemma3ForConditionalGeneration) and layer.self_attn.is_sliding:
                     # Skip layers with sliding window attention, only for Gemma3
                     continue
+                self.gate_indices[layer.self_attn.layer_idx] = len(self.gate_indices)
                 layer.self_attn.rotary_emb = language_model.rotary_emb
                 hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
             yield
@@ -246,9 +250,10 @@ class FastKVzipPress(BasePress):
         Calculate the KV importance scores.
         """
         layer_idx = int(module.layer_idx)
+        gate_idx = self.gate_indices[layer_idx]
 
-        self.gates[layer_idx] = self.gates[layer_idx].to(hidden_states.device)
-        scores = self.gates[layer_idx](hidden_states)
+        self.gates[gate_idx] = self.gates[gate_idx].to(hidden_states.device)
+        scores = self.gates[gate_idx](hidden_states)
         scores[:, :, : self.n_sink] = 1.0
 
         ctx_len = scores.size(-1)

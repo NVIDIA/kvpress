@@ -22,9 +22,12 @@ def use_random_gates(monkeypatch, gate_dtype=torch.bfloat16):
         config = AutoConfig.from_pretrained(model_name)
         config = getattr(config, "text_config", config)
         ngroup = config.num_attention_heads // config.num_key_value_heads
+        # As for the published gates, there is no gate for the sliding window layers of Gemma3
+        layer_types = getattr(config, "layer_types", None)
+        n_gates = config.num_hidden_layers if layer_types is None else layer_types.count("full_attention")
         gates = [
             FastKVzipGate(idx, config.hidden_size, config.num_key_value_heads, ngroup, gate_dtype, sink=16)
-            for idx in range(config.num_hidden_layers)
+            for idx in range(n_gates)
         ]
         return [gate.state_dict() for gate in gates], f"{model_name.split('/')[-1]}/q{ngroup}_dim16_sink16.pt"
 
