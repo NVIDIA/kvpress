@@ -247,7 +247,7 @@ class CAMPress(DecodingPress):
             return output
 
         # All hidden_states_buffer code is borrowed from DecodingPress
-        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
+        self._append_to_buffer(layer_idx, hidden_states, kwargs)
 
         keys, values = extract_keys_and_values(cache, layer_idx)
         bsz, num_key_value_heads, seq_len, _ = keys.shape
@@ -288,8 +288,8 @@ class CAMPress(DecodingPress):
 
             # Apply compression using cumulative attention scores and buffered hidden states
             attn_squeezed = self._running_attn_sum[layer_idx]
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
-            keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, kwargs)
+            buffered_hidden_states, buffered_kwargs = self._get_buffered_inputs(layer_idx, kwargs)
+            keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, buffered_kwargs)
 
             # Update cache with compressed keys and values
             set_keys_and_values(cache, layer_idx, keys, values)

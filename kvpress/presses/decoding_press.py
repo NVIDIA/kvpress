@@ -47,9 +47,9 @@ class DecodingPress(BasePress):
     hidden_states_buffer_size: int = 256
 
     def __post_init__(self):
-        # Buffer to store hidden states during decoding (per layer)
         assert isinstance(self.base_press, (ScorerPress, AdaKVPress)), "DecodingPress requires a ScorerPress as input"
-        self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
+        # Buffer of (hidden_states, cos, sin) during decoding (per layer)
+        self.hidden_states_buffer = defaultdict(list)
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
         assert self.compression_interval > 0, "compression_interval must be greater than 0"
@@ -82,7 +82,7 @@ class DecodingPress(BasePress):
             keys: Key cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
             values: Value cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
             attentions: Attention weights (shape varies by implementation)
-            kwargs: Additional keyword arguments
+            kwargs: Additional keyword arguments, with position_embeddings matching the buffered hidden states
 
         Returns:
             tuple[torch.Tensor, torch.Tensor]: Compressed (keys, values) tensors
@@ -115,7 +115,7 @@ class DecodingPress(BasePress):
 
         This hook:
         1. Detects when we're in decoding phase (not prefilling)
-        2. Accumulates hidden states in a buffer
+        2. Accumulates hidden states and their RoPE embeddings in a buffer
         3. Applies compression every N steps
         4. Clears the buffer after compression
         """
@@ -129,8 +129,8 @@ class DecodingPress(BasePress):
             # We're still in prefilling phase, don't do anything
             return output
         # print(f"Adding hidden states to buffer: {hidden_states.shape}")
-        # Add current hidden states to buffer for this layer
-        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
+        # Add current hidden states and their RoPE embeddings to buffer for this layer
+        self._append_to_buffer(layer_idx, hidden_states, kwargs)
 
         # print(f"Layer step counts: {self.layer_step_counts[layer_idx]}")
         self.layer_step_counts[layer_idx] += 1
@@ -144,12 +144,10 @@ class DecodingPress(BasePress):
 
             keys, values = extract_keys_and_values(cache, module.layer_idx)
 
-            # Get attention weights from output
-            attentions = output[1] if len(output) > 1 and output[1] is not None else None
-
-            # Apply compression using buffered hidden states for this layer
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
-            keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
+            # Apply compression using buffered hidden states for this layer. Attention weights are not used
+            # as they only cover the current queries.
+            buffered_hidden_states, buffered_kwargs = self._get_buffered_inputs(layer_idx, kwargs)
+            keys, values = self.compress(module, buffered_hidden_states, keys, values, None, buffered_kwargs)
             logger.debug(f"Applied decoding compression: " f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values
@@ -167,6 +165,17 @@ class DecodingPress(BasePress):
             else []
         )
         return output
+
+    def _append_to_buffer(self, layer_idx: int, hidden_states: torch.Tensor, kwargs: dict):
+        cos, sin = kwargs["position_embeddings"]
+        self.hidden_states_buffer[layer_idx].append((hidden_states.detach().clone(), cos, sin))
+
+    def _get_buffered_inputs(self, layer_idx: int, kwargs: dict) -> tuple[torch.Tensor, dict]:
+        """
+        Return the buffered hidden states of a layer and a copy of kwargs with the matching RoPE embeddings.
+        """
+        hidden_states, cos, sin = (torch.cat(tensors, dim=1) for tensors in zip(*self.hidden_states_buffer[layer_idx]))
+        return hidden_states, {**kwargs, "position_embeddings": (cos, sin)}
 
     def reset(self):
         """Reset the decoding press state."""
