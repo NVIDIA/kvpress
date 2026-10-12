@@ -1,8 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import importlib
+from functools import wraps
+
 import torch
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+
+from kvpress.presses.base_press import SUPPORTED_MODELS
 
 
 def search_hyperplane(X, max_iter: int = 1000):
@@ -48,6 +53,33 @@ def search_hyperplane(X, max_iter: int = 1000):
     raise ValueError("Could not find fake keys such that for every query q, exp(<q, k>) = 0")
 
 
+def _pad_causal_attention_mask(attention_mask: torch.Tensor, query_length: int, padding_length: int) -> torch.Tensor:
+    """Extend only an unpadded causal mask, whose additional past columns are known to be visible."""
+    error = (
+        "Cannot extend this attention mask for a longer layer cache. "
+        "Only unpadded causal masks can be extended; provide a layer-specific attention mask."
+    )
+    mask_length = attention_mask.shape[-1]
+    if attention_mask.shape[-2] != query_length or mask_length < query_length:
+        raise ValueError(error)
+
+    key_positions = torch.arange(mask_length, device=attention_mask.device)
+    query_positions = torch.arange(query_length, device=attention_mask.device).unsqueeze(-1)
+    allowed = key_positions <= query_positions + mask_length - query_length
+    if attention_mask.dtype == torch.bool:
+        valid = attention_mask == allowed
+    elif attention_mask.dtype.is_floating_point:
+        blocked = torch.isneginf(attention_mask) | (attention_mask == torch.finfo(attention_mask.dtype).min)
+        valid = torch.where(allowed, attention_mask == 0, blocked)
+    else:
+        raise ValueError(error)
+    if not valid.all():
+        raise ValueError(error)
+
+    visible = True if attention_mask.dtype == torch.bool else 0.0
+    return torch.nn.functional.pad(attention_mask, (padding_length, 0), value=visible)
+
+
 def attention_patch(func):
     """
     Decorator to update the keys before the attention computation at the indices provided in module.masked_key_indices
@@ -66,7 +98,8 @@ def attention_patch(func):
         The wrapped attention function that supports head-wise key masking.
     """
 
-    def wrapper(module, query, key, value, attention_mask, dropout, **kwargs):
+    @wraps(func)
+    def wrapper(module, query, key, value, attention_mask, dropout=0.0, **kwargs):
         if query.shape[2] == key.shape[2]:
             # Prefilling
             module.masked_key_indices = None
@@ -86,23 +119,38 @@ def attention_patch(func):
             batch_indices, head_indices, seq_indices = module.masked_key_indices
             key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
 
+        if isinstance(attention_mask, torch.Tensor) and attention_mask.ndim == 4 and attention_mask.shape[-1] != 1:
+            # The shared mask uses the first layer's cache length. New query tokens
+            # are at the right edge of every layer, regardless of its context budget.
+            difference = key.shape[-2] - attention_mask.shape[-1]
+            if difference < 0:
+                attention_mask = attention_mask[..., -key.shape[-2] :]
+            elif difference > 0:
+                if kwargs.get("sliding_window") is not None or getattr(module, "sliding_window", None) is not None:
+                    raise ValueError(
+                        "Cannot extend a sliding-window attention mask for a longer layer cache; "
+                        "provide a layer-specific attention mask."
+                    )
+                attention_mask = _pad_causal_attention_mask(attention_mask, query.shape[-2], difference)
+
         # see https://github.com/NVIDIA/kvpress/pull/115#issuecomment-3183785597
         # cu_seq_lens_k are only in kwargs if model.generate is used.
         if "cu_seq_lens_k" in kwargs:
             kwargs["cu_seq_lens_k"][-1] = key.shape[-2]
-        return func(module, query, key, value, attention_mask, dropout, **kwargs)
+        return func(module, query, key, value, attention_mask, dropout=dropout, **kwargs)
 
     return wrapper
 
 
 def patch_attention_functions():
     """
-    Apply attention patching to all transformer attention functions.
+    Apply attention patching to registered backends and supported models' eager functions.
 
     This function automatically patches all attention functions registered in
     transformers' ALL_ATTENTION_FUNCTIONS to support head-wise key masking.
-    It enables KVPress compression methods that require head-specific masking
-    (like AdaKV) to work correctly during text generation.
+    It also patches the model-specific eager functions, which are not registered there.
+    This enables head-specific masking (like AdaKV) and unequal per-layer caches
+    (like PyramidKV) to work correctly during text generation.
 
     The patching is applied globally and affects all transformer models loaded
     after this function is called. It's automatically called when importing
@@ -110,9 +158,16 @@ def patch_attention_functions():
 
     Notes
     -----
-    This function modifies the global attention functions in the transformers
-    library. The modifications do not affect models that don't use head-wise compression (i.e. don't have
-    module.masked_key_indices).
+    This function modifies the global attention functions in the transformers library.
+    Attention masks with the correct key length, singleton key dimensions, and
+    two-dimensional padding masks are left unchanged. Four-dimensional masks are
+    right-aligned to each layer's keys. Longer caches can extend unpadded causal masks
+    with visible past-context columns. Restricted masks, including sliding-window
+    masks, require a layer-specific mask when the layer cache is longer.
     """
     for name, func in ALL_ATTENTION_FUNCTIONS.items():
         ALL_ATTENTION_FUNCTIONS[name] = attention_patch(func)
+    for model in SUPPORTED_MODELS:
+        modeling_module = importlib.import_module(model.__module__)
+        eager_attention = getattr(modeling_module, "eager_attention_forward")
+        setattr(modeling_module, "eager_attention_forward", attention_patch(eager_attention))
