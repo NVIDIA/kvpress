@@ -23,6 +23,7 @@ from kvpress import (
     KVzipPress,
     MergingPress,
     ObservedAttentionPress,
+    PerLayerCompressionPress,
     ScorerPress,
     SnapKVPress,
     ThinKPress,
@@ -117,6 +118,41 @@ def test_presses_run(unit_test_model, press_dict, wrapper_press):  # noqa: F811
             unit_test_model(input_ids, past_key_values=DynamicCache()).past_key_values
         # Check that the press has a compression_ratio attribute
         assert hasattr(press, "compression_ratio")
+
+
+@dataclass
+class PostInitKnormPress(KnormPress):
+    """KnormPress that can only score after post_init_from_model was called, like QFilterPress or KVzapPress."""
+
+    initialized: bool = False
+
+    def post_init_from_model(self, model):
+        self.initialized = True
+
+    def score(self, module, hidden_states, keys, values, attentions, kwargs):
+        assert self.initialized, "post_init_from_model was not forwarded to the wrapped press"
+        return super().score(module, hidden_states, keys, values, attentions, kwargs)
+
+
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        lambda press, model: AdaKVPress(press=press),
+        lambda press, model: ChunkPress(press=press, chunk_length=32),
+        lambda press, model: CriticalKVPress(press=press),
+        lambda press, model: CriticalAdaKVPress(press=press),
+        lambda press, model: KeyRerotationPress(press=press),
+        lambda press, model: PerLayerCompressionPress(
+            press=press, compression_ratios=[0.5] * model.config.num_hidden_layers
+        ),
+    ],
+    ids=["adakv", "chunk", "criticalkv", "critical_adakv", "key_rerotation", "per_layer"],
+)
+def test_wrapper_presses_forward_post_init_from_model(unit_test_model, wrap):  # noqa: F811
+    press = wrap(PostInitKnormPress(compression_ratio=0.5), unit_test_model)
+    with press(unit_test_model):
+        input_ids = torch.randint(0, 1024, (1, 128), device=unit_test_model.device)
+        unit_test_model(input_ids, past_key_values=DynamicCache())
 
 
 def test_presses_run_observed_attention(unit_test_model_output_attention):  # noqa: F811
