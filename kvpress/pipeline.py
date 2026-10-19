@@ -310,6 +310,8 @@ class KVPressTextGenerationPipeline(Pipeline):
             should_stop_token_ids = [should_stop_token_ids]
 
         for i in range(max_new_tokens - 1):
+            if generated_ids[-1].item() in should_stop_token_ids:
+                break
             outputs = self.model(
                 input_ids=generated_ids[-1].unsqueeze(0).unsqueeze(0),
                 past_key_values=cache,
@@ -317,8 +319,6 @@ class KVPressTextGenerationPipeline(Pipeline):
             )
             new_id = outputs.logits[0, -1].argmax()
             generated_ids.append(new_id)
-            if new_id.item() in should_stop_token_ids:
-                break
         answer = str(self.tokenizer.decode(torch.stack(generated_ids), skip_special_tokens=True))
         return answer
 
