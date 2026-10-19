@@ -1,10 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import types
+
 import pytest
 import torch
 
-from kvpress.attention_patch import search_hyperplane
+import kvpress.attention_patch as attention_patch_module
+from kvpress.attention_patch import attention_patch, search_hyperplane
 
 
 def attention_weights(X, K, attention_scaling):
@@ -50,3 +53,15 @@ def test_search_hyperplane_raises_for_non_separable_queries():
     X = torch.cat([X, -X], dim=1)  # no hyperplane has both q and -q on its positive side
     with pytest.raises(ValueError, match="Could not find fake keys"):
         search_hyperplane(X, max_iter=10)
+
+
+def test_attention_patch_skips_the_fake_key_search_without_masked_keys(monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("search_hyperplane should not run when no key is masked")
+
+    monkeypatch.setattr(attention_patch_module, "search_hyperplane", fail)
+    wrapped = attention_patch(lambda module, query, key, value, attention_mask, dropout, **kwargs: key)
+    empty = torch.empty(0, dtype=torch.long)
+    module = types.SimpleNamespace(masked_key_indices=(empty, empty, empty))
+    query, key = torch.randn(1, 2, 1, 4), torch.randn(1, 2, 5, 4)
+    torch.testing.assert_close(wrapped(module, query, key.clone(), key.clone(), None, 0.0), key)

@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import math
 from dataclasses import dataclass
 
 import torch
@@ -102,19 +101,21 @@ class DropKVPress(ScorerPress):
             (cos[:, -window_size:], sin[:, -window_size:]),
         )
 
-    def _compute_window_probabilities(self, query_states: torch.Tensor, keys: torch.Tensor) -> torch.Tensor:
+    def _compute_window_probabilities(
+        self, query_states: torch.Tensor, keys: torch.Tensor, scaling: float
+    ) -> torch.Tensor:
         """Attention probabilities of the window queries over the whole cache.
 
         Only used when the attention weights are not already available from the
         forward pass, i.e. outside of the eager attention implementation.
         """
         num_query_heads, query_len = query_states.shape[1], query_states.shape[2]
-        num_kv_heads, seq_len, head_dim = keys.shape[1], keys.shape[2], keys.shape[3]
+        num_kv_heads, seq_len = keys.shape[1], keys.shape[2]
         if num_query_heads % num_kv_heads != 0:
             raise ValueError(f"Query heads {num_query_heads} must be divisible by KV heads {num_kv_heads}")
 
         repeated_keys = repeat_kv(keys, num_query_heads // num_kv_heads)
-        attention_weights = torch.matmul(query_states, repeated_keys.transpose(2, 3)) / math.sqrt(head_dim)
+        attention_weights = torch.matmul(query_states, repeated_keys.transpose(2, 3)) * scaling
 
         causal_mask = torch.full(
             (query_len, seq_len),
@@ -185,7 +186,7 @@ class DropKVPress(ScorerPress):
             probabilities = attentions[..., -window_size:, :]
         else:
             query_states = self._get_window_queries(module, hidden_states, kwargs["position_embeddings"], window_size)
-            probabilities = self._compute_window_probabilities(query_states, keys)
+            probabilities = self._compute_window_probabilities(query_states, keys, module.scaling)
 
         scores = self._compute_scores(probabilities, keys, values)
 

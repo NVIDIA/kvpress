@@ -72,7 +72,8 @@ class FinchPress(BasePress):
         if self.normalize_scores:
             non_zero_counts = torch.arange(k_len - self.window_size, k_len)[None, None, :, None]
             non_zero_counts = non_zero_counts.to(attn_weights.device)
-            attn_weights = attn_weights * non_zero_counts
+            # float32 as the products overflow float16 for long contexts
+            attn_weights = attn_weights.float() * non_zero_counts
 
         # Average per group
         scores = attn_weights.mean(dim=-2)
@@ -101,13 +102,15 @@ class FinchPress(BasePress):
             n_kept = compute_n_kept(k_len, self.compression_ratio)
             indices = scores.topk(n_kept, dim=-1).indices
         else:
-            assert self.chunk_length > self.window_size / (1 - self.compression_ratio)
+            # Chunks only cover the context, the window is always kept
+            context_length = k_len - self.window_size
             indices = []
-            for i in range(0, k_len, self.chunk_length):
-                chunk_scores = scores[:, :, i : i + self.chunk_length]
+            for i in range(0, context_length, self.chunk_length):
+                chunk_scores = scores[:, :, i : min(i + self.chunk_length, context_length)]
                 n_kept = compute_n_kept(chunk_scores.shape[2], self.compression_ratio)
                 chunk_indices = i + chunk_scores.topk(n_kept, dim=-1).indices
                 indices.append(chunk_indices)
+            indices.append(torch.arange(context_length, k_len, device=keys.device).expand(*scores.shape[:2], -1))
             indices = torch.cat(indices, dim=-1)
         if self.rerotate_keys:
             indices = torch.sort(indices, dim=2).values
@@ -125,6 +128,9 @@ class FinchPress(BasePress):
         """
         Forward hook to detect a delimiter token between the context and the window
         """
+        if input[0].shape[1] > 1:  # prefilling
+            # Reset the window size so that an input without delimiter can't reuse the previous one
+            self.window_size = None
         if input[0].shape[1] > 1 and self.delimiter_token_id in input[0][0]:  # prefilling
             assert len(input[0]) == 1, "Only batch size 1 is supported."
             # Find the delimiter token and compute the window size
@@ -146,8 +152,9 @@ class FinchPress(BasePress):
         if delimiter_token not in tokenizer.get_vocab():
             tokenizer.add_special_tokens({"additional_special_tokens": [delimiter_token]})
         self.delimiter_token_id = tokenizer.convert_tokens_to_ids(delimiter_token)  # type: ignore
-        # update model embeddings
-        model.resize_token_embeddings(len(tokenizer))
+        # update model embeddings, len(tokenizer) can be smaller than the embeddings (e.g. Qwen2.5)
+        if self.delimiter_token_id >= model.get_input_embeddings().num_embeddings:
+            model.resize_token_embeddings(len(tokenizer))
         return tokenizer
 
     @contextmanager
@@ -161,7 +168,7 @@ class FinchPress(BasePress):
 
         with super().__call__(model):
             try:
-                hook = model.model.embed_tokens.register_forward_hook(self.embed_token_forward_hook)
+                hook = model.get_input_embeddings().register_forward_hook(self.embed_token_forward_hook)
                 yield
             finally:
                 hook.remove()

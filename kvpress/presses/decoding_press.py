@@ -9,12 +9,11 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
-from transformers.cache_utils import QuantizedCache
 
 from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import extract_keys_and_values
+from kvpress.utils import extract_keys_and_values, set_keys_and_values
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +47,9 @@ class DecodingPress(BasePress):
     hidden_states_buffer_size: int = 256
 
     def __post_init__(self):
-        # Buffer to store hidden states during decoding (per layer)
         assert isinstance(self.base_press, (ScorerPress, AdaKVPress)), "DecodingPress requires a ScorerPress as input"
-        self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
+        # Buffer of (hidden_states, cos, sin) during decoding (per layer)
+        self.hidden_states_buffer = defaultdict(list)
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
 
         assert self.compression_interval > 0, "compression_interval must be greater than 0"
@@ -64,6 +63,17 @@ class DecodingPress(BasePress):
 
     def post_init_from_model(self, model):
         self.base_press.post_init_from_model(model)
+
+    def _check_no_masked_keys(self, module: nn.Module):
+        """
+        Removing tokens from the cache would shift the positions of keys masked by a head-wise press
+        (e.g. AdaKVPress, KVzipPress or DMSPress) during prefilling.
+        """
+        if not isinstance(self.base_press, AdaKVPress) and getattr(module, "masked_key_indices", None) is not None:
+            raise ValueError(
+                f"{type(self).__name__} removes tokens from the cache and cannot be combined with a head-wise press "
+                "applied during prefilling, such as AdaKVPress, KVzipPress or DMSPress."
+            )
 
     def compress(
         self,
@@ -83,7 +93,7 @@ class DecodingPress(BasePress):
             keys: Key cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
             values: Value cache from all previous steps including current (shape: [batch, n_heads, seq_len, head_dim])
             attentions: Attention weights (shape varies by implementation)
-            kwargs: Additional keyword arguments
+            kwargs: Additional keyword arguments, with position_embeddings matching the buffered hidden states
 
         Returns:
             tuple[torch.Tensor, torch.Tensor]: Compressed (keys, values) tensors
@@ -100,7 +110,7 @@ class DecodingPress(BasePress):
             storing existing scores in a buffer (e.g. KNormPress) and reusing them in subsequent compressions.
         """
         k_len = keys.shape[2]
-        target_size = self._resolve_target_size(kwargs)
+        target_size = self._resolve_target_size(module.layer_idx)
         target_compression_ratio = self._find_target_compression_ratio(k_len, target_size)
         logger.debug(f"Compressing {k_len} to {target_size} with ratio {target_compression_ratio}")
 
@@ -115,8 +125,8 @@ class DecodingPress(BasePress):
         Forward hook that manages decoding-specific compression logic.
 
         This hook:
-        1. Detects when we're in decoding phase (not prefilling)
-        2. Accumulates hidden states in a buffer
+        1. Resets the state of the layer during prefilling
+        2. Accumulates hidden states and their RoPE embeddings in a buffer during decoding
         3. Applies compression every N steps
         4. Clears the buffer after compression
         """
@@ -127,43 +137,35 @@ class DecodingPress(BasePress):
 
         # Only operate during decoding phase (after prefilling)
         if is_prefilling(kwargs["cache_position"], q_len):
-            # We're still in prefilling phase, don't do anything
+            # A new sequence starts, drop the state left over from a previous one
+            self.hidden_states_buffer[layer_idx] = []
+            self.layer_step_counts[layer_idx] = 0
             return output
         # print(f"Adding hidden states to buffer: {hidden_states.shape}")
-        # Add current hidden states to buffer for this layer
-        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
+        # Add current hidden states and their RoPE embeddings to buffer for this layer
+        self._append_to_buffer(layer_idx, hidden_states, kwargs)
 
         # print(f"Layer step counts: {self.layer_step_counts[layer_idx]}")
         self.layer_step_counts[layer_idx] += 1
 
         # Apply compression if we've reached the compression step threshold
-        target_size = self._resolve_target_size(kwargs)
+        target_size = self._resolve_target_size(layer_idx)
         if (self.layer_step_counts[layer_idx] >= self.compression_interval) or (q_len >= target_size):
             logger.debug(
                 f"Applying decoding compression: layer_step_count ({self.layer_step_counts[layer_idx]}) >= compression_steps ({self.compression_interval})"  # noqa: E501
             )
 
-            cache_layer = cache.layers[module.layer_idx]
+            self._check_no_masked_keys(module)
             keys, values = extract_keys_and_values(cache, module.layer_idx)
 
-            # Get attention weights from output
-            attentions = output[1] if len(output) > 1 and output[1] is not None else None
-
-            # Apply compression using buffered hidden states for this layer
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
-            keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
+            # Apply compression using buffered hidden states for this layer. Attention weights are not used
+            # as they only cover the current queries.
+            buffered_hidden_states, buffered_kwargs = self._get_buffered_inputs(layer_idx, kwargs)
+            keys, values = self.compress(module, buffered_hidden_states, keys, values, None, buffered_kwargs)
             logger.debug(f"Applied decoding compression: " f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values
-            if isinstance(cache, QuantizedCache):
-                cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
-                cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
-                cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-                cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
-                cache_layer.cumulative_length = keys.shape[2]
-            else:
-                cache_layer.keys = keys
-                cache_layer.values = values
+            set_keys_and_values(cache, module.layer_idx, keys, values)
 
             # Reset step count and clear buffer for this layer
             self.layer_step_counts[layer_idx] = 0
@@ -177,6 +179,17 @@ class DecodingPress(BasePress):
             else []
         )
         return output
+
+    def _append_to_buffer(self, layer_idx: int, hidden_states: torch.Tensor, kwargs: dict):
+        cos, sin = kwargs["position_embeddings"]
+        self.hidden_states_buffer[layer_idx].append((hidden_states.detach().clone(), cos, sin))
+
+    def _get_buffered_inputs(self, layer_idx: int, kwargs: dict) -> tuple[torch.Tensor, dict]:
+        """
+        Return the buffered hidden states of a layer and a copy of kwargs with the matching RoPE embeddings.
+        """
+        hidden_states, cos, sin = (torch.cat(tensors, dim=1) for tensors in zip(*self.hidden_states_buffer[layer_idx]))
+        return hidden_states, {**kwargs, "position_embeddings": (cos, sin)}
 
     def reset(self):
         """Reset the decoding press state."""
@@ -235,5 +248,5 @@ class DecodingPress(BasePress):
 
         return ratio
 
-    def _resolve_target_size(self, kwargs: dict) -> int:
+    def _resolve_target_size(self, layer_idx: int) -> int:
         return self.target_size

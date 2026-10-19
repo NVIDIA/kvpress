@@ -78,7 +78,7 @@ def test_dropkv_scores_match_reference(num_query_heads, num_kv_heads):
     press = DropKVPress(window_size=window_size)
 
     expected = _reference_scores(query_states, keys, values, press.epsilon)
-    probabilities = press._compute_window_probabilities(query_states, keys)
+    probabilities = press._compute_window_probabilities(query_states, keys, 1 / math.sqrt(head_dim))
     actual = press._compute_scores(probabilities, keys, values)
 
     torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-5)

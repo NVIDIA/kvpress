@@ -138,7 +138,7 @@ class KVPressTextGenerationPipeline(Pipeline):
 
         # Apply chat template if available
         if self.tokenizer.chat_template is None:
-            bos_token = getattr(self.tokenizer, "bos_token", "")
+            bos_token = self.tokenizer.bos_token or ""
             context = bos_token + context
             question_suffix = "\n"  # to separate the question from the answer
         else:
@@ -199,9 +199,15 @@ class KVPressTextGenerationPipeline(Pipeline):
         list[str]
             Generated answers for each input question.
         """
-        if isinstance(press, (DecodingPress, PrefillDecodingPress)) and len(input_tensors["questions_ids"]) > 1:
+        compresses_during_decoding = (
+            isinstance(press, DecodingPress)
+            or (isinstance(press, PrefillDecodingPress) and press.decoding_press is not None)
+            or (isinstance(press, DMSPress) and press.decoding)
+        )
+        if compresses_during_decoding and len(input_tensors["questions_ids"]) > 1:
             raise ValueError(
-                "DecodingPress is not compatible with multiple questions. Please specify a single question."
+                f"{type(press).__name__} compresses the cache during decoding and is not compatible with multiple "
+                "questions. Please specify a single question."
             )
 
         context_ids = input_tensors["context_ids"].to(self.model.device)
@@ -305,9 +311,12 @@ class KVPressTextGenerationPipeline(Pipeline):
         position_ids = position_ids[:, -1:] + 1
         generated_ids = [outputs.logits[0, -1].argmax()]
 
-        should_stop_token_ids = self.model.generation_config.eos_token_id
-        if not isinstance(should_stop_token_ids, list):
-            should_stop_token_ids = [should_stop_token_ids]
+        eos_token_ids = self.model.generation_config.eos_token_id
+        if not isinstance(eos_token_ids, list):
+            eos_token_ids = [eos_token_ids]
+        should_stop_token_ids = {
+            token_id for token_id in [*eos_token_ids, self.tokenizer.eos_token_id] if token_id is not None
+        }
 
         for i in range(max_new_tokens - 1):
             outputs = self.model(

@@ -129,9 +129,27 @@ def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> to
 
 
 def dequantize_layer(cache_layer) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Dequantizes a quantized cache layer. The most recent tokens are stored in full precision in
+    ``cache_layer.keys`` and ``cache_layer.values`` until the residual length is reached.
+    """
     keys = cache_layer._dequantize(cache_layer._quantized_keys)
     values = cache_layer._dequantize(cache_layer._quantized_values)
+    if cache_layer.keys.dim() == 4 and cache_layer.keys.shape[-2] > 0:
+        keys = torch.cat([keys, cache_layer.keys], dim=-2)
+        values = torch.cat([values, cache_layer.values], dim=-2)
     return keys, values
+
+
+def quantize_layer(cache_layer, keys: torch.Tensor, values: torch.Tensor):
+    """
+    Quantizes all keys and values of a quantized cache layer and empties its full precision residual.
+    """
+    cache_layer._quantized_keys = cache_layer._quantize(keys.contiguous(), axis=cache_layer.axis_key)
+    cache_layer._quantized_values = cache_layer._quantize(values.contiguous(), axis=cache_layer.axis_value)
+    cache_layer.keys = torch.tensor([], dtype=keys.dtype, device=keys.device)
+    cache_layer.values = torch.tensor([], dtype=values.dtype, device=values.device)
+    cache_layer.cumulative_length = keys.shape[2]
 
 
 def compute_n_kept(k_len: int, compression_ratio: float) -> int:
@@ -158,3 +176,15 @@ def extract_keys_and_values(cache: Cache, layer_idx: int) -> tuple[torch.Tensor,
         keys = cache.layers[layer_idx].keys
         values = cache.layers[layer_idx].values
     return keys, values
+
+
+def set_keys_and_values(cache: Cache, layer_idx: int, keys: torch.Tensor, values: torch.Tensor):
+    """
+    Writes the keys and values of a given cache layer,
+    handling both quantized and unquantized caches.
+    """
+    if isinstance(cache, QuantizedCache):
+        quantize_layer(cache.layers[layer_idx], keys, values)
+    else:
+        cache.layers[layer_idx].keys = keys
+        cache.layers[layer_idx].values = values

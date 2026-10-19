@@ -51,16 +51,21 @@ def insert_needle_in_haystack(
     """
 
     # Store the original context and needle to be reused for each depth
-    original_context = df["context"][0]
-    needle_text = needle_text or df["needle"][0]
-    question_text = question_text or df["question"][0]
-    answer_prefix = answer_prefix or df["answer_prefix"][0]
-    max_new_tokens = df["max_new_tokens"][0]
+    original_context = df["context"].iloc[0]
+    needle_text = needle_text or df["needle"].iloc[0]
+    question_text = question_text or df["question"].iloc[0]
+    answer_prefix = answer_prefix or df["answer_prefix"].iloc[0]
+    max_new_tokens = df["max_new_tokens"].iloc[0]
 
     logger.info(f"Preparing dataset for inference. Needle: {needle_text}")
     tokenized_needle = tokenizer.encode(needle_text, add_special_tokens=False)
     # Account for system prompts and other overhead
     context_length_limit = max_context_length - len(tokenized_needle) - 150
+    if context_length_limit <= 0:
+        raise ValueError(
+            f"max_context_length ({max_context_length}) must exceed the needle length ({len(tokenized_needle)} "
+            "tokens) plus 150 tokens reserved for the prompt"
+        )
     # Tokenize the original context once
     tokenized_context = tokenizer.encode(original_context, add_special_tokens=False)[:context_length_limit]
     # Initialize a list to hold the new rows

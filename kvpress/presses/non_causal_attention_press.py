@@ -85,11 +85,11 @@ class NonCausalAttnPress(ScorerPress):
         q_chunks = q_padded.view(B, H, num_chunks, chunk_size, d)
         k_chunks = k_padded.view(B, H, num_chunks, chunk_size, d)
 
-        # (B, H, num_chunks, chunk_size, chunk_size)
-        dots = torch.matmul(q_chunks, k_chunks.transpose(-2, -1))
-        dots[:, :, -1].masked_fill_(query_mask.unsqueeze(-1), 0)
-        dots[:, :, -1].masked_fill_(key_mask.unsqueeze(-2), -1e-9)
-        attn = torch.softmax(dots.to(torch.float32), dim=-1)
+        # (B, H, num_chunks, chunk_size, chunk_size), unscaled as in the official implementation (sm_scale=1.0)
+        dots = torch.matmul(q_chunks, k_chunks.transpose(-2, -1)).to(torch.float32)
+        dots[:, :, -1].masked_fill_(key_mask.unsqueeze(-2), torch.finfo(dots.dtype).min)
+        attn = torch.softmax(dots, dim=-1)
+        attn[:, :, -1].masked_fill_(query_mask.unsqueeze(-1), 0)
         # sum over query and trim padding
         return attn.sum(dim=-2).view(B, H, S_pad)[..., :S]
 
@@ -116,5 +116,5 @@ class NonCausalAttnPress(ScorerPress):
 
         scores = A * values.norm(dim=-1)  # (B, H_kv, S)
         scores = F.avg_pool1d(scores, kernel_size=3, padding=1, stride=1)
-        z_scores = (scores - scores.mean()) / scores.std().clamp_min(1e-6)  # head-wise z-norm
+        z_scores = (scores - scores.mean()) / scores.std().clamp_min(1e-6)  # z-norm over all heads and tokens
         return z_scores

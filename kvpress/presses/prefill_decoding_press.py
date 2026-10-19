@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
@@ -82,8 +82,13 @@ class PrefillDecodingPress(BasePress):
 
     @contextmanager
     def __call__(self, model: PreTrainedModel):
+        # Entering both contexts is enough: BasePress hooks only compress during prefilling,
+        # and DecodingPress hooks only during decoding.
         try:
-            with super().__call__(model):
+            with ExitStack() as stack:
+                for press in (self.prefilling_press, self.decoding_press):
+                    if press is not None:
+                        stack.enter_context(press(model))
                 yield
         finally:
             # Reset decoding press if it exists
