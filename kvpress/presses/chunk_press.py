@@ -65,13 +65,22 @@ class ChunkPress(BasePress):
         kv_len = keys.shape[2]
         indices = []
         for i in range(0, kv_len, self.chunk_length):
+            # Slice the rotary embeddings so that presses recomputing queries (e.g. SnapKVPress)
+            # use the positions of the chunk and not the positions at the end of the full sequence
+            chunk_kwargs = kwargs
+            if kwargs.get("position_embeddings") is not None:
+                cos, sin = kwargs["position_embeddings"]
+                chunk_kwargs = {
+                    **kwargs,
+                    "position_embeddings": (cos[:, i : i + self.chunk_length], sin[:, i : i + self.chunk_length]),
+                }
             chunk_scores = self.press.score(
                 module,
                 hidden_states[:, i : i + self.chunk_length],
                 keys[:, :, i : i + self.chunk_length],
                 values[:, :, i : i + self.chunk_length],
                 attentions,
-                kwargs,
+                chunk_kwargs,
             )
             chunk_length = keys[:, :, i : i + self.chunk_length].shape[2]
             n_kept = max(1, int(chunk_length * (1 - self.press.compression_ratio)))
