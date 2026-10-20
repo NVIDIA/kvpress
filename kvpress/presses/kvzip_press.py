@@ -69,6 +69,7 @@ class KVzipPress(BasePress):
         self.context_length = 0
         self.prefix_length = 0
 
+        self._tokenizer = None
         self._suffix_ids = None
         self._context_ids = None
         self._cache = None
@@ -95,8 +96,8 @@ class KVzipPress(BasePress):
 
         self.post_init_from_model(model)
 
-        # Store model reference for later use
-        tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
+        # Keep the tokenizer: subclasses may need it during prefilling, before the compression phase
+        self._tokenizer = tokenizer = AutoTokenizer.from_pretrained(model.config.name_or_path)
 
         # Get suffix_ids directly using tokenizer's chat template (do this once, not in hook)
         if tokenizer.chat_template is None:
