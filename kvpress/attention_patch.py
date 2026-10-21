@@ -54,10 +54,10 @@ def search_hyperplane(X, max_iter: int = 1000):
 
 
 def _pad_causal_attention_mask(attention_mask: torch.Tensor, query_length: int, padding_length: int) -> torch.Tensor:
-    """Extend only an unpadded causal mask, whose additional past columns are known to be visible."""
+    """Validate an unpadded causal mask and prepend visible past columns when needed."""
     error = (
-        "Cannot extend this attention mask for a longer layer cache. "
-        "Only unpadded causal masks can be extended; provide a layer-specific attention mask."
+        "Cannot resize this attention mask for a different layer cache. "
+        "Only unpadded causal masks can be resized; provide a layer-specific attention mask."
     )
     mask_length = attention_mask.shape[-1]
     if attention_mask.shape[-2] != query_length or mask_length < query_length:
@@ -76,6 +76,8 @@ def _pad_causal_attention_mask(attention_mask: torch.Tensor, query_length: int, 
     if not valid.all():
         raise ValueError(error)
 
+    if padding_length == 0:
+        return attention_mask
     visible = True if attention_mask.dtype == torch.bool else 0.0
     return torch.nn.functional.pad(attention_mask, (padding_length, 0), value=visible)
 
@@ -100,6 +102,7 @@ def attention_patch(func):
 
     @wraps(func)
     def wrapper(module, query, key, value, attention_mask, dropout=0.0, **kwargs):
+        """Apply head-wise key masking and align validated causal masks to the layer cache."""
         if query.shape[2] == key.shape[2]:
             # Prefilling
             module.masked_key_indices = None
@@ -124,6 +127,7 @@ def attention_patch(func):
             # are at the right edge of every layer, regardless of its context budget.
             difference = key.shape[-2] - attention_mask.shape[-1]
             if difference < 0:
+                _pad_causal_attention_mask(attention_mask, query.shape[-2], 0)
                 attention_mask = attention_mask[..., -key.shape[-2] :]
             elif difference > 0:
                 if kwargs.get("sliding_window") is not None or getattr(module, "sliding_window", None) is not None:
@@ -160,10 +164,10 @@ def patch_attention_functions():
     -----
     This function modifies the global attention functions in the transformers library.
     Attention masks with the correct key length, singleton key dimensions, and
-    two-dimensional padding masks are left unchanged. Four-dimensional masks are
-    right-aligned to each layer's keys. Longer caches can extend unpadded causal masks
-    with visible past-context columns. Restricted masks, including sliding-window
-    masks, require a layer-specific mask when the layer cache is longer.
+    two-dimensional padding masks are left unchanged. Unpadded causal masks are
+    right-aligned to each layer's keys. Longer caches can extend them with visible
+    past-context columns. Restricted masks, including padded and sliding-window
+    masks, require a layer-specific mask when the key length differs.
     """
     for name, func in ALL_ATTENTION_FUNCTIONS.items():
         ALL_ATTENTION_FUNCTIONS[name] = attention_patch(func)

@@ -17,6 +17,7 @@ def attention_weights(X, K, attention_scaling):
 
 
 def test_search_hyperplane():
+    """The constructed fake keys must have zero attention weight for every sampled query."""
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     bsz, seq_len, head_dim = 50, 500, 128
     X = torch.rand(bsz, seq_len, head_dim, device=device)
@@ -26,6 +27,7 @@ def test_search_hyperplane():
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.float32, torch.float64])
 def test_search_hyperplane_returns_finite_keys_in_cache_dtype(dtype):
+    """Fake keys must stay finite in the cache dtype while suppressing attention weights."""
     torch.manual_seed(0)
     X = torch.randn(4, 128, 64, dtype=dtype) + 1.0
     attention_scaling = X.shape[-1] ** -0.5
@@ -38,6 +40,7 @@ def test_search_hyperplane_returns_finite_keys_in_cache_dtype(dtype):
 
 
 def test_search_hyperplane_scales_fake_keys_to_float16_range():
+    """Scale large fake keys to the float16 limit without losing attention suppression."""
     torch.manual_seed(2)
     X = 3e-3 * torch.randn(1, 1, 128, dtype=torch.float16)
     attention_scaling = X.shape[-1] ** -0.5
@@ -50,6 +53,7 @@ def test_search_hyperplane_scales_fake_keys_to_float16_range():
 
 
 def test_search_hyperplane_raises_for_non_separable_queries():
+    """Opposite queries cannot share a separating fake key and must raise a clear error."""
     X = torch.randn(1, 1, 8)
     X = torch.cat([X, -X], dim=1)  # no hyperplane has both q and -q on its positive side
     with pytest.raises(ValueError, match="Could not find fake keys"):
@@ -73,6 +77,7 @@ def test_attention_patch_aligns_causal_mask_to_layer_cache(key_length, query_len
     original_mask = mask.clone()
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Compute SDPA outputs with the mask supplied by the wrapper."""
         return torch.nn.functional.scaled_dot_product_attention(query, key, value, attention_mask, dropout)
 
     actual = attention_patch(attention)(nn.Module(), query, key, value, mask, 0.0)
@@ -93,6 +98,7 @@ def test_attention_patch_preserves_flash_attention_padding_mask(mask):
     key = torch.zeros(1, 1, 2, 4)
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Return the padding mask received by the backend without modifying it."""
         return attention_mask
 
     assert attention_patch(attention)(nn.Module(), query, key, key, mask, 0.0) is mask
@@ -111,6 +117,7 @@ def test_attention_patch_preserves_broadcast_mask(dtype, query_length):
         mask = torch.zeros_like(mask, dtype=dtype).masked_fill(~mask, -torch.inf)
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Check broadcast-mask identity before computing masked attention."""
         assert attention_mask is mask
         return torch.nn.functional.scaled_dot_product_attention(query, key, value, attention_mask, dropout)
 
@@ -122,10 +129,11 @@ def test_attention_patch_preserves_broadcast_mask(dtype, query_length):
 
 @pytest.mark.parametrize("dtype", [torch.bool, torch.float32])
 @pytest.mark.parametrize("restriction", ["padding", "sliding", "future", "query_broadcast"])
-def test_attention_patch_rejects_extending_restricted_masks(dtype, restriction):
-    """Unknown masking constraints must not be replaced by visible context columns."""
+@pytest.mark.parametrize("key_length", [4, 8])
+def test_attention_patch_rejects_resizing_restricted_masks(dtype, restriction, key_length):
+    """Unknown masking constraints must not be reassigned to compressed cache positions."""
     query = torch.zeros(1, 1, 2, 4)
-    key = torch.zeros(1, 1, 8, 4)
+    key = torch.zeros(1, 1, key_length, 4)
     key_positions = torch.arange(5)
     query_positions = torch.arange(2).unsqueeze(-1) + 3
     mask = (key_positions <= query_positions).unsqueeze(0).unsqueeze(0)
@@ -142,11 +150,39 @@ def test_attention_patch_rejects_extending_restricted_masks(dtype, restriction):
     original_mask = mask.clone()
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Fail if an unsupported restricted mask reaches the backend."""
         pytest.fail("Restricted masks must be rejected before calling the backend")
 
     with pytest.raises(ValueError, match="layer-specific"):
         attention_patch(attention)(nn.Module(), query, key, key, mask)
     torch.testing.assert_close(mask, original_mask)
+
+
+@pytest.mark.parametrize("dtype", [torch.bool, torch.float32])
+def test_attention_patch_rejects_padded_mask_for_non_suffix_cache(dtype):
+    """A retained padded key must not become visible through suffix-based mask trimming."""
+    query = torch.zeros(1, 1, 1, 4)
+    original_keys = torch.zeros(1, 1, 6, 4)
+    original_values = torch.tensor([100.0, 0.0, 0.0, 1.0, 0.0, 2.0]).reshape(1, 1, 6, 1).expand_as(original_keys)
+    retained_positions = torch.tensor([0, 3, 5])
+    key = original_keys.index_select(-2, retained_positions)
+    value = original_values.index_select(-2, retained_positions)
+    mask = torch.tensor([[[[False, True, True, True, True, True]]]])
+    if dtype != torch.bool:
+        mask = torch.zeros_like(mask, dtype=dtype).masked_fill(~mask, -torch.inf)
+    original_mask = mask.clone()
+
+    def attention(module, query, key, value, attention_mask, dropout):
+        """Compute attention to verify that a layer-specific mask still hides the padded key."""
+        return torch.nn.functional.scaled_dot_product_attention(query, key, value, attention_mask, dropout)
+
+    with pytest.raises(ValueError, match="layer-specific"):
+        attention_patch(attention)(nn.Module(), query, key, value, mask)
+    torch.testing.assert_close(mask, original_mask)
+
+    layer_mask = mask.index_select(-1, retained_positions)
+    actual = attention_patch(attention)(nn.Module(), query, key, value, layer_mask)
+    torch.testing.assert_close(actual, torch.full_like(query, 1.5))
 
 
 @pytest.mark.parametrize("dtype", [torch.bool, torch.float32])
@@ -167,6 +203,7 @@ def test_attention_patch_rejects_extending_sliding_window_masks(dtype, window_so
         kwargs["sliding_window"] = 10
 
     def attention(module, query, key, value, attention_mask, dropout, **kwargs):
+        """Fail if an unsupported sliding-window extension reaches the backend."""
         pytest.fail("Sliding-window masks must be rejected before calling the backend")
 
     with pytest.raises(ValueError, match="layer-specific"):
@@ -184,6 +221,7 @@ def test_attention_patch_extends_additive_causal_mask(dtype, use_infinity):
     mask = torch.zeros(1, 1, 2, 5, dtype=dtype).masked_fill(~allowed, blocked)
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Expose the extended causal mask for dtype and value comparisons."""
         return attention_mask
 
     actual = attention_patch(attention)(nn.Module(), query, key, key, mask)
@@ -207,20 +245,23 @@ def test_attention_patch_preserves_layer_specific_restricted_mask(dtype):
     module.sliding_window = 3
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Return a matching layer-specific mask to check that its identity is preserved."""
         return attention_mask
 
     assert attention_patch(attention)(module, query, key, key, mask) is mask
 
 
-def test_attention_patch_rejects_extending_attention_bias():
-    """Finite attention biases cannot be inferred for additional context keys."""
+@pytest.mark.parametrize("key_length", [4, 8])
+def test_attention_patch_rejects_resizing_attention_bias(key_length):
+    """Finite attention biases cannot be mapped to different compressed cache positions."""
     query = torch.zeros(1, 1, 2, 4)
-    key = torch.zeros(1, 1, 8, 4)
+    key = torch.zeros(1, 1, key_length, 4)
     allowed = torch.arange(5) <= torch.arange(2).unsqueeze(-1) + 3
     mask = torch.zeros(1, 1, 2, 5).masked_fill(~allowed, -torch.inf)
     mask[..., 0] = 0.5
 
     def attention(module, query, key, value, attention_mask, dropout):
+        """Fail if a remapped attention bias reaches the backend."""
         pytest.fail("Attention biases must be rejected before calling the backend")
 
     with pytest.raises(ValueError, match="layer-specific"):
