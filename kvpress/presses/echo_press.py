@@ -45,8 +45,10 @@ class EchoPress(KVzipPress):
     """
 
     def __post_init__(self):
-        super().__post_init__()
+        assert 0 <= self.compression_ratio < 1, "Compression ratio must be between 0 and 1"
+        assert self.chunk_size > 0, "Chunk size must be positive"
         assert not self.kvzip_plus_normalization, "EchoPress does not support the KVzip+ normalization"
+        self._reset_internal_parameters()
 
     def _reset_internal_parameters(self):
         super()._reset_internal_parameters()
