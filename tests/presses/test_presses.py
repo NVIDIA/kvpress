@@ -52,6 +52,32 @@ def test_chunk_press(unit_test_model):  # noqa: F811
             assert cache.get_seq_length() == 128
 
 
+@torch.no_grad()
+def test_chunk_press_scores_chunks_at_their_own_positions(unit_test_model):  # noqa: F811
+    """The tokens kept in a chunk must not depend on the tokens that follow that chunk."""
+    torch.manual_seed(0)
+    module = unit_test_model.model.layers[0].self_attn
+    config, device, dtype = unit_test_model.config, unit_test_model.device, unit_test_model.dtype
+    chunk_length, seq_len = 32, 128
+
+    hidden_states = torch.randn(1, seq_len, config.hidden_size, device=device, dtype=dtype)
+    keys = torch.randn(1, config.num_key_value_heads, seq_len, module.head_dim, device=device, dtype=dtype)
+    values = torch.randn_like(keys)
+    position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+    cos, sin = unit_test_model.model.rotary_emb(hidden_states, position_ids)
+
+    press = ChunkPress(press=SnapKVPress(compression_ratio=0.5, window_size=8), chunk_length=chunk_length)
+
+    def first_chunk_keys(length):
+        kwargs = {"position_embeddings": (cos[:, :length], sin[:, :length])}
+        compressed_keys, _ = press.compress(
+            module, hidden_states[:, :length], keys[:, :, :length], values[:, :, :length], None, kwargs
+        )
+        return compressed_keys[:, :, : chunk_length // 2]
+
+    assert torch.equal(first_chunk_keys(chunk_length), first_chunk_keys(seq_len))
+
+
 def test_chunkkv_press(unit_test_model):  # noqa: F811
     press = SnapKVPress(compression_ratio=0.5)
     for chunk_length in [2, 4, 8, 128]:
