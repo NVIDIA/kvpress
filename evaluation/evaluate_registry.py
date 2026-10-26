@@ -14,6 +14,7 @@ from benchmarks.zero_scrolls.calculate_metrics import calculate_metrics as zero_
 
 from kvpress import (
     AdaKVPress,
+    AfterglowPress,
     BlockPress,
     CAMPress,
     ChunkKVPress,
@@ -42,6 +43,7 @@ from kvpress import (
     ObservedAttentionPress,
     PyramidKVPress,
     QFilterPress,
+    QueryAwareKVzipPlusPress,
     RandomPress,
     RestoreKVPress,
     SnapKVPress,
@@ -139,4 +141,8 @@ PRESS_REGISTRY = {
     "merging_snapkv": MergingPress(SnapKVPress()),
     "merging_expected_attention": MergingPress(ExpectedAttentionPress(epsilon=1e-2)),
     "merging_kvzap_mlp": MergingPress(KVzapPress(model_type="mlp")),
+    "snapkv_afterglow": AfterglowPress(SnapKVPress()),
+    "adakv_snapkv_afterglow": AdaKVPress(AfterglowPress(SnapKVPress())),
+    "critical_adakv_snapkv_afterglow": CriticalAdaKVPress(AfterglowPress(SnapKVPress())),
+    "kvzip_plus_query_aware": QueryAwareKVzipPlusPress(),
 }
