@@ -12,6 +12,7 @@ from cachetools import LRUCache, cached  # type: ignore[import-untyped]
 from torch import nn
 from transformers import PreTrainedModel
 
+from kvpress.attention_patch import check_masked_key_indices_support
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.scorer_press import ScorerPress
@@ -132,7 +133,7 @@ class LUKVPress(BasePress):
             return keys, values
         if self._budget_curves is None:
             raise ValueError("LU-KV budget curves are not loaded. Use LUKVPress as a model context manager first.")
-        assert module.config._attn_implementation != "eager", "eager mode not supported"
+        check_masked_key_indices_support(module)
 
         bsz, num_key_value_heads, seq_len, _ = keys.shape
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)

@@ -38,16 +38,20 @@ class MergingPress(BasePress):
     merge_fraction : float, default=1.0
         Fraction of evicted tokens (ranked by similarity) that are merged.
         Task-dependent: 1.0 wins on retrieval, 0.75 wins on extraction.
+    chunk_size : int, default=1024
+        Number of evicted tokens whose similarities to the survivors are computed at once.
+        Bounds the memory of the similarity matrix, results only change by floating point rounding.
     """
 
     press: ScorerPress = None  # type: ignore[assignment]
     similarity_threshold: float = 0.0
     merge_fraction: float = 1.0
+    chunk_size: int = 1024
 
     def __post_init__(self):
-        assert isinstance(self.press, ScorerPress), (
-            f"MergingPress requires a ScorerPress, got {type(self.press).__name__}"
-        )
+        assert isinstance(
+            self.press, ScorerPress
+        ), f"MergingPress requires a ScorerPress, got {type(self.press).__name__}"
         assert 0.0 <= self.similarity_threshold <= 1.0
         assert 0.0 < self.merge_fraction <= 1.0, "merge_fraction must be in (0, 1]"
 
@@ -134,10 +138,16 @@ class MergingPress(BasePress):
         kept_values = values.gather(2, keep_idx)
         evict_values = values.gather(2, evict_idx)
 
-        # Cosine similarity → nearest survivor (per evicted token, batched over B, H)
+        # Cosine similarity → nearest survivor (per evicted token, batched over B, H),
+        # computed for chunks of evicted tokens to avoid materializing the (n_evict, n_kept) matrix
         kept_keys = kept_keys / kept_keys.norm(dim=-1, keepdim=True).clamp(min=_EPS)
         evict_keys = evict_keys / evict_keys.norm(dim=-1, keepdim=True).clamp(min=_EPS)
-        max_sim, target = (evict_keys @ kept_keys.transpose(-2, -1)).max(dim=-1)
+        nearest = [
+            (evict_keys[:, :, start : start + self.chunk_size] @ kept_keys.transpose(-2, -1)).max(dim=-1)
+            for start in range(0, n_evict, self.chunk_size)
+        ]
+        max_sim = torch.cat([chunk.values for chunk in nearest], dim=-1)
+        target = torch.cat([chunk.indices for chunk in nearest], dim=-1)
 
         # Threshold gate
         merge_ok = max_sim >= self.similarity_threshold

@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from kvpress.attention_patch import check_masked_key_indices_support
 from kvpress.presses.base_press import BasePress, is_prefilling
 from kvpress.presses.scorer_press import ScorerPress
 from kvpress.utils import extract_keys_and_values
@@ -67,6 +68,7 @@ class DMSPress(BasePress):
         raise AttributeError(f"compression ratio cannot be set for {type(self).__name__}")
 
     def forward_hook(self, module: nn.Module, input: list[torch.Tensor], kwargs: dict, output: list):
+        check_masked_key_indices_support(module)
         hidden_states = kwargs["hidden_states"]
         cache = kwargs["past_key_values"]
         q_len = hidden_states.shape[1]
@@ -76,10 +78,10 @@ class DMSPress(BasePress):
         # Extract layer index as int for type safety
         layer_idx: int = module.layer_idx  # type: ignore[assignment]
 
-        # Reset the scores buffer and compression ratios if we are in prefilling
-        if prefilling and (layer_idx == 0):
-            self.scores_buffer.clear()
-            self.compression_ratios.clear()
+        # Reset the state of this layer if we are in prefilling (layer 0 is not hooked for every model, e.g. Gemma3)
+        if prefilling:
+            self.scores_buffer.pop(layer_idx, None)
+            self.compression_ratios.pop(layer_idx, None)
 
         # Skip compression during decoding if not enabled
         if not prefilling and not self.decoding:

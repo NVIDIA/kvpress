@@ -49,9 +49,9 @@ def test_keys_unchanged(unit_test_model):  # noqa: F811
         unit_test_model(input_ids.clone(), past_key_values=cache_merge)
 
     for i in range(len(cache_hard.layers)):
-        assert torch.equal(cache_hard.layers[i].keys, cache_merge.layers[i].keys), (
-            f"Layer {i}: keys must not be modified"
-        )
+        assert torch.equal(
+            cache_hard.layers[i].keys, cache_merge.layers[i].keys
+        ), f"Layer {i}: keys must not be modified"
 
 
 def test_merge_preserves_more_info(unit_test_model):  # noqa: F811

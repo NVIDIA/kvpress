@@ -118,5 +118,5 @@ class CompactorPress(ScorerPress):
         blending = 0.35 if blending is None else blending
         scores = blending * l_scores + attn_scores
         # protect sinks by padding
-        scores = F.pad(scores, (left_keep, right_keep), value=scores.detach().max())
+        scores = F.pad(scores, (left_keep, right_keep), value=scores.max().item() + 1)
         return scores
