@@ -5,6 +5,7 @@
 from kvpress.attention_patch import patch_attention_functions
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from kvpress.presses.adakv_press import AdaKVPress
+from kvpress.presses.afterglow_press import AfterglowPress
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
 from kvpress.presses.block_press import BlockPress
 from kvpress.presses.cam_press import CAMPress
@@ -42,6 +43,7 @@ from kvpress.presses.per_layer_compression_press import PerLayerCompressionPress
 from kvpress.presses.prefill_decoding_press import PrefillDecodingPress
 from kvpress.presses.pyramidkv_press import PyramidKVPress
 from kvpress.presses.qfilter_press import QFilterPress
+from kvpress.presses.query_aware_kvzip_plus_press import QueryAwareKVzipPlusPress
 from kvpress.presses.random_press import RandomPress
 from kvpress.presses.restorekv_press import RestoreKVPress
 from kvpress.presses.scorer_press import ScorerPress
@@ -103,4 +105,6 @@ __all__ = [
     "CapPress",
     "LUKVPress",
     "EntropyGatedChunkKVPress",
+    "AfterglowPress",
+    "QueryAwareKVzipPlusPress",
 ]

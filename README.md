@@ -131,6 +131,7 @@ Some presses rely on a different logic:
 - `KVgradPress` ([source](kvpress/presses/kvgrad_press.py), [paper](https://openreview.net/forum?id=cg1wTCJjjk)): similar to `KVzipPress`, but scores KV pairs by an input × gradient attribution of their effect on the last hidden states, at the cost of one backward pass per chunk.
 - `RestoreKVPress` ([source](kvpress/presses/restorekv_press.py), [paper](https://arxiv.org/abs/2608.01247)): extends the KV cache with 8 learned restore tokens encoded by a LoRA module before budget-matched KVzip pruning.
 - `KVComposePress` ([source](kvpress/presses/kvcompose_press.py), [paper](https://arxiv.org/abs/2509.05165)): attention-guided eviction, aligning per-head selections into composite tokens to preserve cache structure.
+- `QueryAwareKVzipPlusPress` ([source](kvpress/presses/query_aware_kvzip_plus_press.py), [paper](https://www.alphaxiv.org/abs/2610.afterglow-query-aware-kv-cache-eviction)): single-pass KVzip+ scores from the attention of the question, with Afterglow and a predictability gate (query-aware compression only)
 
 > [!NOTE]  
 > `KVComposePress` performs an extra pass over the full context, temporarily creating a KV cache of ~2x the context length and creating memory overhead during prefill.
@@ -141,6 +142,7 @@ Finally we provide wrapper presses that can be combined with other presses:
 - `PerLayerCompressionPress` ([source](kvpress/presses/per_layer_compression_press.py)): compress each layer with a different compression ratio (experimental)
 - `ComposedPress` ([source](kvpress/presses/composed_press.py)): compose multiple presses together by chaining their forward hooks
 - `KeyRerotationPress` ([source](kvpress/presses/key_rerotation_press.py)): rerotate pruned keys to have continuous RoPE embeddings
+- `AfterglowPress` ([source](kvpress/presses/afterglow_press.py), [paper](https://www.alphaxiv.org/abs/2610.afterglow-query-aware-kv-cache-eviction)): propagate the scores of any `ScorerPress` forward with a decay, so that the whole answer span after a high-scoring token is kept (query-aware compression)
 - `ChunkKVPress` ([source](kvpress/presses/chunkkv_press.py), [paper](https://arxiv.org/abs/2502.00299)): compress by selecting important chunks, preserving semantic coherence
 - `EntropyGatedChunkKVPress` ([source](kvpress/presses/entropy_gated_chunkkv_press.py)): similar to `ChunkKVPress`, but reduces the length of chunks with high scores but low entropy, freeing budget for more chunks.
 - `ChunkPress` ([source](kvpress/presses/chunk_press.py), [paper](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00716/125280)): compress the KV cache on each sequence chunk separately. This can yield to more uniform compression across long sequences

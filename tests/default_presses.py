@@ -25,6 +25,7 @@ from kvpress import (
     NonCausalAttnPress,
     PyramidKVPress,
     QFilterPress,
+    QueryAwareKVzipPlusPress,
     RandomPress,
     RestoreKVPress,
     SimLayerKVPress,
@@ -202,4 +203,11 @@ default_presses = [
     },
     {"cls": CapPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
     {"cls": TestLUKVPress, "kwargs": [{"compression_ratio": 0.5}, {"compression_ratio": 0.8}]},
+    {
+        "cls": QueryAwareKVzipPlusPress,
+        "kwargs": [
+            {"compression_ratio": 0.2, "window_size": 2},
+            {"compression_ratio": 0.8, "window_size": 2},
+        ],
+    },
 ]
