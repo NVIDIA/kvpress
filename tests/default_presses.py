@@ -10,6 +10,7 @@ from kvpress import (
     CURPress,
     DropKVPress,
     DuoAttentionPress,
+    EchoPress,
     ExpectedAttentionPress,
     ExpectedAttentionStatsPress,
     FastKVzipPress,
@@ -157,6 +158,13 @@ default_presses = [
         "cls": KVgradPress,
         "kwargs": [
             {"compression_ratio": 0.5, "chunk_size": 64, "layerwise": False},
+            {"compression_ratio": 0.8, "chunk_size": 64, "layerwise": True},
+        ],
+    },
+    {
+        "cls": EchoPress,
+        "kwargs": [
+            {"compression_ratio": 0.5, "chunk_size": 64},
             {"compression_ratio": 0.8, "chunk_size": 64, "layerwise": True},
         ],
     },
