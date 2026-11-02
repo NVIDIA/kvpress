@@ -53,7 +53,8 @@ class RestoreKVPress(KVzipPress):
         embeddings_path = hf_hub_download(restore_model_name, "restore_embeddings.safetensors")
         self.restore_embeddings = load_file(embeddings_path)["restore_embeddings"].to(model.device, dtype=model.dtype)
         if self.adapter_name not in getattr(model, "peft_config", {}):
-            model.load_adapter(restore_model_name, adapter_name=self.adapter_name)
+            device_map = getattr(model, "hf_device_map", None) or {"": model.device}
+            model.load_adapter(restore_model_name, adapter_name=self.adapter_name, device_map=device_map)
         model.disable_adapters()
         self.restore_model_name = restore_model_name
         logger.info("Loaded %s with %d restore tokens", restore_model_name, self.num_restore_tokens)
