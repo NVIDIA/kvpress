@@ -54,7 +54,7 @@ class RestoreKVPress(KVzipPress):
         self.restore_embeddings = load_file(embeddings_path)["restore_embeddings"].to(model.device, dtype=model.dtype)
         if self.adapter_name not in getattr(model, "peft_config", {}):
             # Without a device map, load_adapter keeps the adapter weights on the CPU
-            device_map = getattr(model, "hf_device_map", {"": model.device})
+            device_map = getattr(model, "hf_device_map", None) or {"": model.device}
             model.load_adapter(restore_model_name, adapter_name=self.adapter_name, device_map=device_map)
         model.disable_adapters()
         self.restore_model_name = restore_model_name
