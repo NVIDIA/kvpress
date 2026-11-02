@@ -387,55 +387,62 @@ class KVComposePress(BasePress):
         if not isinstance(model, (LlamaForCausalLM, Qwen2ForCausalLM, Qwen3ForCausalLM)):
             logger.warning(f"Model {type(model)} not tested")
 
+        self._reset_state()
         self._register_model(model)
 
-        def new_forward(self,
-                        input_ids,
-                        past_key_values,
-                        *args,
-                        press: KVComposePress,
-                        **kwargs,
-                        ):
+        def new_forward(
+            self,
+            input_ids,
+            past_key_values,
+            *args,
+            press: KVComposePress,
+            **kwargs,
+        ):
             press.register_context_ids(input_ids)
 
             original_attn_implementation = self.model.config._attn_implementation
             self.model.config._attn_implementation = "eager"
-            outputs = self.original_forward_KVComposePress(
-                input_ids=input_ids,
-                past_key_values=past_key_values,
-                *args,
-                **kwargs,
-                )
-
-            press._register_cache(past_key_values)
-            for prompt_ids in (press.prompt_ids or [press.context_ids]):
-                cache = past_key_values
-                self.original_forward_KVComposePress(
-                    input_ids=prompt_ids.to(self.model.device),
-                    past_key_values=cache,
+            try:
+                outputs = self.original_forward_KVComposePress(
+                    input_ids=input_ids,
+                    past_key_values=past_key_values,
                     *args,
                     **kwargs,
-                    )
+                )
 
-            self.model.config._attn_implementation = original_attn_implementation
+                press._register_cache(past_key_values)
+                for prompt_ids in press.prompt_ids or [press.context_ids]:
+                    cache = past_key_values
+                    self.original_forward_KVComposePress(
+                        input_ids=prompt_ids.to(self.model.device),
+                        past_key_values=cache,
+                        *args,
+                        **kwargs,
+                    )
+            finally:
+                self.model.config._attn_implementation = original_attn_implementation
             return outputs
 
         hooks = []
+        original_forward = model.model.forward
+        setattr(model, "original_forward_KVComposePress", original_forward)
         try:
-            for layer in model.model.layers:
-                layer.self_attn.rotary_emb = model.model.rotary_emb
-                hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
+            try:
+                for layer in model.model.layers:
+                    layer.self_attn.rotary_emb = model.model.rotary_emb
+                    hooks.append(layer.self_attn.register_forward_hook(self.forward_hook, with_kwargs=True))
 
-            setattr(model, "original_forward_KVComposePress", model.model.forward)
-            new_forward_with_press = partial(new_forward, press=self)
-            model.model.forward = types.MethodType(new_forward_with_press, model)
+                new_forward_with_press = partial(new_forward, press=self)
+                model.model.forward = types.MethodType(new_forward_with_press, model)
 
-            yield
+                yield
+            finally:
+                model.model.forward = original_forward
+                delattr(model, "original_forward_KVComposePress")
+                for forward_hook in hooks:
+                    forward_hook.remove()
+            if self.cache is not None:
+                self.prepare_important_masks()
+                self.compress_cache(model)
         finally:
-            model.model.forward = getattr(model, "original_forward_KVComposePress")
-            delattr(model, "original_forward_KVComposePress")
-            for forward_hook in hooks:
-                forward_hook.remove()
-            self.prepare_important_masks()
-            self.compress_cache(model)
             self._reset_state()
