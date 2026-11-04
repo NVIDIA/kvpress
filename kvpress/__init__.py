@@ -20,6 +20,7 @@ from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.dms_press import DMSPress
 from kvpress.presses.dropkv_press import DropKVPress
 from kvpress.presses.duo_attention_press import DuoAttentionPress
+from kvpress.presses.echo_press import EchoPress
 from kvpress.presses.entropy_gated_chunkkv_press import EntropyGatedChunkKVPress
 from kvpress.presses.expected_attention_press import ExpectedAttentionPress
 from kvpress.presses.expected_attention_with_stats import ExpectedAttentionStatsPress
@@ -87,6 +88,7 @@ __all__ = [
     "KeyDiffPress",
     "KVgradPress",
     "KVzipPress",
+    "EchoPress",
     "ExpectedAttentionStatsPress",
     "CAMPress",
     "DecodingPress",
