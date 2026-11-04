@@ -8,21 +8,27 @@ from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
+from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeAttention
+
+# Attention modules applying a per-head RMSNorm to queries and keys before RoPE.
+# Listed explicitly because transformers generates standalone classes (e.g. Qwen3MoeAttention does not
+# subclass Qwen3Attention), and other modules named q_norm normalize the full projection instead (e.g. Olmo2).
+QK_NORM_ATTENTION_CLASSES = (Qwen3Attention, Qwen3MoeAttention, Gemma3Attention)
 
 
 def get_prerope_query_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
     """
     Extracts the query states from a given attention module and hidden states tensor.
 
-    This function supports multiple attention module types: Phi3Attention, Qwen3Attention, Gemma3Attention,
-    and Llama-like modules. It handles the appropriate projection and reshaping to obtain the query states
-    in the expected format.
+    This function supports multiple attention module types: Phi3Attention, Qwen3Attention, Qwen3MoeAttention,
+    Gemma3Attention, and Llama-like modules. It handles the appropriate projection and reshaping to obtain the
+    query states in the expected format.
 
     Parameters
     ----------
     module : nn.Module
         The attention module from which to extract query states. Must be one of
-        Phi3Attention, Qwen3Attention, Gemma3Attention, or a Llama-like attention module
+        Phi3Attention, Qwen3Attention, Qwen3MoeAttention, Gemma3Attention, or a Llama-like attention module
         with a 'q_proj' attribute.
     hidden_states : torch.Tensor
         The input hidden states of shape (batch_size, seq_len, hidden_dim).
@@ -47,8 +53,8 @@ def get_prerope_query_states(module: nn.Module, hidden_states: torch.Tensor) -> 
 
     query_states = query_states.view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
 
-    # Support for Qwen3 and Gemma3 QK norm
-    if isinstance(module, (Qwen3Attention, Gemma3Attention)):
+    # Support for Qwen3, Qwen3-MoE and Gemma3 QK norm
+    if isinstance(module, QK_NORM_ATTENTION_CLASSES):
         query_states = module.q_norm(query_states)
 
     return query_states
@@ -90,15 +96,15 @@ def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> to
     """
     Extracts the key states from a given attention module and hidden states tensor.
 
-    This function supports multiple attention module types: Phi3Attention, Qwen3Attention, Gemma3Attention,
-    and Llama-like modules. It handles the appropriate projection and reshaping to obtain the key states
-    in the expected format.
+    This function supports multiple attention module types: Phi3Attention, Qwen3Attention, Qwen3MoeAttention,
+    Gemma3Attention, and Llama-like modules. It handles the appropriate projection and reshaping to obtain the
+    key states in the expected format.
 
     Parameters
     ----------
     module : nn.Module
         The attention module from which to extract key states. Must be one of
-        Phi3Attention, Qwen3Attention, Gemma3Attention, or a Llama-like attention module
+        Phi3Attention, Qwen3Attention, Qwen3MoeAttention, Gemma3Attention, or a Llama-like attention module
         with a 'k_proj' attribute.
     hidden_states : torch.Tensor
         The input hidden states of shape (batch_size, seq_len, hidden_dim).
@@ -122,8 +128,8 @@ def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> to
 
     key_states = key_states.view(bsz, k_len, -1, head_dim).transpose(1, 2)
 
-    # Support for Qwen3 and Gemma3 QK norm
-    if isinstance(module, (Qwen3Attention, Gemma3Attention)):
+    # Support for Qwen3, Qwen3-MoE and Gemma3 QK norm
+    if isinstance(module, QK_NORM_ATTENTION_CLASSES):
         key_states = module.k_norm(key_states)
     return key_states
 
