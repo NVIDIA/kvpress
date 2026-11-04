@@ -97,7 +97,8 @@ class SnapKVPress(ScorerPress):
         scores = scores.view(bsz, num_key_value_heads, num_key_value_groups, k_len - self.window_size)
         scores = scores.mean(2)
 
-        # Add back the observation window. Use max score to make sure the window is not pruned.
-        scores = F.pad(scores, (0, self.window_size), value=scores.max().item() + 1)
+        # Keep the observation window without copying its sentinel to the host.
+        window_scores = (scores.max() + 1).expand(*scores.shape[:-1], self.window_size)
+        scores = torch.cat((scores, window_scores), dim=-1)
 
         return scores
