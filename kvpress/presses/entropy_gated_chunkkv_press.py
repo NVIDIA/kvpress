@@ -41,9 +41,8 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
     Notes
     -----
-    Chunk and token selection is shared across heads and computed from batch element 0,
-    the same convention as ChunkKVPress; it is intended for the batch-size-1 context
-    compression performed by the kvpress pipeline. Ranking and top-k selection use the
+    Chunk and token selection is shared across heads and computed separately for each
+    batch element. Ranking and top-k selection use the
     raw scores, so signed scorers (e.g. KeyDiffPress) are ordered correctly; the entropy
     gate rebases negative chunks to form a valid distribution but is most meaningful for
     non-negative scores (e.g. SnapKVPress).
@@ -54,9 +53,9 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.chunk_length > self.low_entropy_chunk_length >= 1, (
-            "EntropyGatedChunkKVPress requires chunk_length > low_entropy_chunk_length >= 1"
-        )
+        assert (
+            self.chunk_length > self.low_entropy_chunk_length >= 1
+        ), "EntropyGatedChunkKVPress requires chunk_length > low_entropy_chunk_length >= 1"
 
     def compress(
         self,
@@ -71,12 +70,17 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
             return keys, values
         assert attentions is None, "EntropyGatedChunkKVPress does not support attentions."
 
-        kv_len = keys.shape[2]
-        chunk_len = self.chunk_length
-
-        # Head-summed per-token scores (batch element 0), kept raw so ranking works for signed scorers.
         scores = self.press.score(module, hidden_states, keys, values, attentions, kwargs)
-        scores = scores.sum(dim=1)[0].float()  # (kv_len,)
+        scores = scores.sum(dim=1).float()
+        indices = torch.stack([self._select_indices(sample_scores) for sample_scores in scores])
+        indices = indices.view(keys.shape[0], 1, -1, 1).expand(-1, keys.shape[1], -1, module.head_dim)
+        keys = keys.gather(2, indices).contiguous()
+        values = values.gather(2, indices).contiguous()
+        return keys, values
+
+    def _select_indices(self, scores: torch.Tensor) -> torch.Tensor:
+        kv_len = scores.shape[0]
+        chunk_len = self.chunk_length
 
         budget = max(1, int(kv_len * (1 - self.press.compression_ratio)))
 
@@ -140,9 +144,4 @@ class EntropyGatedChunkKVPress(ChunkKVPress):
                 add = min(budget, leftover.numel())
                 keep[leftover[torch.topk(scores[leftover], add).indices]] = True
 
-        # 4. Gather the retained keys and values in positional order.
-        indices = keep.nonzero(as_tuple=False).squeeze(-1).sort()[0]
-        indices = indices.view(1, 1, -1, 1).expand(keys.shape[0], keys.shape[1], -1, module.head_dim)
-        keys = keys.gather(2, indices).contiguous()
-        values = values.gather(2, indices).contiguous()
-        return keys, values
+        return keep.nonzero(as_tuple=False).squeeze(-1).sort()[0]
