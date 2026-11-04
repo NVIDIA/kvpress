@@ -4,16 +4,18 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
+from transformers import QuantizedCache
 from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import extract_keys_and_values, get_query_states, set_keys_and_values
+from kvpress.utils import extract_keys_and_values, get_query_states
 
 logger = logging.getLogger(__name__)
 
@@ -140,10 +142,8 @@ class CAMPress(DecodingPress):
 
         mean_scores = scores.mean(dim=1)  # [bsz, seq_len] — aggregate across KV heads
 
-        # A single sort makes the kept and evicted tokens complementary, even with tied scores
-        sorted_indices = mean_scores.argsort(dim=-1, descending=True, stable=True)
-        kept_indices = torch.sort(sorted_indices[:, : self.target_size], dim=-1).values
-        evict_indices = torch.sort(sorted_indices[:, self.target_size :], dim=-1).values
+        evict_indices = mean_scores.topk(n_to_evict, dim=-1, largest=False).indices
+        evict_indices = torch.sort(evict_indices, dim=-1).values
 
         evict_scores = mean_scores.gather(-1, evict_indices)
         # Flip so later sequence positions come first; stable sort preserves this order for ties
@@ -151,6 +151,9 @@ class CAMPress(DecodingPress):
         order = evict_scores.flip(-1).argsort(dim=-1, descending=True, stable=True)[:, :k]
         merge_indices = evict_indices.gather(-1, n_to_evict - 1 - order)
         merge_indices = torch.sort(merge_indices, dim=-1).values
+
+        kept_indices = mean_scores.topk(self.target_size, dim=-1).indices
+        kept_indices = torch.sort(kept_indices, dim=-1).values
 
         n_to_merge = merge_indices.shape[1]
 
@@ -249,6 +252,7 @@ class CAMPress(DecodingPress):
         # All hidden_states_buffer code is borrowed from DecodingPress
         self._append_to_buffer(layer_idx, hidden_states, kwargs)
 
+        cache_layer = cache.layers[module.layer_idx]
         keys, values = extract_keys_and_values(cache, layer_idx)
         bsz, num_key_value_heads, seq_len, _ = keys.shape
 
@@ -287,14 +291,21 @@ class CAMPress(DecodingPress):
             q_len >= self.target_size
         ):
 
-            self._check_no_masked_keys(module)
             # Apply compression using cumulative attention scores and buffered hidden states
             attn_squeezed = self._running_attn_sum[layer_idx]
             buffered_hidden_states, buffered_kwargs = self._get_buffered_inputs(layer_idx, kwargs)
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, buffered_kwargs)
 
             # Update cache with compressed keys and values
-            set_keys_and_values(cache, layer_idx, keys, values)
+            if isinstance(cache, QuantizedCache):
+                cache_layer._quantized_keys = cache_layer._quantize(keys, axis=cache_layer.axis_key)
+                cache_layer._quantized_values = cache_layer._quantize(values, axis=cache_layer.axis_value)
+                cache_layer.keys = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+                cache_layer.values = torch.zeros(0, dtype=keys.dtype, device=keys.device)  # type: ignore[index]
+                cache_layer.cumulative_length = keys.shape[2]
+            else:
+                cache_layer.keys = keys
+                cache_layer.values = values
 
             self.layer_step_counts[layer_idx] = 0
             # Always clear the buffer after compression - otherwise there's a mismatch between
@@ -322,7 +333,7 @@ class CAMPress(DecodingPress):
         kwargs: dict,
     ) -> torch.Tensor:
         """Compute softmax attention from the last query token to all cached keys."""
-        num_key_value_heads = keys.shape[1]
+        _, num_key_value_heads, cache_len, head_dim = keys.shape
         num_query_heads = module.config.num_attention_heads
         num_key_value_groups = num_query_heads // num_key_value_heads
 
@@ -332,7 +343,7 @@ class CAMPress(DecodingPress):
         query_states = query_states[:, :, -1:, :]
 
         keys_repeated = repeat_kv(keys, num_key_value_groups)
-        scores = torch.matmul(query_states, keys_repeated.transpose(-2, -1)) * module.scaling
+        scores = torch.matmul(query_states, keys_repeated.transpose(-2, -1)) / math.sqrt(head_dim)
         return torch.nn.functional.softmax(scores, dim=-1, dtype=torch.float32).to(query_states.dtype)
 
     @staticmethod

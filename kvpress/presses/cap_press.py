@@ -115,9 +115,8 @@ class CapPress(ScorerPress):
         head_dim = module.head_dim
         dummy = torch.zeros((1, 1, head_dim), device=device, dtype=dtype)
 
-        # The rotary embedding is shared by all layers and may be placed on another device
         cos, sin = module.rotary_emb(dummy, position_ids)
-        cos, sin = cos[0].to(device), sin[0].to(device)  # [n_future_positions, D_head]
+        cos, sin = cos[0], sin[0]  # [n_future_positions, D_head]
 
         identity = torch.eye(head_dim, device=device, dtype=dtype)
         rotate_half = torch.zeros((head_dim, head_dim), device=device, dtype=dtype)
@@ -166,7 +165,6 @@ class CapPress(ScorerPress):
         self,
         module: nn.Module,
         hidden_states: torch.Tensor,
-        cache_position: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute the historical-query anchor.
@@ -174,12 +172,11 @@ class CapPress(ScorerPress):
         Args:
             module: Attention module.
             hidden_states: Hidden states with shape [B, T, D_model].
-            cache_position: Positions of the hidden states in the sequence, with shape [T].
 
         Returns:
             Query anchor with shape [B, H, D_head].
         """
-        q_len = int(cache_position[-1]) + 1
+        q_len = hidden_states.shape[1]
         query_states = self._query_states_pre_rope(module, hidden_states)
         query_states = self._apply_avg_rope(module, query_states, q_len)
         return query_states.mean(dim=2)
@@ -241,13 +238,13 @@ class CapPress(ScorerPress):
             keys: Cached keys with shape [B, H_kv, T_cache, D_head].
             values: Cached values with shape [B, H_kv, T_cache, D_head].
             attentions: Unused; included for KVPress scorer compatibility.
-            kwargs: Keyword arguments of the attention layer, including `cache_position`.
+            kwargs: Unused; included for KVPress scorer compatibility.
 
         Returns:
             Retention scores with shape [B, H_kv, T_cache]. Larger values
             indicate higher retention priority.
         """
-        del attentions
+        del attentions, kwargs
 
         if keys.size(2) <= self.n_sink:
             raise ValueError(f"Input cache length ({keys.size(2)}) must be larger than " f"n_sink={self.n_sink}.")
@@ -263,7 +260,7 @@ class CapPress(ScorerPress):
         values_rep = repeat_kv(values_no_sink, num_key_value_groups)
 
         # Query relevance.
-        query_anchor = self._query_anchor(module, hidden_states, kwargs["cache_position"])
+        query_anchor = self._query_anchor(module, hidden_states)
         statistic = self._compute_query_key_statistic(query_anchor, keys_rep)
         weights = self._compute_query_relevance_weights(statistic)
 

@@ -183,7 +183,7 @@ class EvaluationConfig:
         if self.head_compression_ratio is None:
             config_dict.pop("head_compression_ratio", None)
         with open(str(config_filename), "w") as f:
-            yaml.safe_dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
+            yaml.dump(config_dict, f, default_flow_style=False, indent=2, sort_keys=False)
 
 
 def _load_yaml_config(path: str | Path) -> dict:
@@ -337,9 +337,7 @@ class EvaluationRunner:
         logger.info(f"Loading dataset: {DATASET_REGISTRY[dataset_name]} (data_dir: {data_dir})")
         df = load_dataset(DATASET_REGISTRY[dataset_name], data_dir=data_dir, split="test").to_pandas()
 
-        if fraction < 1.0 and dataset_name == "needle_in_haystack":
-            logger.warning("Ignoring fraction for needle_in_haystack: the haystack dataset has a single row.")
-        elif fraction < 1.0:
+        if fraction < 1.0:
             original_len = len(df)
             df = df.sample(frac=fraction, random_state=self.config.seed)
             logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
@@ -378,7 +376,7 @@ class EvaluationRunner:
             device = "auto" if torch.cuda.is_available() else "cpu"
             logger.info(f"No device specified, auto-detected device: {device}")
 
-        model_kwargs = dict(self.config.model_kwargs or {})
+        model_kwargs = self.config.model_kwargs or {}
 
         if self.config.fp8:
             model_kwargs["quantization_config"] = FineGrainedFP8Config()
