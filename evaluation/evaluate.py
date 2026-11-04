@@ -82,13 +82,10 @@ class EvaluationConfig:
         """Validate configuration after initialization."""
         # Fire parses "--trust_remote_code false" as the (truthy) string "false"
         for config_field in fields(self):
-            if config_field.type is bool:
-                value = getattr(self, config_field.name)
-                if isinstance(value, str) and value.lower() in ["true", "false"]:
-                    value = value.lower() == "true"
-                    setattr(self, config_field.name, value)
-                if not isinstance(value, bool):
-                    raise ValueError(f"{config_field.name} must be a boolean, got {value!r}")
+            value = getattr(self, config_field.name)
+            if config_field.type is bool and isinstance(value, str):
+                assert value.lower() in ["true", "false"], f"{config_field.name} must be true or false, got {value}"
+                setattr(self, config_field.name, value.lower() == "true")
 
         # Validate dataset
         assert self.dataset in DATASET_REGISTRY, f"No dataset found for {self.dataset}"

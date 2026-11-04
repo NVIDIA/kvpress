@@ -5,6 +5,7 @@
 Test script to verify that DecodingPress and CAMPress compress during decoding.
 """
 import logging
+from dataclasses import dataclass, field
 
 import pytest
 import torch
@@ -415,3 +416,29 @@ def test_compression_actually_reduces_memory(press_factory):
     # Both should still generate reasonable answers
     assert len(result_uncompressed["answer"]) > 0
     assert len(result_compressed["answer"]) > 0
+
+
+@dataclass
+class RecordingKnormPress(KnormPress):
+    calls: list = field(default_factory=list)
+
+    def score(self, module, hidden_states, keys, values, attentions, kwargs):
+        self.calls.append((hidden_states, kwargs["position_embeddings"]))
+        return super().score(module, hidden_states, keys, values, attentions, kwargs)
+
+
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+@torch.no_grad()
+def test_buffered_hidden_states_come_with_their_rope_embeddings(unit_test_model, press_factory):  # noqa: F811
+    base_press = RecordingKnormPress()
+    with press_factory(target_size=12, compression_interval=4, base_press=base_press)(unit_test_model):
+        input_ids = torch.randint(0, 1000, (1, 16), device=unit_test_model.device)
+        unit_test_model.generate(input_ids, max_new_tokens=6, min_new_tokens=6, do_sample=False)
+
+    # The first compression happens after the decoding steps at positions 16, 17, 18 and 19
+    hidden_states, (cos, sin) = base_press.calls[0]
+    assert hidden_states.shape[1] == 4
+    position_ids = torch.arange(16, 20, device=unit_test_model.device).unsqueeze(0)
+    expected_cos, expected_sin = unit_test_model.model.rotary_emb(hidden_states, position_ids)
+    torch.testing.assert_close(cos, expected_cos)
+    torch.testing.assert_close(sin, expected_sin)

@@ -11,7 +11,7 @@ from kvpress import AdaKVPress, CAMPress, KnormPress, SnapKVPress
 
 
 def test_cam_rejects_adakv_base_press():
-    with pytest.raises(ValueError, match="requires a ScorerPress"):
+    with pytest.raises(AssertionError, match="requires a ScorerPress"):
         CAMPress(base_press=AdaKVPress(SnapKVPress()))
 
 

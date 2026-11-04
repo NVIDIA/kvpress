@@ -64,8 +64,7 @@ class CAMPress(DecodingPress):
     merge_budget: int = 32
 
     def __post_init__(self):
-        if not isinstance(self.base_press, ScorerPress):
-            raise ValueError(f"CAMPress requires a ScorerPress as base_press, got {type(self.base_press).__name__}")
+        assert isinstance(self.base_press, ScorerPress), "CAMPress requires a ScorerPress as base_press"
         super().__post_init__()
         assert self.merge_budget > 0, "merge_budget must be positive "
 
@@ -184,7 +183,7 @@ class CAMPress(DecodingPress):
         merge_prob = merge_prob.clamp(0, 1)
 
         # 6. Bernoulli sampling
-        merge_mask = torch.bernoulli(merge_prob)
+        merge_mask = torch.bernoulli(merge_prob).to(values.dtype)
 
         # 7. Build contributions and scatter-add
         merge_values = values.gather(
@@ -200,7 +199,7 @@ class CAMPress(DecodingPress):
             -1, num_key_value_heads, -1, head_dim
         )
 
-        values.scatter_add_(2, scatter_idx, contributions.to(values.dtype))
+        values.scatter_add_(2, scatter_idx, contributions)
 
         # Physical Pruning
         kept_indices_expand = kept_indices.view(bsz, 1, self.target_size, 1).expand(
@@ -250,7 +249,7 @@ class CAMPress(DecodingPress):
             return output
 
         # All hidden_states_buffer code is borrowed from DecodingPress
-        self._append_to_buffer(layer_idx, hidden_states, kwargs)
+        self.hidden_states_buffer[layer_idx].append((hidden_states.detach().clone(), *kwargs["position_embeddings"]))
 
         cache_layer = cache.layers[module.layer_idx]
         keys, values = extract_keys_and_values(cache, layer_idx)
@@ -293,7 +292,8 @@ class CAMPress(DecodingPress):
 
             # Apply compression using cumulative attention scores and buffered hidden states
             attn_squeezed = self._running_attn_sum[layer_idx]
-            buffered_hidden_states, buffered_kwargs = self._get_buffered_inputs(layer_idx, kwargs)
+            buffered_hidden_states, cos, sin = (torch.cat(x, dim=1) for x in zip(*self.hidden_states_buffer[layer_idx]))
+            buffered_kwargs = {**kwargs, "position_embeddings": (cos, sin)}
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, buffered_kwargs)
 
             # Update cache with compressed keys and values
