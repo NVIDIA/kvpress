@@ -76,7 +76,9 @@ def evaluate(
 
         # Tokenize question
         messages = [{"role": "user", "content": row["question"]}]
-        tokens = tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
+        tokens = tokenizer.apply_chat_template(
+            messages, return_tensors="pt", return_dict=True, add_generation_prompt=True
+        ).input_ids
         tokens = tokens.to(model.device)
 
         with press(model):

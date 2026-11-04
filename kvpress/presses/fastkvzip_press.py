@@ -267,7 +267,7 @@ class FastKVzipPress(BasePress):
         Obtain the indices of KV pairs to be evicted.
         Adopted from adakv_press.compress (fake compression). KVzip does not rely on safeguards.
         """
-        self.score_val = torch.stack(self.score_val, dim=0)
+        self.score_val = torch.stack([scores.to(model.device) for scores in self.score_val], dim=0)
 
         if self.compression_ratio > 0:
             n_layer, bsz, num_key_value_heads, ctx_len = self.score_val.shape

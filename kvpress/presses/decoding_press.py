@@ -48,7 +48,7 @@ class DecodingPress(BasePress):
     hidden_states_buffer_size: int = 256
 
     def __post_init__(self):
-        # Buffer to store hidden states during decoding (per layer)
+        # Buffer to store hidden states and their RoPE embeddings during decoding (per layer)
         assert isinstance(self.base_press, (ScorerPress, AdaKVPress)), "DecodingPress requires a ScorerPress as input"
         self.hidden_states_buffer = defaultdict(list)  # Per-layer buffer
         self.layer_step_counts = defaultdict(int)  # Track step count per layer
@@ -131,7 +131,7 @@ class DecodingPress(BasePress):
             return output
         # print(f"Adding hidden states to buffer: {hidden_states.shape}")
         # Add current hidden states to buffer for this layer
-        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
+        self.hidden_states_buffer[layer_idx].append((hidden_states.detach().clone(), *kwargs["position_embeddings"]))
 
         # print(f"Layer step counts: {self.layer_step_counts[layer_idx]}")
         self.layer_step_counts[layer_idx] += 1
@@ -150,8 +150,9 @@ class DecodingPress(BasePress):
             attentions = output[1] if len(output) > 1 and output[1] is not None else None
 
             # Apply compression using buffered hidden states for this layer
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
-            keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, kwargs)
+            buffered_hidden_states, cos, sin = (torch.cat(x, dim=1) for x in zip(*self.hidden_states_buffer[layer_idx]))
+            buffered_kwargs = {**kwargs, "position_embeddings": (cos, sin)}
+            keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, buffered_kwargs)
             logger.debug(f"Applied decoding compression: " f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values

@@ -12,7 +12,6 @@ import torch.nn as nn
 from transformers import QuantizedCache
 from transformers.models.llama.modeling_llama import repeat_kv
 
-from kvpress.presses.adakv_press import AdaKVPress
 from kvpress.presses.base_press import is_prefilling
 from kvpress.presses.decoding_press import DecodingPress
 from kvpress.presses.scorer_press import ScorerPress
@@ -58,13 +57,14 @@ class CAMPress(DecodingPress):
         more evenly.
     """
 
-    base_press: ScorerPress | AdaKVPress
+    base_press: ScorerPress
     compression_interval: int = 512
     target_size: int = 2048
     hidden_states_buffer_size: int = 256
     merge_budget: int = 32
 
     def __post_init__(self):
+        assert isinstance(self.base_press, ScorerPress), "CAMPress requires a ScorerPress as base_press"
         super().__post_init__()
         assert self.merge_budget > 0, "merge_budget must be positive "
 
@@ -183,7 +183,7 @@ class CAMPress(DecodingPress):
         merge_prob = merge_prob.clamp(0, 1)
 
         # 6. Bernoulli sampling
-        merge_mask = torch.bernoulli(merge_prob)
+        merge_mask = torch.bernoulli(merge_prob).to(values.dtype)
 
         # 7. Build contributions and scatter-add
         merge_values = values.gather(
@@ -249,7 +249,7 @@ class CAMPress(DecodingPress):
             return output
 
         # All hidden_states_buffer code is borrowed from DecodingPress
-        self.hidden_states_buffer[layer_idx].append(hidden_states.detach().clone())
+        self.hidden_states_buffer[layer_idx].append((hidden_states.detach().clone(), *kwargs["position_embeddings"]))
 
         cache_layer = cache.layers[module.layer_idx]
         keys, values = extract_keys_and_values(cache, layer_idx)
@@ -268,7 +268,8 @@ class CAMPress(DecodingPress):
             attn_squeezed = attentions.squeeze(2)
 
             if layer_idx not in self._running_attn_sum:
-                self._running_attn_sum[layer_idx] = attn_squeezed.clone()
+                # Accumulate in float32, small attention weights vanish when summed in half precision
+                self._running_attn_sum[layer_idx] = attn_squeezed.to(torch.float32, copy=True)
             else:
                 # Pad running sum for the new token growth
                 prev_len = self._running_attn_sum[layer_idx].shape[-1]
@@ -276,7 +277,7 @@ class CAMPress(DecodingPress):
 
                 if pad_len > 0:
                     pad = torch.zeros(
-                        (bsz, num_key_value_heads, pad_len), device=attn_squeezed.device, dtype=attn_squeezed.dtype
+                        (bsz, num_key_value_heads, pad_len), device=attn_squeezed.device, dtype=torch.float32
                     )
                     self._running_attn_sum[layer_idx] = torch.cat([self._running_attn_sum[layer_idx], pad], dim=-1)
 
@@ -291,8 +292,9 @@ class CAMPress(DecodingPress):
 
             # Apply compression using cumulative attention scores and buffered hidden states
             attn_squeezed = self._running_attn_sum[layer_idx]
-            buffered_hidden_states = torch.cat(self.hidden_states_buffer[layer_idx], dim=1)
-            keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, kwargs)
+            buffered_hidden_states, cos, sin = (torch.cat(x, dim=1) for x in zip(*self.hidden_states_buffer[layer_idx]))
+            buffered_kwargs = {**kwargs, "position_embeddings": (cos, sin)}
+            keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, buffered_kwargs)
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):

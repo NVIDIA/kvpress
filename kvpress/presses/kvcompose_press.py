@@ -416,6 +416,8 @@ class KVComposePress(BasePress):
                     *args,
                     **kwargs,
                     )
+            # Drop the replayed prompts, later forward passes must only attend to the context
+            past_key_values.crop(press.context_len)
 
             self.model.config._attn_implementation = original_attn_implementation
             return outputs

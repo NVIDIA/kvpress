@@ -14,10 +14,26 @@ from tqdm import tqdm
 
 def calculate_metrics(df):
     preds = df["predicted_answer"].tolist()
-    labels = df["answer"].tolist()
     task = df["task"].tolist()[0]
+    labels = [to_upstream_label(row, task) for _, row in df.iterrows()]
     model = "dummy_model"  # not really used
     return get_score(labels, preds, task, model)
+
+
+# The Hub answers are lists of strings and multiple-choice answers only keep the letter, while the scorers below
+# expect numbers, or [option_text, letter] for code_debug and longbook_choice_eng (get_answer in InfiniteBench)
+OPTIONS_PATTERN = re.compile(r"\nA\. (.*)\nB\. (.*)\nC\. (.*)\nD\. (.*)\Z")
+
+
+def to_upstream_label(row, task: str) -> list:
+    label = list(row["answer"])
+    if task in ["code_run", "math_find", "math_calc"]:
+        return [float(value) if "." in value else int(value) for value in label]
+    if task in ["code_debug", "longbook_choice_eng"]:
+        # The options end the question, which query_aware moves to the end of the context
+        options = OPTIONS_PATTERN.search(row["question"] or row["context"]).groups()
+        return [options["ABCD".index(label[0])], label[0]]
+    return label
 
 
 def normalize_answer(s: str) -> str:

@@ -13,6 +13,8 @@ from kvpress.utils import compute_n_kept
 
 # Epsilon for numerical stability — safe for float16 (min ~6e-8) and bfloat16
 _EPS = 1e-6
+# Number of evicted tokens whose similarities to the kept tokens are computed at once, bounds the memory
+_SIMILARITY_CHUNK_SIZE = 1024
 
 
 @dataclass
@@ -137,7 +139,12 @@ class MergingPress(BasePress):
         # Cosine similarity → nearest survivor (per evicted token, batched over B, H)
         kept_keys = kept_keys / kept_keys.norm(dim=-1, keepdim=True).clamp(min=_EPS)
         evict_keys = evict_keys / evict_keys.norm(dim=-1, keepdim=True).clamp(min=_EPS)
-        max_sim, target = (evict_keys @ kept_keys.transpose(-2, -1)).max(dim=-1)
+        nearest = [
+            (evict_keys[:, :, i : i + _SIMILARITY_CHUNK_SIZE] @ kept_keys.transpose(-2, -1)).max(dim=-1)
+            for i in range(0, n_evict, _SIMILARITY_CHUNK_SIZE)
+        ]
+        max_sim = torch.cat([chunk.values for chunk in nearest], dim=-1)
+        target = torch.cat([chunk.indices for chunk in nearest], dim=-1)
 
         # Threshold gate
         merge_ok = max_sim >= self.similarity_threshold

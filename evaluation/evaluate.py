@@ -5,7 +5,7 @@ import json
 import logging
 import random
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -80,6 +80,13 @@ class EvaluationConfig:
 
     def __post_init__(self):
         """Validate configuration after initialization."""
+        # Fire parses "--trust_remote_code false" as the (truthy) string "false"
+        for config_field in fields(self):
+            value = getattr(self, config_field.name)
+            if config_field.type is bool and isinstance(value, str):
+                assert value.lower() in ["true", "false"], f"{config_field.name} must be true or false, got {value}"
+                setattr(self, config_field.name, value.lower() == "true")
+
         # Validate dataset
         assert self.dataset in DATASET_REGISTRY, f"No dataset found for {self.dataset}"
         assert self.dataset in SCORER_REGISTRY, f"No scorer found for {self.dataset}"
@@ -375,6 +382,8 @@ class EvaluationRunner:
         if isinstance(self.press, ObservedAttentionPress):
             model_kwargs["attn_implementation"] = "eager"
             logger.info("ObservedAttentionPress detected, setting attn_implementation to 'eager'.")
+        elif model_kwargs.get("attn_implementation") is not None:
+            logger.info(f"Using attn_implementation='{model_kwargs['attn_implementation']}' from model_kwargs.")
         else:
             try:
                 import flash_attn  # noqa: F401
