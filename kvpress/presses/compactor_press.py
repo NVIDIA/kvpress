@@ -98,6 +98,10 @@ class CompactorPress(ScorerPress):
         assert keys.shape[-2] == n_queries, "CompactorPress only supports prefill at the moment"
         left_keep = min(self.sink_size_start, n_queries)
         right_keep = min(self.sink_size_end, max(0, n_queries - left_keep))
+        if left_keep + right_keep == n_queries:
+            # No middle tokens remain to score. Give all sinks equal priority
+            # and let ScorerPress apply the requested compression budget.
+            return keys.new_ones(keys.shape[:-1])
         start_idx, end_idx = left_keep, (None if right_keep == 0 else -right_keep)
 
         hs = hidden_states[:, start_idx:end_idx]
