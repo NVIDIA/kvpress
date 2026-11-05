@@ -5,6 +5,7 @@
 from kvpress.attention_patch import patch_attention_functions
 from kvpress.pipeline import KVPressTextGenerationPipeline
 from kvpress.presses.adakv_press import AdaKVPress
+from kvpress.presses.afterglow_press import AfterglowPress
 from kvpress.presses.base_press import SUPPORTED_MODELS, BasePress
 from kvpress.presses.block_press import BlockPress
 from kvpress.presses.cam_press import CAMPress
@@ -103,4 +104,5 @@ __all__ = [
     "CapPress",
     "LUKVPress",
     "EntropyGatedChunkKVPress",
+    "AfterglowPress",
 ]
