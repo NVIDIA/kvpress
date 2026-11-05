@@ -6,8 +6,15 @@ import importlib
 import pytest
 import torch
 from torch import nn
+from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
-from kvpress.attention_patch import attention_patch, search_hyperplane
+from kvpress.attention_patch import (
+    _mask_validation_cache,
+    _pad_causal_attention_mask,
+    _with_mask_validation_cache,
+    attention_patch,
+    search_hyperplane,
+)
 from kvpress.presses.base_press import SUPPORTED_MODELS
 
 
@@ -102,6 +109,122 @@ def test_attention_patch_preserves_flash_attention_padding_mask(mask):
         return attention_mask
 
     assert attention_patch(attention)(nn.Module(), query, key, key, mask, 0.0) is mask
+
+
+@pytest.mark.parametrize("query_length", [1, 3])
+@pytest.mark.parametrize("causal", [True, False])
+def test_sdpa_without_shared_mask_uses_layer_cache_length(query_length, causal):
+    """An omitted shared mask must not hide old context keys in longer SDPA layers."""
+    torch.manual_seed(0)
+    query = torch.randn(1, 1, query_length, 4)
+    key = torch.randn(1, 1, 7, 4)
+    value = torch.randn_like(key)
+    module = nn.Module().eval()
+    module.num_key_value_groups = 1
+    module.is_causal = causal
+    actual, _ = ALL_ATTENTION_FUNCTIONS["sdpa"](module, query, key, value, None, dropout=0.0, scaling=0.5)
+    mask = None
+    if causal:
+        mask = (torch.arange(7) <= torch.arange(query_length).unsqueeze(-1) + 7 - query_length)[None, None]
+    expected = torch.nn.functional.scaled_dot_product_attention(query, key, value, mask, scale=0.5)
+    torch.testing.assert_close(actual, expected.transpose(1, 2))
+
+
+@pytest.mark.parametrize(
+    "is_sdpa,query_length,key_length,is_causal",
+    [(False, 3, 7, True), (True, 1, 7, True), (True, 3, 3, True), (True, 3, 7, False)],
+)
+def test_attention_patch_preserves_omitted_masks_when_alignment_is_not_needed(
+    is_sdpa, query_length, key_length, is_causal
+):
+    """Keep Flash Attention, single-token decoding, prefill, and noncausal paths unchanged."""
+    query = torch.zeros(1, 1, query_length, 4)
+    key = torch.zeros(1, 1, key_length, 4)
+    module = nn.Module()
+    module.is_causal = True
+
+    def attention(module, query, key, value, attention_mask, dropout, **kwargs):
+        """Expose the backend's mask to check its omitted-mask fast path."""
+        return attention_mask
+
+    assert attention_patch(attention, is_sdpa=is_sdpa)(module, query, key, key, None, is_causal=is_causal) is None
+
+
+@pytest.mark.parametrize("window_source", ["module", "keyword"])
+def test_sdpa_rejects_inferring_omitted_sliding_window_mask(window_source):
+    """An absent mask does not justify exposing old context keys outside a sliding window."""
+    query = torch.zeros(1, 1, 3, 4)
+    key = torch.zeros(1, 1, 7, 4)
+    module = nn.Module()
+    kwargs = {}
+    if window_source == "module":
+        module.sliding_window = 4
+    else:
+        kwargs["sliding_window"] = 4
+
+    def attention(module, query, key, value, attention_mask, dropout, **kwargs):
+        """Fail if a guessed sliding-window mask reaches the attention backend."""
+        pytest.fail("A layer-specific sliding-window mask is required")
+
+    with pytest.raises(ValueError, match="layer-specific"):
+        attention_patch(attention, is_sdpa=True)(module, query, key, key, None, **kwargs)
+
+
+@pytest.mark.parametrize("inference_mode", [False, True])
+def test_validation_cache_does_not_reuse_a_previous_forward(inference_mode):
+    """Revalidate a reused input mask after it changes, and clear state after rejected masks."""
+    with torch.inference_mode(inference_mode):
+        allowed = torch.arange(5) <= torch.arange(2).unsqueeze(-1) + 3
+        mask = torch.zeros(1, 1, 2, 5).masked_fill(~allowed, -torch.inf)
+
+        @_with_mask_validation_cache
+        def forward():
+            """Exercise validation in a new forward scope using the same input tensor."""
+            return _pad_causal_attention_mask(mask, 2, 3)
+
+        forward()
+        assert _mask_validation_cache.get() is None
+        mask[..., 0] = -torch.inf
+        with pytest.raises(ValueError, match="layer-specific"):
+            forward()
+        assert _mask_validation_cache.get() is None
+
+
+def test_validation_cache_rechecks_in_place_mask_changes():
+    """A tracked in-place mutation invalidates an earlier result within the same forward."""
+    allowed = torch.arange(5) <= torch.arange(2).unsqueeze(-1) + 3
+    mask = torch.zeros(1, 1, 2, 5).masked_fill(~allowed, -torch.inf)
+
+    @_with_mask_validation_cache
+    def forward():
+        """Change the shared mask after its first validation to exercise the version counter."""
+        _pad_causal_attention_mask(mask, 2, 3)
+        mask[..., 0] = -torch.inf
+        _pad_causal_attention_mask(mask, 2, 3)
+
+    with pytest.raises(ValueError, match="layer-specific"):
+        forward()
+    assert _mask_validation_cache.get() is None
+
+
+def test_nested_validation_scopes_restore_the_outer_cache():
+    """A nested model forward must not overwrite or retain the outer forward's validation state."""
+
+    @_with_mask_validation_cache
+    def inner():
+        """Return a nested forward's cache so its lifetime and isolation can be checked."""
+        return _mask_validation_cache.get()
+
+    @_with_mask_validation_cache
+    def outer():
+        """Verify the nested call has a separate cache and restores the enclosing one."""
+        cache = _mask_validation_cache.get()
+        assert cache is not None
+        assert inner() is not cache
+        assert _mask_validation_cache.get() is cache
+
+    outer()
+    assert _mask_validation_cache.get() is None
 
 
 @pytest.mark.parametrize("dtype", [torch.bool, torch.float32])

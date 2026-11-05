@@ -32,7 +32,9 @@ def small_model(request):
     return LlamaForCausalLM(config).eval()
 
 
-@pytest.fixture(params=["pyramid", "per_layer", "increasing", "mixed", "uniform"])
+@pytest.fixture(
+    params=["pyramid", "per_layer", "increasing", "mixed", "empty_first", "empty_middle", "empty_last", "uniform"]
+)
 def press(request):
     """Exercise unequal layer budgets in both directions and a uniform-cache control."""
     if request.param == "pyramid":
@@ -43,6 +45,12 @@ def press(request):
         return PerLayerCompressionPress(press=KnormPress(), compression_ratios=[0.75, 0.5, 0.25])
     if request.param == "mixed":
         return PerLayerCompressionPress(press=KnormPress(), compression_ratios=[0.5, 0.25, 0.75])
+    if request.param == "empty_first":
+        return PerLayerCompressionPress(press=KnormPress(), compression_ratios=[1.0, 0.5, 0.25])
+    if request.param == "empty_middle":
+        return PerLayerCompressionPress(press=KnormPress(), compression_ratios=[0.5, 1.0, 0.25])
+    if request.param == "empty_last":
+        return PerLayerCompressionPress(press=KnormPress(), compression_ratios=[0.5, 0.25, 1.0])
     return SnapKVPress(compression_ratio=0.5, window_size=4)
 
 
@@ -78,6 +86,8 @@ def test_pipeline_with_uneven_cache(small_model, press):
     assert [cache.get_seq_length(i) for i in range(3)] == expected_lengths
     if isinstance(press, (PyramidKVPress, PerLayerCompressionPress)):
         assert len(set(expected_lengths)) == 3
+        if isinstance(press, PerLayerCompressionPress) and 1.0 in press.compression_ratios:
+            assert expected_lengths[press.compression_ratios.index(1.0)] == 0
     else:
         assert len(set(expected_lengths)) == 1
 
@@ -107,3 +117,36 @@ def test_uneven_cache_preserves_causality(small_model, press):
         sequential_logits.append(output.logits)
 
     torch.testing.assert_close(batched_logits, torch.cat(sequential_logits, dim=1), atol=1e-6, rtol=1e-5)
+
+
+@pytest.mark.parametrize("inference_mode", [False, True])
+@pytest.mark.parametrize("compression_ratios", [[0.25, 0.5, 0.75], [0.75, 0.5, 0.25], [0.5, 0.25, 0.75]])
+@torch.no_grad()
+def test_shared_mask_is_validated_once_per_forward(small_model, monkeypatch, inference_mode, compression_ratios):
+    """Scan a shared causal mask once per forward, including masks created in inference mode."""
+    original_all = torch.Tensor.all
+    scans = []
+    mask_length = int(128 * (1 - compression_ratios[0])) + 4
+
+    def count_mask_scans(tensor, *args, **kwargs):
+        """Record full causal-mask reductions without changing their result."""
+        if tensor.shape == (1, 1, 4, mask_length):
+            scans.append(tensor.shape)
+        return original_all(tensor, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "all", count_mask_scans)
+    with torch.inference_mode(inference_mode), torch.no_grad():
+        cache = DynamicCache()
+        compression = PerLayerCompressionPress(KnormPress(), compression_ratios=compression_ratios)
+        with compression(small_model):
+            small_model.model(input_ids=context_ids(), past_key_values=cache)
+        allowed = torch.arange(mask_length) <= torch.arange(4).unsqueeze(-1) + mask_length - 4
+        mask = torch.zeros(1, 1, 4, mask_length).masked_fill(~allowed, -torch.inf)
+        for expected_scans in [1, 2]:
+            small_model(
+                torch.tensor([[2, 3, 4, 5]]),
+                past_key_values=deepcopy(cache),
+                position_ids=torch.arange(128, 132).unsqueeze(0),
+                attention_mask=mask,
+            )
+            assert len(scans) == expected_scans

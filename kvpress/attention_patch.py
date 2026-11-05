@@ -2,12 +2,34 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib
+from contextvars import ContextVar
 from functools import wraps
 
 import torch
+from transformers import Gemma3TextModel, LlamaModel, MistralModel, Phi3Model, Qwen2Model, Qwen3Model
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 from kvpress.presses.base_press import SUPPORTED_MODELS
+
+_mask_validation_cache: ContextVar[dict | None] = ContextVar("kvpress_mask_validation_cache", default=None)
+
+
+def _with_mask_validation_cache(func):
+    """Keep mask validation local to one text-model forward, releasing it even on failure."""
+    if getattr(func, "_kvpress_validation_scope", False):
+        return func
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        """Create an isolated validation cache for the model's attention layers."""
+        token = _mask_validation_cache.set({})
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _mask_validation_cache.reset(token)
+
+    setattr(wrapper, "_kvpress_validation_scope", True)
+    return wrapper
 
 
 def search_hyperplane(X, max_iter: int = 1000):
@@ -53,8 +75,8 @@ def search_hyperplane(X, max_iter: int = 1000):
     raise ValueError("Could not find fake keys such that for every query q, exp(<q, k>) = 0")
 
 
-def _pad_causal_attention_mask(attention_mask: torch.Tensor, query_length: int, padding_length: int) -> torch.Tensor:
-    """Validate an unpadded causal mask and prepend visible past columns when needed."""
+def _validate_causal_attention_mask(attention_mask: torch.Tensor, query_length: int) -> None:
+    """Check that every batch and head uses an unpadded, unbiased causal mask."""
     error = (
         "Cannot resize this attention mask for a different layer cache. "
         "Only unpadded causal masks can be resized; provide a layer-specific attention mask."
@@ -76,13 +98,30 @@ def _pad_causal_attention_mask(attention_mask: torch.Tensor, query_length: int, 
     if not valid.all():
         raise ValueError(error)
 
+
+def _validate_shared_causal_attention_mask(attention_mask: torch.Tensor, query_length: int) -> None:
+    """Reuse successful validation of an unchanged shared mask within the current forward."""
+    cache = _mask_validation_cache.get()
+    if cache is not None:
+        version = None if attention_mask.is_inference() else attention_mask._version
+        cache_key = (id(attention_mask), version, query_length)
+        if cache.get(cache_key) is attention_mask:
+            return
+    _validate_causal_attention_mask(attention_mask, query_length)
+    if cache is not None:
+        cache[cache_key] = attention_mask
+
+
+def _pad_causal_attention_mask(attention_mask: torch.Tensor, query_length: int, padding_length: int) -> torch.Tensor:
+    """Validate an unpadded causal mask and prepend visible past columns when needed."""
+    _validate_shared_causal_attention_mask(attention_mask, query_length)
     if padding_length == 0:
         return attention_mask
     visible = True if attention_mask.dtype == torch.bool else 0.0
     return torch.nn.functional.pad(attention_mask, (padding_length, 0), value=visible)
 
 
-def attention_patch(func):
+def attention_patch(func, *, is_sdpa: bool = False):
     """
     Decorator to update the keys before the attention computation at the indices provided in module.masked_key_indices
     The keys are updated with a fake key k whose scaled attention weight underflows to zero
@@ -93,6 +132,8 @@ def attention_patch(func):
     func : callable
         The original attention function to be patched. Should accept parameters
         (module, query, key, value, attention_mask, dropout, **kwargs).
+    is_sdpa : bool, default=False
+        Whether an omitted mask needs SDPA's causal alignment corrected for longer caches.
 
     Returns
     -------
@@ -127,7 +168,7 @@ def attention_patch(func):
             # are at the right edge of every layer, regardless of its context budget.
             difference = key.shape[-2] - attention_mask.shape[-1]
             if difference < 0:
-                _pad_causal_attention_mask(attention_mask, query.shape[-2], 0)
+                _validate_shared_causal_attention_mask(attention_mask, query.shape[-2])
                 attention_mask = attention_mask[..., -key.shape[-2] :]
             elif difference > 0:
                 if kwargs.get("sliding_window") is not None or getattr(module, "sliding_window", None) is not None:
@@ -136,6 +177,21 @@ def attention_patch(func):
                         "provide a layer-specific attention mask."
                     )
                 attention_mask = _pad_causal_attention_mask(attention_mask, query.shape[-2], difference)
+
+        is_causal = kwargs.get("is_causal")
+        if is_causal is None:
+            is_causal = getattr(module, "is_causal", True)
+        if is_sdpa and attention_mask is None and 1 < query.shape[-2] < key.shape[-2] and is_causal:
+            # An empty first layer lets Transformers omit the shared mask, but
+            # later layers still need a bottom-right-aligned causal mask.
+            if kwargs.get("sliding_window") is not None or getattr(module, "sliding_window", None) is not None:
+                raise ValueError(
+                    "Cannot infer a sliding-window mask for a longer layer cache; "
+                    "provide a layer-specific attention mask."
+                )
+            key_positions = torch.arange(key.shape[-2], device=query.device)
+            query_positions = torch.arange(query.shape[-2], device=query.device).unsqueeze(-1)
+            attention_mask = (key_positions <= query_positions + key.shape[-2] - query.shape[-2])[None, None]
 
         # see https://github.com/NVIDIA/kvpress/pull/115#issuecomment-3183785597
         # cu_seq_lens_k are only in kwargs if model.generate is used.
@@ -168,10 +224,15 @@ def patch_attention_functions():
     right-aligned to each layer's keys. Longer caches can extend them with visible
     past-context columns. Restricted masks, including padded and sliding-window
     masks, require a layer-specific mask when the key length differs.
+    Successful mask validation is shared across the supported text model's layers
+    for one forward pass only. If SDPA omits the shared mask, longer layers with
+    multiple query tokens receive an explicit causal mask aligned to their keys.
     """
     for name, func in ALL_ATTENTION_FUNCTIONS.items():
-        ALL_ATTENTION_FUNCTIONS[name] = attention_patch(func)
+        ALL_ATTENTION_FUNCTIONS[name] = attention_patch(func, is_sdpa=name == "sdpa")
     for model in SUPPORTED_MODELS:
         modeling_module = importlib.import_module(model.__module__)
         eager_attention = getattr(modeling_module, "eager_attention_forward")
         setattr(modeling_module, "eager_attention_forward", attention_patch(eager_attention))
+    for text_model in (LlamaModel, MistralModel, Phi3Model, Qwen2Model, Qwen3Model, Gemma3TextModel):
+        setattr(text_model, "forward", _with_mask_validation_cache(text_model.forward))
