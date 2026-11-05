@@ -23,7 +23,7 @@ def test_afterglow():
 
 @pytest.mark.parametrize("wrapper", [None, AdaKVPress, CriticalAdaKVPress])
 def test_afterglow_press(unit_test_model, wrapper):  # noqa: F811
-    press = AfterglowPress(SnapKVPress(window_size=2))
+    press = AfterglowPress(press=SnapKVPress(window_size=2))
     press = press if wrapper is None else wrapper(press)
     press.compression_ratio = 0.5
     with press(unit_test_model):
@@ -39,5 +39,5 @@ def test_afterglow_press(unit_test_model, wrapper):  # noqa: F811
 
 def test_afterglow_press_negative_scores(unit_test_model):  # noqa: F811
     with pytest.raises(ValueError):
-        with AfterglowPress(KnormPress(compression_ratio=0.5))(unit_test_model):
+        with AfterglowPress(press=KnormPress(), compression_ratio=0.5)(unit_test_model):
             unit_test_model(torch.randint(0, 1024, (1, 128), device=unit_test_model.device))
