@@ -28,12 +28,10 @@ class AfterglowPress(ScorerPress):
     """
     Afterglow: forward score propagation for query-aware compression.
 
-    Only meaningful in the query-aware setting, where the question is part of the compressed context: query-aware
-    scorers concentrate their scores on the first tokens of the span the question asks about, so the rest of the span
-    is evicted. Afterglow lets each token inherit the decayed scores of the tokens before it, per layer and KV head:
-    s'(t) = max(s(t), max_{j < t} gamma^(t - j) s(j)). To combine it with budget-allocating presses, put it inside
-    them, e.g. CriticalAdaKVPress(AfterglowPress(press=SnapKVPress())), as CriticalKV sets the scores it protects to
-    the largest float.
+    Only meaningful in the query-aware setting. Query-aware scorers concentrate their scores on the first tokens of
+    the span the question asks about, so the later tokens of the span are mostly evicted. Afterglow lets each token
+    inherit the decayed scores of the tokens before it: s'(t) = max(s(t), max_{j < t} gamma^(t - j) s(j)). To combine
+    it with budget-allocating presses, put it inside them, e.g. CriticalAdaKVPress(AfterglowPress(press=SnapKVPress())).
 
     Based on Afterglow (https://www.alphaxiv.org/abs/2610.afterglow-query-aware-kv-cache-eviction).
 
