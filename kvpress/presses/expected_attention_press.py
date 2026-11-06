@@ -4,6 +4,7 @@
 
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 from torch import nn
@@ -59,12 +60,17 @@ class ExpectedAttentionPress(ScorerPress):
     use_vnorm: bool = True
     epsilon: float = 0.0
 
-    def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
+    def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor, q_len: Optional[int] = None):
         """
         Compute the mean and covariance matrix of the queries
+
+        q_len is the number of tokens seen so far, i.e. the position of the next query. It defaults to
+        hidden_states.shape[1], which is only correct during prefilling: during decoding, hidden_states
+        holds the recent buffer of DecodingPress.
         """
 
-        q_len = hidden_states.shape[1]
+        if q_len is None:
+            q_len = hidden_states.shape[1]
 
         # Remove first hidden_states that likely contain outliers
         h = hidden_states[:, self.n_sink :]
@@ -138,8 +144,11 @@ class ExpectedAttentionPress(ScorerPress):
         keys = keys[:, :, self.n_sink :]
         values = values[:, :, self.n_sink :]
 
-        # Compute query statistics
-        mean_query, cov_query = self.get_query_statistics(module, hidden_states)
+        # Compute query statistics. Future queries start after the last logical position: during decoding,
+        # hidden_states only holds the recent buffer of DecodingPress and the cache may already be compressed
+        position_ids = kwargs.get("position_ids")
+        q_len = int(position_ids.max()) + 1 if position_ids is not None else None
+        mean_query, cov_query = self.get_query_statistics(module, hidden_states, q_len)
 
         # Compute scores
         bsz, num_key_value_heads, q_len, d = keys.shape
