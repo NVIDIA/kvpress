@@ -109,7 +109,7 @@ class SimLayerKVPress(BasePress):
             # If layer is lazy, only keep the initial and recent KV pairs
             keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2)
             values = torch.cat([values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2)
-            self.compression_ratios.append((k_len - self.n_initial - self.n_recent + 1) / k_len)
+            self.compression_ratios.append((k_len - keys.shape[2]) / k_len)
         else:
             self.compression_ratios.append(0.0)
 
