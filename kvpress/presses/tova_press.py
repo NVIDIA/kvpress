@@ -56,6 +56,7 @@ class TOVAPress(ScorerPress):
         # Add back the last token. Use max score to make sure the window is not pruned.
         # This is a very slight difference from TOVA that don't enforce it, but the
         # last attention weight is usually very high so it should not change the results.
-        scores = F.pad(scores, (0, 1), value=scores.max().item() + 1)
+        max_score = scores.max().item() if scores.numel() else 0
+        scores = F.pad(scores, (0, 1), value=max_score + 1)
 
         return scores
