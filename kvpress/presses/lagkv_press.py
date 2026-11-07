@@ -93,5 +93,7 @@ class LagKVPress(ScorerPress):
         min_r = ref.min(dim=-2).values.unsqueeze(-2).expand(-1, -1, -1, self.lag_size, -1)
         max_r = ref.max(dim=-2).values.unsqueeze(-2).expand(-1, -1, -1, self.lag_size, -1)
 
-        score = ((v - min_r) / (max_r - min_r)).std(dim=-1).softmax(dim=-1)
+        # A constant reference channel has no scale; keep its centered differences unscaled.
+        range_r = (max_r - min_r).masked_fill(max_r == min_r, 1)
+        score = ((v - min_r) / range_r).std(dim=-1).softmax(dim=-1)
         return score
