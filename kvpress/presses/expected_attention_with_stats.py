@@ -55,11 +55,12 @@ class ExpectedAttentionStatsPress(ExpectedAttentionPress):
     mu: torch.Tensor = field(init=False, default=None)  # initialized in post_init_from_model
     cov: torch.Tensor = field(init=False, default=None)  # initialized in post_init_from_model
 
-    def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor):
+    def get_query_statistics(self, module: nn.Module, hidden_states: torch.Tensor, q_len: Optional[int] = None):
         """
         Override the parent method to use the pre-computed query statistics.
         """
-        q_len = hidden_states.shape[1]
+        if q_len is None:
+            q_len = hidden_states.shape[1]
         layer_idx = module.layer_idx
         mu, cov = self.apply_avg_rope(module, self.mu[layer_idx], self.cov[layer_idx], q_len)  # type: ignore
         return mu.unsqueeze(0), cov.unsqueeze(0)
