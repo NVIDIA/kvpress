@@ -170,23 +170,28 @@ class CriticalAdaKVPress(BasePress):
         budget_scores = budget_scores.reshape(bsz, -1)
         top_indices = torch.topk(budget_scores, n_kept * num_key_value_heads, dim=-1).indices
         top_indices_head_idx = top_indices // k_len
-        head_budgets = torch.zeros(num_key_value_heads, device=keys.device, dtype=torch.int64)
-        head_budgets.scatter_add_(0, top_indices_head_idx.flatten(), torch.ones_like(top_indices_head_idx.flatten()))
+        # Each prompt allocates its own budget across heads.
+        head_budgets = torch.zeros((bsz, num_key_value_heads), device=keys.device, dtype=torch.int64)
+        head_budgets.scatter_add_(1, top_indices_head_idx, torch.ones_like(top_indices_head_idx))
 
         # Stage 1
         head_selection_budget_1st = (head_budgets * self.first_stage_ratio).to(torch.int64).tolist()
-        top_k_index = torch.topk(scores, max(head_selection_budget_1st), sorted=True, dim=-1).indices
-        for head_idx in range(num_key_value_heads):
-            phase1_budget = head_selection_budget_1st[head_idx]
-            scores[:, head_idx, :].scatter_(-1, top_k_index[:, head_idx, :phase1_budget], torch.finfo(scores.dtype).max)
+        for batch_idx, budgets in enumerate(head_selection_budget_1st):
+            top_k_index = torch.topk(scores[batch_idx], max(budgets), sorted=True, dim=-1).indices
+            for head_idx, budget in enumerate(budgets):
+                scores[batch_idx, head_idx, :].scatter_(
+                    -1, top_k_index[head_idx, :budget], torch.finfo(scores.dtype).max
+                )
 
         # Stage 2
         projected_norm = CriticalKVPress.vwl1norm(values, module)
         scores = (scores + self.epsilon) * projected_norm
-        top_k_index = torch.topk(scores, max(head_budgets), sorted=True, dim=-1).indices
-        for head_idx in range(num_key_value_heads):
-            budget = head_budgets[head_idx]
-            scores[:, head_idx, :].scatter_(-1, top_k_index[:, head_idx, :budget], torch.finfo(scores.dtype).max)
+        for batch_idx, budgets in enumerate(head_budgets.tolist()):
+            top_k_index = torch.topk(scores[batch_idx], max(budgets), sorted=True, dim=-1).indices
+            for head_idx, budget in enumerate(budgets):
+                scores[batch_idx, head_idx, :].scatter_(
+                    -1, top_k_index[head_idx, :budget], torch.finfo(scores.dtype).max
+                )
 
         ##########################
         # End of CriticalKV code #
