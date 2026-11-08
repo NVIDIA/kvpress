@@ -46,9 +46,11 @@ class CURPress(ScorerPress):
             b, h, n = k2.shape
             w = self.local_window_size
             k2 = F.pad(k2, (0, (w - n % w) % w)).reshape(b, h, -1, w)
-            k2 = (k2 / k2.sum(dim=-1, keepdim=True)).reshape(b, h, -1)[:, :, :n]
+            k2_sum = k2.sum(dim=-1, keepdim=True)
+            k2 = (k2 / k2_sum.masked_fill(k2_sum == 0, 1)).reshape(b, h, -1)[:, :, :n]
             v2 = F.pad(v2, (0, (w - n % w) % w)).reshape(b, h, -1, w)
-            v2 = (v2 / v2.sum(dim=-1, keepdim=True)).reshape(b, h, -1)[:, :, :n]
+            v2_sum = v2.sum(dim=-1, keepdim=True)
+            v2 = (v2 / v2_sum.masked_fill(v2_sum == 0, 1)).reshape(b, h, -1)[:, :, :n]
 
         if self.leverage_type == "key":
             scores = k2
@@ -61,7 +63,8 @@ class CURPress(ScorerPress):
         else:
             raise ValueError("Unknown leverage type: choose from 'kv_avg', 'key', 'value' or 'kv_product'")
 
-        scores /= scores.sum(dim=-1, keepdim=True)
+        score_sum = scores.sum(dim=-1, keepdim=True)
+        scores /= score_sum.masked_fill(score_sum == 0, 1)
         scores[:, :, : self.num_sinks] = 1.0
 
         return scores
