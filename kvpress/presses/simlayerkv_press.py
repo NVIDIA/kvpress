@@ -107,8 +107,10 @@ class SimLayerKVPress(BasePress):
         # Compression
         if self.is_lazy(module, hidden_states, keys, kwargs["position_embeddings"]):
             # If layer is lazy, only keep the initial and recent KV pairs
-            keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, -self.n_recent + self.n_last :]], dim=2)
-            values = torch.cat([values[:, :, : self.n_initial], values[:, :, -self.n_recent + self.n_last :]], dim=2)
+            # An absolute start keeps a zero-length recent window empty.
+            recent_start = k_len - self.n_recent + self.n_last
+            keys = torch.cat([keys[:, :, : self.n_initial], keys[:, :, recent_start:]], dim=2)
+            values = torch.cat([values[:, :, : self.n_initial], values[:, :, recent_start:]], dim=2)
             self.compression_ratios.append((k_len - self.n_initial - self.n_recent + 1) / k_len)
         else:
             self.compression_ratios.append(0.0)
