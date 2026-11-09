@@ -9,16 +9,16 @@ from kvpress import SimLayerKVPress
 
 
 @pytest.mark.parametrize(
-    "n_recent, n_last, expected_positions",
+    "n_recent, n_last, expected_positions, expected_ratio",
     [
-        (1, 1, [0, 1]),
-        (2, 2, [0, 1]),
-        (4, 4, [0, 1]),
-        (4, 1, [0, 1, 13, 14, 15]),
-        (4, 2, [0, 1, 14, 15]),
+        (1, 1, [0, 1], 14 / 16),
+        (2, 2, [0, 1], 14 / 16),
+        (4, 4, [0, 1], 14 / 16),
+        (4, 1, [0, 1, 13, 14, 15], 11 / 16),
+        (4, 2, [0, 1, 14, 15], 12 / 16),
     ],
 )
-def test_simlayer_retains_only_sinks_when_recent_window_is_empty(n_recent, n_last, expected_positions):
+def test_simlayer_retains_only_sinks_when_recent_window_is_empty(n_recent, n_last, expected_positions, expected_ratio):
     """A zero-length recent window must not duplicate the entire original cache."""
     torch.manual_seed(0)
     model = LlamaForCausalLM(
@@ -45,3 +45,5 @@ def test_simlayer_retains_only_sinks_when_recent_window_is_empty(n_recent, n_las
     assert compressed.values.shape[2] == len(expected_positions)
     torch.testing.assert_close(compressed.keys, reference.keys[:, :, expected_positions])
     torch.testing.assert_close(compressed.values, reference.values[:, :, expected_positions])
+    assert press.compression_ratios == pytest.approx([expected_ratio])
+    assert press.compression_ratio == pytest.approx(expected_ratio)
