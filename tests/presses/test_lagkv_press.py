@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 from transformers import LlamaConfig, LlamaForCausalLM
@@ -16,6 +18,57 @@ def test_lagkv_constant_reference_scores_are_finite(dtype):
     scores = press._get_states_score(states)
 
     torch.testing.assert_close(scores, torch.full_like(scores, 0.25))
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.float32, torch.float64])
+@pytest.mark.parametrize(
+    "previous,reference,expected",
+    [
+        ([[-32768.0, -32768.0]] * 4, [[32768.0, 32768.0]] * 4, [0.25] * 4),
+        (
+            [[-32768.0, -32768.0], [-32768.0, 32768.0], [32768.0, -32768.0], [32768.0, 32768.0]],
+            [[32768.0, 32768.0]] * 4,
+            [0.0, 0.5, 0.5, 0.0],
+        ),
+        (
+            [[-32768.0, -32768.0], [-32768.0, 32768.0], [32768.0, -32768.0], [32768.0, 32768.0]],
+            [[-32768.0, -32768.0], [32768.0, 32768.0]] * 2,
+            [0.1651192253, 0.3348807747, 0.3348807747, 0.1651192253],
+        ),
+    ],
+    ids=["constant-uniform", "constant-nonuniform", "wide-reference-range"],
+)
+def test_lagkv_large_finite_states_preserve_relative_scores(dtype, previous, reference, expected):
+    press = LagKVPress(lag_size=4, cross_scoring=True)
+    states = torch.tensor([[previous, reference]], dtype=dtype).unsqueeze(0)
+    original = states.clone()
+
+    scores = press._get_states_score(states)
+
+    # Centering can exceed float16's range; the final probabilities are representable in every dtype.
+    torch.testing.assert_close(scores, torch.tensor([[[expected]]], dtype=dtype))
+    torch.testing.assert_close(states, original)
+
+
+def test_lagkv_large_float16_values_preserve_protected_cache():
+    press = LagKVPress(compression_ratio=0.25, n_sink=4, lag_size=4, cross_scoring=True)
+    keys = torch.arange(24, dtype=torch.float16).reshape(1, 1, 12, 2)
+    values = torch.zeros_like(keys)
+    values[..., 4:8, :] = -32768
+    values[..., 8:, :] = 32768
+
+    scores = press.score(None, None, keys, values, None, {})
+    compressed_keys, compressed_values = press.compress(SimpleNamespace(head_dim=2), None, keys, values, None, {})
+
+    assert torch.isfinite(scores).all()
+    assert compressed_keys.shape == (1, 1, 9, 2)
+    assert compressed_keys.dtype == compressed_values.dtype == torch.float16
+    protected_keys = torch.cat((keys[..., :4, :], keys[..., -4:, :]), dim=-2)
+    matches = (protected_keys.unsqueeze(-2) == compressed_keys.unsqueeze(-3)).all(dim=-1)
+    assert matches.any(dim=-1).all()
+    # The first channel identifies each key, so its matching value can be checked without relying on topk tie order.
+    indices = (compressed_keys[..., 0] / 2).long().unsqueeze(-1).expand_as(compressed_keys)
+    torch.testing.assert_close(compressed_values, values.gather(2, indices))
 
 
 @pytest.mark.parametrize("scale", [1.0, 1e-8])
