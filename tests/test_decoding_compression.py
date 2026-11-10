@@ -4,17 +4,21 @@
 """
 Test script to verify that DecodingPress and CAMPress compress during decoding.
 """
+import contextlib
 import logging
+from dataclasses import dataclass, field
 
 import pytest
 import torch
 from transformers import DynamicCache, pipeline
 
 from kvpress import (
+    AdaKVPress,
     CAMPress,
     CompactorPress,
     CompressionRatioDecodingPress,
     DecodingPress,
+    ExpectedAttentionPress,
     KnormPress,
     KVzapPress,
     LeverageScorePress,
@@ -415,3 +419,60 @@ def test_compression_actually_reduces_memory(press_factory):
     # Both should still generate reasonable answers
     assert len(result_uncompressed["answer"]) > 0
     assert len(result_compressed["answer"]) > 0
+
+
+@dataclass
+class FiniteScoreExpectedAttentionPress(ExpectedAttentionPress):
+    """ExpectedAttentionPress that records whether each of its scores is finite."""
+
+    finite: list[bool] = field(default_factory=list)
+
+    def score(self, module, hidden_states, keys, values, attentions, kwargs):
+        scores = super().score(module, hidden_states, keys, values, attentions, kwargs)
+        self.finite.append(bool(torch.isfinite(scores).all()))
+        return scores
+
+
+@torch.no_grad()
+def test_decoding_adakv_press_rescores_the_tokens_keys(unit_test_model):  # noqa: F811
+    """AdaKVPress hides masked tokens from attention with fake keys, but a DecodingPress that compresses
+    the cache again must score the tokens' own keys (https://github.com/NVIDIA/kvpress/issues/339)."""
+    input_ids = torch.randint(0, 1024, (1, 88), device=unit_test_model.device)
+
+    def first_layer_keys(context):
+        cache = DynamicCache()
+        with context:
+            unit_test_model(input_ids[:, :64], past_key_values=cache)
+            for i in range(64, 88):
+                unit_test_model(input_ids[:, i : i + 1], past_key_values=cache)
+        return cache.layers[0].keys
+
+    scorer = FiniteScoreExpectedAttentionPress(epsilon=1e-2)
+    press = DecodingPress(base_press=AdaKVPress(scorer), compression_interval=8, target_size=48)
+    keys = first_layer_keys(press(unit_test_model))
+
+    # Three compressions per layer, each with finite scores
+    assert len(scorer.finite) == 3 * len(unit_test_model.model.layers)
+    assert all(scorer.finite)
+    # The first layer's keys depend only on the tokens, so the cache must hold the keys of a run without a press
+    torch.testing.assert_close(keys, first_layer_keys(contextlib.nullcontext()), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("press_factory", [make_decoding_press, make_cam_press], ids=["DecodingPress", "CAMPress"])
+@torch.no_grad()
+def test_decoding_press_drops_prefill_masks_when_it_prunes_the_cache(press_factory, unit_test_model):  # noqa: F811
+    """After an AdaKV prefilling press, a decoding press that prunes the cache must not reuse the old masks."""
+    press = PrefillDecodingPress(
+        prefilling_press=AdaKVPress(KnormPress(compression_ratio=0.5)),
+        decoding_press=press_factory(target_size=16, compression_interval=4, base_press=KnormPress()),
+    )
+    device = unit_test_model.device
+    input_ids = torch.randint(0, 1024, (1, 80), device=device)
+    cache = DynamicCache()
+    with press(unit_test_model):
+        unit_test_model(input_ids[:, :64], past_key_values=cache)
+        for i in range(64, 80):
+            # The pruned cache is shorter than the sequence, so the positions are passed explicitly
+            position_ids = torch.tensor([[i]], device=device)
+            unit_test_model(input_ids[:, i : i + 1], past_key_values=cache, position_ids=position_ids)
+    assert cache.get_seq_length() <= 16 + 4 - 1
