@@ -9,7 +9,7 @@ from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import get_prerope_query_states, get_rope_matrices
 
 
 @dataclass
@@ -116,25 +116,8 @@ class CapPress(ScorerPress):
         dummy = torch.zeros((1, 1, head_dim), device=device, dtype=dtype)
 
         cos, sin = module.rotary_emb(dummy, position_ids)
-        cos, sin = cos[0], sin[0]  # [n_future_positions, D_head]
-
-        identity = torch.eye(head_dim, device=device, dtype=dtype)
-        rotate_half = torch.zeros((head_dim, head_dim), device=device, dtype=dtype)
-        half_dim = head_dim // 2
-
-        rotate_half[half_dim:, :half_dim] = torch.eye(
-            half_dim,
-            device=device,
-            dtype=dtype,
-        )
-        rotate_half[:half_dim, half_dim:] = -torch.eye(
-            half_dim,
-            device=device,
-            dtype=dtype,
-        )
-
-        rotations = cos.unsqueeze(1) * identity + sin.unsqueeze(1) * rotate_half
-        return rotations.mean(dim=0)
+        cos, sin = cos[0], sin[0]  # [n_future_positions, rotary_dim]
+        return get_rope_matrices(cos, sin, head_dim).mean(dim=0)
 
     def _apply_avg_rope(
         self,
