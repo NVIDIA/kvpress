@@ -209,7 +209,7 @@ If you use KVPress in your research, please cite our paper:
 ### Which models are supported ? 
 </summary>
 
-Some presses depend on the model architecture (_e.g._ `ExpectedAttentionPress` or `SnapKVPress`) hence they might not work with all models. We tested support for `LlamaForCausalLM`, `MistralForCausalLM`, `Phi3ForCausalLM`, `Qwen2ForCausalLM`, `Qwen3ForCausalLM`, and `Gemma3ForCausalLM` but many other models might be supported out of the box because their implementation is often similar in transformers.
+Some presses depend on the model architecture (_e.g._ `ExpectedAttentionPress` or `SnapKVPress`) hence they might not work with all models. We tested support for `LlamaForCausalLM`, `MistralForCausalLM`, `Phi3ForCausalLM`, `Qwen2ForCausalLM`, `Qwen3ForCausalLM`, `Qwen3MoeForCausalLM`, and `Gemma3ForCausalLM` but many other models might be supported out of the box because their implementation is often similar in transformers.
 </details>
 
 <details><summary> 
