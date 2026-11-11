@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
@@ -103,20 +103,20 @@ class ChunkKVPress(BasePress):
         n_chunks_kept = max(1, int((num_complete_chunks + (remaining_tokens > 0)) * (1 - self.press.compression_ratio)))
         top_chunks = chunk_scores.topk(n_chunks_kept, dim=-1)
 
-        # 4. Create indices for selected chunks
-        indices = []
-        for chunk_idx in top_chunks.indices[0]:
-            if chunk_idx < num_complete_chunks:
-                # For complete chunks
+        # 4. Create indices for the chunks selected by each batch element.
+        batch_indices = []
+        for selected_chunks in top_chunks.indices:
+            selected_indices = []
+            for chunk_idx in selected_chunks:
                 start_idx = chunk_idx * self.chunk_length
-                chunk_indices = torch.arange(start_idx, start_idx + self.chunk_length, device=keys.device)
-            else:
-                # For the remaining partial chunk
-                chunk_indices = torch.arange(num_complete_chunks * self.chunk_length, kv_len, device=keys.device)
-            indices.append(chunk_indices)
+                end_idx = min(start_idx + self.chunk_length, kv_len)
+                selected_indices.append(torch.arange(start_idx, end_idx, device=keys.device))
+            batch_indices.append(torch.cat(selected_indices).sort()[0])
 
-        indices = torch.cat(indices).sort()[0]
-        indices = indices.view(1, 1, -1, 1).expand(keys.shape[0], keys.shape[1], -1, module.head_dim)
+        if any(indices.numel() != batch_indices[0].numel() for indices in batch_indices):
+            raise ValueError("ChunkKVPress selected unequal cache lengths across the batch")
+        indices = torch.stack(batch_indices).view(keys.shape[0], 1, -1, 1)
+        indices = indices.expand(-1, keys.shape[1], -1, module.head_dim)
 
         # 5. Use gather to collect selected keys and values
         keys = keys.gather(2, indices).contiguous()
