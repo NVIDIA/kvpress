@@ -40,7 +40,7 @@
 
 ## Issues and Pull Requests
 
-- Do not open pull requests unless a maintainer requested one. Other pull requests from non-collaborators are closed automatically.
+- Automated pull requests without an associated issue that has been reviewed by a kvpress maintainer are closed automatically.
 - Keep pull requests minimal: only the change the issue asks for, without unrelated refactoring, formatting or tests.
 
 ## Commits
