@@ -41,7 +41,6 @@
 ## Issues and Pull Requests
 
 - Do not open pull requests unless a maintainer requested one. Other pull requests from non-collaborators are closed automatically.
-- Only report bugs that occur in a real workflow on the supported models (see the FAQ in `README.md`). Edge cases found by code review alone are out of scope.
 - Keep pull requests minimal: only the change the issue asks for, without unrelated refactoring, formatting or tests.
 
 ## Commits
