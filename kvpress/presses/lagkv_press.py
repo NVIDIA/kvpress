@@ -87,11 +87,17 @@ class LagKVPress(ScorerPress):
 
     def _get_states_score(self, target_v):
         """evaluate the scores of keys and values for each token"""
+        dtype = target_v.dtype
+        # Finite half-precision states can overflow during centering, scaling, or standard deviation.
+        if dtype in (torch.float16, torch.bfloat16):
+            target_v = target_v.float()
         ref = target_v[:, :, 1:, :, :]
         v = target_v[:, :, :-1, :, :]
         # lag-relative information
         min_r = ref.min(dim=-2).values.unsqueeze(-2).expand(-1, -1, -1, self.lag_size, -1)
         max_r = ref.max(dim=-2).values.unsqueeze(-2).expand(-1, -1, -1, self.lag_size, -1)
 
-        score = ((v - min_r) / (max_r - min_r)).std(dim=-1).softmax(dim=-1)
-        return score
+        # A constant reference channel has no scale; keep its centered differences unscaled.
+        range_r = (max_r - min_r).masked_fill(max_r == min_r, 1)
+        score = ((v - min_r) / range_r).std(dim=-1).softmax(dim=-1)
+        return score.to(dtype)
