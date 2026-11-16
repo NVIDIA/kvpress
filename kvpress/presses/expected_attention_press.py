@@ -11,7 +11,7 @@ from torch.nn import functional as F
 from transformers.models.llama.modeling_llama import repeat_kv
 
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import get_prerope_query_states, get_rope_matrices
 
 
 @dataclass
@@ -108,15 +108,8 @@ class ExpectedAttentionPress(ScorerPress):
             The covariance matrix of the queries after RoPE.
         """
         position_ids = torch.arange(q_len, q_len + self.n_future_positions).unsqueeze(0).to(mu.device)
-        head_dim = module.head_dim
         cos, sin = module.rotary_emb(mu, position_ids)
-        cos, sin = cos[0], sin[0]
-        Id = torch.eye(head_dim, device=cos.device, dtype=cos.dtype)
-        P = torch.zeros((head_dim, head_dim), device=cos.device, dtype=cos.dtype)
-        P[head_dim // 2 :, : head_dim // 2], P[: head_dim // 2, head_dim // 2 :] = torch.eye(head_dim // 2), -torch.eye(
-            head_dim // 2
-        )
-        R = cos.unsqueeze(1) * Id + sin.unsqueeze(1) * P
+        R = get_rope_matrices(cos[0], sin[0], module.head_dim)
         R = R.mean(dim=0).to(mu.device)
         mu = torch.matmul(mu, R.T)
         if cov is not None:

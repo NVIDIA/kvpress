@@ -6,11 +6,10 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers.models.llama.modeling_llama import rotate_half
 
 from kvpress.presses.base_press import BasePress
 from kvpress.presses.scorer_press import ScorerPress
-from kvpress.utils import compute_n_kept
+from kvpress.utils import apply_rope, compute_n_kept
 
 
 @dataclass
@@ -60,7 +59,8 @@ class KeyRerotationPress(BasePress):
             Any key-like tensor that provides ``dtype`` and ``device``.
             Shape ``(bsz, num_key_value_heads, q_len, d)``.
         inv_freq : torch.Tensor
-            ``module.rotary_emb.inv_freq``. Shape ``(d//2,)``.
+            ``module.rotary_emb.inv_freq``. Shape ``(rotary_dim//2,)``, where ``rotary_dim`` is
+            ``d`` unless the model uses a partial rotary embedding.
         selected_positions : torch.Tensor
             Indices of the *kept* tokens.
             Shape ``(bsz, num_key_value_heads, n_kept)``.
@@ -69,7 +69,7 @@ class KeyRerotationPress(BasePress):
         -------
         cos, sin : torch.Tensor
             Cosine and sine embeddings, each of shape
-            ``(bsz, num_key_value_heads, n_kept, d)``, matching ``dtype``/``device`` of ``x``.
+            ``(bsz, num_key_value_heads, n_kept, rotary_dim)``, matching ``dtype``/``device`` of ``x``.
         """
         bsz, num_key_value_heads, n_kept = selected_positions.shape
         device = x.device
@@ -125,7 +125,7 @@ class KeyRerotationPress(BasePress):
         new_cos, new_sin = KeyRerotationPress._rerotate_cos_sin(keys, module.rotary_emb.inv_freq, indices)
         indices = indices.unsqueeze(-1).expand(-1, -1, -1, module.head_dim)
         keys = keys.gather(2, indices).contiguous()
-        return (keys * new_cos) + (rotate_half(keys) * new_sin)
+        return apply_rope(keys, new_cos, new_sin)
 
     def compress(
         self,

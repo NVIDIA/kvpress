@@ -83,7 +83,64 @@ def get_query_states(
     """
     cos, sin = position_embeddings
     query_states = get_prerope_query_states(module, hidden_states)
-    return (query_states * cos.unsqueeze(1)) + (rotate_half(query_states) * sin.unsqueeze(1))
+    return apply_rope(query_states, cos.unsqueeze(1), sin.unsqueeze(1))
+
+
+def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    """
+    Applies rotary embeddings to query or key states.
+
+    Models with a partial rotary embedding (``partial_rotary_factor < 1``, e.g. Phi-4-mini) only rotate
+    the first ``cos.shape[-1]`` channels of each head and leave the others unchanged, as in transformers.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Query or key states of shape (..., head_dim).
+    cos, sin : torch.Tensor
+        Rotary embeddings of shape (..., rotary_dim), broadcastable to ``x[..., :rotary_dim]``.
+
+    Returns
+    -------
+    torch.Tensor
+        The rotated states, with the same shape as ``x``.
+    """
+    rotary_dim = cos.shape[-1]
+    if rotary_dim == x.shape[-1]:
+        return (x * cos) + (rotate_half(x) * sin)
+    x_rot, x_pass = x[..., :rotary_dim], x[..., rotary_dim:]
+    return torch.cat([(x_rot * cos) + (rotate_half(x_rot) * sin), x_pass], dim=-1)
+
+
+def get_rope_matrices(cos: torch.Tensor, sin: torch.Tensor, head_dim: int) -> torch.Tensor:
+    """
+    Returns the rotary embedding of each position as a matrix, such that ``R[i] @ x`` equals
+    ``apply_rope(x, cos[i], sin[i])`` for a head vector ``x``. Channels that a partial rotary
+    embedding leaves unrotated get the identity.
+
+    Parameters
+    ----------
+    cos, sin : torch.Tensor
+        Rotary embeddings of shape (n_positions, rotary_dim).
+    head_dim : int
+        The head dimension.
+
+    Returns
+    -------
+    torch.Tensor
+        Rotation matrices of shape (n_positions, head_dim, head_dim).
+    """
+    rotary_dim, half_dim = cos.shape[-1], cos.shape[-1] // 2
+    factory_kwargs = {"device": cos.device, "dtype": cos.dtype}
+    rotate_half_matrix = torch.zeros((rotary_dim, rotary_dim), **factory_kwargs)
+    rotate_half_matrix[half_dim:, :half_dim] = torch.eye(half_dim, **factory_kwargs)
+    rotate_half_matrix[:half_dim, half_dim:] = -torch.eye(half_dim, **factory_kwargs)
+    rotations = cos.unsqueeze(1) * torch.eye(rotary_dim, **factory_kwargs) + sin.unsqueeze(1) * rotate_half_matrix
+    if rotary_dim == head_dim:
+        return rotations
+    matrices = torch.eye(head_dim, **factory_kwargs).repeat(cos.shape[0], 1, 1)
+    matrices[:, :rotary_dim, :rotary_dim] = rotations
+    return matrices
 
 
 def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> torch.Tensor:
