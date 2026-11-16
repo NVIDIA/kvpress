@@ -10,11 +10,10 @@ import torch
 from cachetools import LRUCache, cached  # type: ignore[import-untyped]
 from datasets import load_dataset
 from transformers import AutoTokenizer, Gemma3ForConditionalGeneration
-from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 
 from kvpress.presses.base_press import BasePress
+from kvpress.utils import QK_NORM_ATTENTION_CLASSES
 
 PATTERNS_DICT = {
     "togethercomputer/Llama-2-7B-32K-Instruct": "Llama-2-7B-32K-Instruct/lr%3D0.02-reg%3D0.05-ctx%3D1000_32000-multi_passkey10",  # noqa: E501
@@ -182,7 +181,7 @@ def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
                 # Mean query
                 q = module.self_attn.q_proj(h)
                 q = q.view(1, q.shape[1], -1, d)
-                if isinstance(module.self_attn, (Gemma3Attention, Qwen3Attention)):
+                if isinstance(module.self_attn, QK_NORM_ATTENTION_CLASSES):
                     q = module.self_attn.q_norm(q)
                 q = q.mean(dim=1, keepdim=True)
                 q = q.repeat(1, q_len, 1, 1).transpose(1, 2)
@@ -190,7 +189,7 @@ def duo_attention_on_the_fly(model, num_samples=50, q_len=500):
                 # Mean key
                 k = module.self_attn.k_proj(h)
                 k = k.view(1, k.shape[1], -1, d)
-                if isinstance(module.self_attn, (Gemma3Attention, Qwen3Attention)):
+                if isinstance(module.self_attn, QK_NORM_ATTENTION_CLASSES):
                     k = module.self_attn.k_norm(k)
                 k = k.mean(dim=1, keepdim=True)
                 k = k.repeat(1, q_len, 1, 1).transpose(1, 2)

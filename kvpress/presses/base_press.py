@@ -18,6 +18,7 @@ from transformers import (
     QuantizedCache,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
+    Qwen3MoeForCausalLM,
 )
 
 from kvpress.utils import extract_keys_and_values
@@ -30,6 +31,7 @@ SUPPORTED_MODELS = (
     Phi3ForCausalLM,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
+    Qwen3MoeForCausalLM,
     Gemma3ForConditionalGeneration,
 )
 

@@ -1,18 +1,54 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import importlib
 from unittest.mock import patch
 
 import pytest
 import torch
-from transformers import Gemma3TextConfig, LlamaConfig, Phi3Config, Qwen3Config
+from transformers import Gemma3TextConfig, LlamaConfig, Phi3Config, Qwen3Config, Qwen3MoeConfig
 from transformers.models.gemma3.modeling_gemma3 import Gemma3Attention
 from transformers.models.llama.modeling_llama import LlamaAttention, rotate_half
 from transformers.models.phi3.modeling_phi3 import Phi3Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
+from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeAttention
 
 from kvpress import CAMPress, KVzipPress, NonCausalAttnPress, ThinKPress
-from kvpress.utils import get_prerope_query_states
+from kvpress.utils import get_prerope_key_states, get_prerope_query_states
+
+
+@torch.no_grad()
+@pytest.mark.parametrize(
+    "config_cls,attention_cls",
+    [
+        (LlamaConfig, LlamaAttention),
+        (Phi3Config, Phi3Attention),
+        (Qwen3Config, Qwen3Attention),
+        (Qwen3MoeConfig, Qwen3MoeAttention),
+        (Gemma3TextConfig, Gemma3Attention),
+    ],
+    ids=["llama", "phi3", "qwen3", "qwen3_moe", "gemma3"],
+)
+def test_prerope_states_match_attention_forward(config_cls, attention_cls):
+    """Check the pre-RoPE queries and keys of the helpers against the ones computed by the attention forward."""
+    torch.manual_seed(0)
+    config = config_cls(hidden_size=32, num_attention_heads=4, num_key_value_heads=2, head_dim=8)
+    config._attn_implementation = "eager"
+    module = attention_cls(config, layer_idx=0).eval()
+    for name, param in module.named_parameters():
+        if "norm" in name:
+            # Random norm weights so that a skipped QK norm cannot go unnoticed
+            param.uniform_(0.5, 1.5)
+    hidden_states = torch.randn(2, 7, 32)
+    angles = torch.randn(2, 7, 8)
+
+    modeling = importlib.import_module(attention_cls.__module__)
+    with patch.object(modeling, "apply_rotary_pos_emb", wraps=modeling.apply_rotary_pos_emb) as rope:
+        module(hidden_states, position_embeddings=(angles.cos(), angles.sin()), attention_mask=None)
+    queries, keys = rope.call_args.args[:2]
+
+    torch.testing.assert_close(get_prerope_query_states(module, hidden_states), queries, rtol=0, atol=0)
+    torch.testing.assert_close(get_prerope_key_states(module, hidden_states), keys, rtol=0, atol=0)
 
 
 @torch.no_grad()
