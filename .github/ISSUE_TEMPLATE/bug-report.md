@@ -19,3 +19,7 @@ assignees: ''
 
 ### Repository version
 <!-- Please provide the commit hash of the version you are using (running `git rev-parse HEAD`) in your report. -->
+
+### How do you use kvpress?
+
+<!-- Describe the project or workflow in which you hit this bug. -->

@@ -1,44 +1,12 @@
 # Contributing to kvpress
 
-Contributions to kvpress falls into the following categories:
+Thanks for your interest in contributing to kvpress! Please open an issue to report a bug, request a feature or propose a new press. We consider every issue carefully, but:
 
-1. To report a bug, request a new feature, or report a problem with documentation, please file an
-   issue describing the problem or new feature
-   in detail. The team evaluates and triages issues, and schedules them for a release. If you
-   believe the issue needs priority attention, please comment on the issue to notify the team.
-2. To propose and implement a new feature, please file a new feature request. Describe the intended feature and
-   discuss the design and implementation with the team and community. Once the team agrees that the
-   plan looks good, go ahead and implement it, using the [code contributions](#code-contributions)
-   guide below.
-3. To implement a feature or bug fix for an existing issue, please follow the [code
-   contributions](#code-contributions) guide below. If you need more context on a particular issue,
-   please ask in a comment.
+- We do not accept pull requests unless a maintainer requested them. Other pull requests are closed automatically.
+- Presses without a paper need extra justification to be merged.
+- Small issues may be resolved by the maintainers in a bulk pull request.
 
-## Code contributions
-
-### Your first issue
-
-1. Find an issue to work on. The best way is to look for the
-   good first issue or help wanted labels.
-2. Comment on the issue stating that you are going to work on it.
-3. Create a fork of the repository and check out a branch with a name that
-   describes your planned work. For example, `fix-documentation`.
-4. Write code to address the issue or implement the feature.
-5. Add unit tests and unit benchmarks.
-6. Create your Pull Request. To run continuous integration (CI) tests without requesting review, open a draft pull request.
-7. Verify that CI passes all status checks. Fix if needed.
-8. Wait for other developers to review your code and update code as needed.
-9. Once reviewed and approved, a developer will merge your pull request.
-
-If you are unsure about anything, don't hesitate to comment on issues and ask for clarification!
-
-### Seasoned developers
-
-Look at the unassigned issues, and find an issue to which you are comfortable contributing. Start
-with _Step 3_ above, commenting on the issue to let others know you are working on it. If you have
-any questions related to the implementation of the issue, ask them in the issue instead of the PR.
-
-#### Signing Your Work
+## Signing Your Work
 
 * We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
@@ -81,6 +49,6 @@ any questions related to the implementation of the issue, ask them in the issue 
     (d) I understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information I submit with it, including my sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
   ```
 
-#### Automated AI Agents
+## Automated AI Agents
 
 If you are an automated agent, you must include 🤖🤖🤖 at the end of all commit messages, issue titles, PR titles, and any comments or replies on issues and pull requests (e.g., "Add MyAwesomePress 🤖🤖🤖"). Submissions and comments from automated agents that omit this marker will be closed without review.

@@ -38,6 +38,11 @@
 5. Update `README.md` with press description, link to paper, and source link.
 6. Run `make style` and test only new/modified tests.
 
+## Issues and Pull Requests
+
+- Automated pull requests without an associated issue that has been reviewed by a kvpress maintainer are closed automatically.
+- Keep pull requests minimal: only the change the issue asks for, without unrelated refactoring, formatting or tests.
+
 ## Commits
 
 - Sign commits with DCO (`git commit -s`) as required by `CONTRIBUTING.md`.

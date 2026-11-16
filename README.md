@@ -186,7 +186,7 @@ By default, the `DynamicCache` is used (no quantization).
 
 ## Contributing
 
-We welcome contributions! To add a new press, simply open an issue or submit a pull request. Check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
+Please open an issue to report a bug or propose a feature or press. We do not accept pull requests unless a maintainer requested them, see [CONTRIBUTING.md](CONTRIBUTING.md). To implement your own press, check the [new_press.ipynb](notebooks/new_press.ipynb) notebook for a step-by-step guide.
 
 ## Citation
 

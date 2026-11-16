@@ -1,0 +1,38 @@
+name: PR Policy
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  check-linked-issue:
+    # Maintainers, collaborators and bots are exempt, and a pull request reopened by a maintainer is not checked again.
+    if: >-
+      github.event.pull_request.user.type != 'Bot'
+      && !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+      && github.event.sender.login == github.event.pull_request.user.login
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    steps:
+      - name: Close pull request without an issue labelled open for PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          MESSAGE: |
+            Thanks for your interest in kvpress! We do not accept pull requests unless a maintainer requested them, so this pull request was closed automatically. To report a bug or propose a feature or press, please open an issue. See [CONTRIBUTING.md](https://github.com/NVIDIA/kvpress/blob/main/CONTRIBUTING.md).
+        run: |
+          ISSUES=$(gh pr view "$PR" --json closingIssuesReferences --jq '.closingIssuesReferences[].url')
+          for ISSUE in $ISSUES; do
+            [[ "$ISSUE" == "https://github.com/$GH_REPO/issues/"* ]] || continue
+            LABELS=$(gh issue view "$ISSUE" --json labels --jq '.labels[].name')
+            if grep -qx "open for PR" <<< "$LABELS"; then
+              echo "Linked issue $ISSUE is open for PR"
+              exit 0
+            fi
+          done
+
+          gh pr close "$PR" --comment "$MESSAGE"

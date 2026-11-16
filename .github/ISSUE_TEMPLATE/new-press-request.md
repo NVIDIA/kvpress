@@ -16,3 +16,7 @@ assignees: ''
 ### Motivation
 
 <!-- Please outline the motivation for the proposal. Is your press different from existing ones? If so, how? -->
+
+### How do you use kvpress?
+
+<!-- Describe your project, or your relation to the press (e.g. author of the paper). -->
