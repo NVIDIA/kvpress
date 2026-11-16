@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 import yaml
 from benchmarks.needle_in_haystack.utils import insert_needle_in_haystack
+from benchmarks.utils import sample_evaluation_rows
 from datasets import load_dataset
 from evaluate_registry import DATASET_REGISTRY, PRESS_REGISTRY, SCORER_REGISTRY
 from fire import Fire
@@ -336,7 +337,7 @@ class EvaluationRunner:
 
         if fraction < 1.0:
             original_len = len(df)
-            df = df.sample(frac=fraction, random_state=self.config.seed)
+            df = sample_evaluation_rows(df, fraction, self.config.seed)
             logger.info(f"Sampled {len(df)} samples ({fraction:.2f}) from original {original_len} samples.")
 
         logger.info(f"Dataset loaded with {len(df)} entries.")

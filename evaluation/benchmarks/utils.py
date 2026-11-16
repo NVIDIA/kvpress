@@ -1,6 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import pandas as pd
+
+
+def sample_evaluation_rows(df: pd.DataFrame, fraction: float, seed: int) -> pd.DataFrame:
+    """Sample rows without rounding a nonempty dataset down to zero."""
+    if df.empty:
+        return df
+    return df.sample(n=max(1, round(fraction * len(df))), random_state=seed)
+
 
 def extract_boxed(text: str, *, last: bool = False) -> str | None:
     marker = "boxed{"
