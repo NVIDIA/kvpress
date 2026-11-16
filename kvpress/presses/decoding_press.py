@@ -152,7 +152,11 @@ class DecodingPress(BasePress):
             # Apply compression using buffered hidden states for this layer
             buffered_hidden_states, cos, sin = (torch.cat(x, dim=1) for x in zip(*self.hidden_states_buffer[layer_idx]))
             buffered_kwargs = {**kwargs, "position_embeddings": (cos, sin)}
+            k_len = keys.shape[2]
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attentions, buffered_kwargs)
+            if keys.shape[2] < k_len:
+                # Masks set earlier (e.g. by an AdaKV prefilling press) index the cache before pruning
+                module.masked_key_indices = None
             logger.debug(f"Applied decoding compression: " f"keys.shape: {keys.shape}, values.shape: {values.shape}")
 
             # Update cache with compressed keys and values
