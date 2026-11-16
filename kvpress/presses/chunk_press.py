@@ -65,6 +65,11 @@ class ChunkPress(BasePress):
         kv_len = keys.shape[2]
         indices = []
         for i in range(0, kv_len, self.chunk_length):
+            if min(self.chunk_length, kv_len - i) == 1:
+                # There is no selection to make when a chunk has only one token.
+                indices.append(torch.full((*keys.shape[:2], 1), i, device=keys.device, dtype=torch.long))
+                continue
+
             # Slice the rotary embeddings so that presses recomputing queries (e.g. SnapKVPress)
             # use the positions of the chunk and not the positions at the end of the full sequence
             chunk_kwargs = kwargs
