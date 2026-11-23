@@ -1,11 +1,26 @@
 # SPDX-FileCopyrightText: Copyright (c) 1993-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import pandas as pd
 import pytest
 
 from evaluation.benchmarks.aime25.calculate_metrics import score_aime as score_aime25
 from evaluation.benchmarks.math500.calculate_metrics import score_aime as score_math500
-from evaluation.benchmarks.utils import extract_boxed
+from evaluation.benchmarks.utils import extract_boxed, sample_evaluation_rows
+
+
+def test_sample_evaluation_rows_keeps_a_single_source_row():
+    data = pd.DataFrame({"context": ["source document"]}, index=[17])
+
+    pd.testing.assert_frame_equal(sample_evaluation_rows(data, fraction=0.5, seed=42), data)
+
+
+def test_sample_evaluation_rows_preserves_seeded_fractional_sampling():
+    data = pd.DataFrame({"context": range(10)})
+
+    expected = data.sample(frac=0.3, random_state=42)
+
+    pd.testing.assert_frame_equal(sample_evaluation_rows(data, fraction=0.3, seed=42), expected)
 
 
 @pytest.mark.parametrize(

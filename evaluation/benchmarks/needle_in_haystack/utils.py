@@ -51,11 +51,12 @@ def insert_needle_in_haystack(
     """
 
     # Store the original context and needle to be reused for each depth
-    original_context = df["context"][0]
-    needle_text = needle_text or df["needle"][0]
-    question_text = question_text or df["question"][0]
-    answer_prefix = answer_prefix or df["answer_prefix"][0]
-    max_new_tokens = df["max_new_tokens"][0]
+    first_row = df.iloc[0]
+    original_context = first_row["context"]
+    needle_text = needle_text or first_row["needle"]
+    question_text = question_text or first_row["question"]
+    answer_prefix = answer_prefix or first_row["answer_prefix"]
+    max_new_tokens = first_row["max_new_tokens"]
 
     logger.info(f"Preparing dataset for inference. Needle: {needle_text}")
     tokenized_needle = tokenizer.encode(needle_text, add_special_tokens=False)
