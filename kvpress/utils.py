@@ -129,8 +129,10 @@ def get_prerope_key_states(module: nn.Module, hidden_states: torch.Tensor) -> to
 
 
 def dequantize_layer(cache_layer) -> tuple[torch.Tensor, torch.Tensor]:
-    keys = cache_layer._dequantize(cache_layer._quantized_keys)
-    values = cache_layer._dequantize(cache_layer._quantized_values)
+    # The most recent tokens are kept in full precision (cache_layer.keys and cache_layer.values) until
+    # residual_length is reached, they follow the quantized ones as in QuantizedLayer.update
+    keys = torch.cat([cache_layer._dequantize(cache_layer._quantized_keys), cache_layer.keys], dim=-2)
+    values = torch.cat([cache_layer._dequantize(cache_layer._quantized_values), cache_layer.values], dim=-2)
     return keys, values
 
 
