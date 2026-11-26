@@ -125,6 +125,7 @@ def attention_patch(func, *, is_sdpa: bool = False):
     """
     Decorator to update the keys before the attention computation at the indices provided in module.masked_key_indices
     The keys are updated with a fake key k whose scaled attention weight underflows to zero
+    The fake keys are written to a copy of the keys, so the cache keeps the keys of the masked tokens
     This solution is not optimal as it does not reduce peak memory and slightly increases runtime
 
     Parameters
@@ -159,9 +160,10 @@ def attention_patch(func, *, is_sdpa: bool = False):
             k = search_hyperplane(q)
             k = k.view(bsz, num_key_value_heads, head_dim)
 
-            # At indices, update the keys to the fake keys
+            # At indices, update the keys to the fake keys. Out of place: a press that compresses the cache
+            # again (e.g. DecodingPress) must score the tokens' keys, not the fake keys.
             batch_indices, head_indices, seq_indices = module.masked_key_indices
-            key[batch_indices, head_indices, seq_indices] = k[batch_indices, head_indices]
+            key = key.index_put((batch_indices, head_indices, seq_indices), k[batch_indices, head_indices])
 
         if isinstance(attention_mask, torch.Tensor) and attention_mask.ndim == 4 and attention_mask.shape[-1] != 1:
             # The shared mask uses the first layer's cache length. New query tokens

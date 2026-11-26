@@ -295,6 +295,9 @@ class CAMPress(DecodingPress):
             buffered_hidden_states, cos, sin = (torch.cat(x, dim=1) for x in zip(*self.hidden_states_buffer[layer_idx]))
             buffered_kwargs = {**kwargs, "position_embeddings": (cos, sin)}
             keys, values = self.compress(module, buffered_hidden_states, keys, values, attn_squeezed, buffered_kwargs)
+            if keys.shape[2] < seq_len:
+                # Masks set earlier (e.g. by an AdaKV prefilling press) index the cache before pruning
+                module.masked_key_indices = None
 
             # Update cache with compressed keys and values
             if isinstance(cache, QuantizedCache):
