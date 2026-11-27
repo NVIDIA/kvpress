@@ -20,7 +20,7 @@ dependencies = [
     "peft>=0.20.0",
     "requests>=2.32.3,<3",
     "cachetools>=5.5.2,<6",
-    "fire>=0.6.0,<0.7",
+    "fire>=0.7.0,<0.8",
 ]
 
 [project.optional-dependencies]
